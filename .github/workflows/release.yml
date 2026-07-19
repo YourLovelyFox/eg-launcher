@@ -60,7 +60,10 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           # Avoid interactive npm script prompts
           CI: 'true'
-        run: npm run dist
+        # --publish never: package only. softprops/action-gh-release creates the Release.
+        # Without this, electron-builder reads package.json "publish.provider=github"
+        # and fails with "GH_TOKEN is not set".
+        run: npm run dist -- --publish never
 
       - name: List release artifacts
         shell: bash

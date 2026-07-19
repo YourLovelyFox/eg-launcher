@@ -12,8 +12,8 @@
     "preview": "vite preview",
     "start": "electron .",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
-    "dist": "npm run build && electron-builder --win --x64 --config.win.signAndEditExecutable=false",
-    "dist:dir": "npm run build && electron-builder --win --dir --x64 --config.win.signAndEditExecutable=false"
+    "dist": "npm run build && electron-builder --win --x64 --config.win.signAndEditExecutable=false --publish never",
+    "dist:dir": "npm run build && electron-builder --win --dir --x64 --config.win.signAndEditExecutable=false --publish never"
   },
   "build": {
     "appId": "com.eg.launcher",
