@@ -13,7 +13,8 @@
     "start": "electron .",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "dist": "npm run build && electron-builder --win --x64 --config.win.signAndEditExecutable=false --publish never",
-    "dist:dir": "npm run build && electron-builder --win --dir --x64 --config.win.signAndEditExecutable=false --publish never"
+    "dist:dir": "npm run build && electron-builder --win --dir --x64 --config.win.signAndEditExecutable=false --publish never",
+    "dist:linux": "npm run build && electron-builder --linux AppImage tar.gz --x64 --publish never"
   },
   "build": {
     "appId": "com.eg.launcher",
@@ -50,6 +51,20 @@
     },
     "portable": {
       "artifactName": "EG-Launcher-${version}-win-x64-portable.exe"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "tar.gz",
+          "arch": ["x64"]
+        }
+      ],
+      "category": "Game",
+      "artifactName": "EG-Launcher-${version}-linux-${arch}.${ext}"
     },
     "asar": true
   },

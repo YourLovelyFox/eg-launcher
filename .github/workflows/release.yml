@@ -1,4 +1,4 @@
-name: Build & Release (Windows)
+name: Build & Release
 
 on:
   # Automatic: push a version tag like v1.0.1
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version without v prefix (e.g. 1.0.1). Leave empty to use package.json.'
+        description: 'Release version without v prefix (e.g. 1.0.0). Leave empty to use package.json. Existing releases with the same tag are updated.'
         required: false
         type: string
 
@@ -21,23 +21,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-windows:
-    name: Build Windows x64
-    runs-on: windows-latest
-    timeout-minutes: 45
-
+  resolve-version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Resolve release version
         id: ver
@@ -52,8 +44,29 @@ jobs:
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Resolved version: ${VERSION}"
-          npm version "${VERSION}" --no-git-tag-version --allow-same-version
+          echo "Resolved version: ${VERSION} (tag v${VERSION})"
+
+  build-windows:
+    name: Build Windows x64
+    needs: resolve-version
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set package version
+        shell: bash
+        run: npm version "${{ needs.resolve-version.outputs.version }}" --no-git-tag-version --allow-same-version
 
       - name: Build app (Vite + Electron compile)
         run: npm run build
@@ -62,19 +75,15 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           CI: 'true'
-          # Belt-and-suspenders: electron-builder accepts GITHUB_TOKEN or GH_TOKEN
-          # if publish is ever re-enabled. Releases are created by softprops below.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Invoke electron-builder directly (not via npm script) so flags are reliable on Windows.
-        # publish: null in package.json + --publish never => package only, no GitHub upload.
         run: npx electron-builder --win --x64 --config.win.signAndEditExecutable=false --publish never
 
-      - name: List release artifacts
+      - name: List artifacts
         shell: bash
-        run: ls -la release || dir release
+        run: ls -la release
 
-      - name: Upload build artifacts (workflow)
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: eg-launcher-windows-x64
@@ -84,17 +93,78 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Publish GitHub Release
+  build-linux:
+    name: Build Linux x64
+    needs: resolve-version
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set package version
+        run: npm version "${{ needs.resolve-version.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      - name: Build app (Vite + Electron compile)
+        run: npm run build
+
+      - name: Package Linux (electron-builder)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CI: 'true'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # AppImage + tar.gz — portable, no extra fpm/rpm tooling required
+        run: npx electron-builder --linux AppImage tar.gz --x64 --publish never
+
+      - name: List artifacts
+        run: ls -la release
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: eg-launcher-linux-x64
+          path: |
+            release/*.AppImage
+            release/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-release:
+    name: Publish / update GitHub Release
+    needs: [resolve-version, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List files to publish
+        run: find artifacts -type f | sort
+
+      - name: Publish or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.ver.outputs.tag }}
-          name: EG Launcher ${{ steps.ver.outputs.version }}
+          # Same tag as existing v1.0.0 → assets are added/updated on that release
+          tag_name: ${{ needs.resolve-version.outputs.tag }}
+          name: EG Launcher ${{ needs.resolve-version.outputs.version }}
           generate_release_notes: true
           draft: false
-          prerelease: ${{ contains(steps.ver.outputs.version, '-') }}
-          files: |
-            release/*.zip
-            release/*.exe
-          fail_on_unmatched_files: false
+          prerelease: ${{ contains(needs.resolve-version.outputs.version, '-') }}
+          files: artifacts/*
+          fail_on_unmatched_files: true
+          # softprops uploads/replaces assets on an existing release for this tag
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
