@@ -380,6 +380,60 @@ a:hover {
   overflow: auto;
 }
 
+.update-notes-html {
+  white-space: normal;
+}
+
+.update-notes-html p {
+  margin: 0 0 0.55em;
+}
+
+.update-notes-html p:last-child {
+  margin-bottom: 0;
+}
+
+.update-notes-html h3,
+.update-notes-html h4 {
+  margin: 0.4em 0 0.35em;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.update-notes-html ul,
+.update-notes-html ol {
+  margin: 0.25em 0 0.6em 1.15em;
+  padding: 0;
+}
+
+.update-notes-html li {
+  margin: 0.2em 0;
+}
+
+.update-notes-html a {
+  color: var(--blue);
+  word-break: break-all;
+}
+
+.update-notes-html a:hover {
+  text-decoration: underline;
+}
+
+.update-notes-html strong,
+.update-notes-html b {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.update-notes-html code,
+.update-notes-html tt {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 0.05em 0.3em;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .update-modal-actions {
   display: flex;
   justify-content: flex-end;

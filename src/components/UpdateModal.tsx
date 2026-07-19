@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { UpdateStatus } from '../../shared/types'
 
 function formatBytes(n: number): string {
@@ -9,52 +9,103 @@ function formatBytes(n: number): string {
   return `${n} B`
 }
 
-/** Turn GitHub HTML / markdown release notes into plain readable text. */
-function stripNotes(text: string | null | undefined): string {
-  if (!text) return ''
-  let s = text.replace(/\r\n/g, '\n')
+/**
+ * Sanitize release-note HTML from GitHub / electron-updater.
+ * Allows common formatting tags only; drops scripts and event handlers.
+ */
+function sanitizeReleaseHtml(input: string): string {
+  let s = input.replace(/\r\n/g, '\n')
 
-  // Prefer extracting link labels before stripping tags
-  s = s.replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, href, label) => {
-    const t = String(label)
-      .replace(/<[^>]+>/g, '')
-      .replace(/<\/?tt>/gi, '')
+  // Remove dangerous blocks entirely
+  s = s
+    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[\s\S]*?<\/style>/gi, '')
+    .replace(/<iframe\b[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object\b[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed\b[^>]*>/gi, '')
+    .replace(/\son\w+\s*=\s*(".*?"|'.*?'|[^\s>]+)/gi, '')
+    .replace(/(href|src)\s*=\s*(['"])\s*javascript:[^'"]*\2/gi, '$1="#"')
+
+  // Drop disallowed tags but keep their text content
+  s = s.replace(
+    /<\/?(?!\/?(?:p|br|hr|strong|b|em|i|u|ul|ol|li|a|h[1-6]|code|pre|tt|blockquote|span|div|table|thead|tbody|tr|th|td)\b)[a-z][a-z0-9]*\b[^>]*>/gi,
+    '',
+  )
+
+  return s.trim()
+}
+
+/** If notes are plain markdown (no HTML), convert a useful subset to HTML. */
+function markdownToHtml(md: string): string {
+  let s = md.trim()
+  if (!s) return ''
+
+  // Escape HTML first
+  s = s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+  // Headings
+  s = s.replace(/^### (.+)$/gm, '<h4>$1</h4>')
+  s = s.replace(/^## (.+)$/gm, '<h3>$1</h3>')
+  s = s.replace(/^# (.+)$/gm, '<h3>$1</h3>')
+
+  // Bold / code (apply bold before single-asterisk italic)
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  s = s.replace(/__(.+?)__/g, '<strong>$1</strong>')
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>')
+  s = s.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>')
+
+  // Links [text](url)
+  s = s.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+    '<a href="$2" rel="noreferrer noopener">$1</a>',
+  )
+
+  // Unordered list blocks
+  s = s.replace(/(?:^|\n)((?:[-*] .+(?:\n|$))+)/g, (block) => {
+    const items = block
       .trim()
-    return t || String(href)
+      .split('\n')
+      .map((line) => line.replace(/^[-*] /, '').trim())
+      .filter(Boolean)
+      .map((item) => `<li>${item}</li>`)
+      .join('')
+    return `\n<ul>${items}</ul>\n`
   })
 
-  // Block tags → newlines
+  // Paragraphs: split on blank lines (skip lines that already became blocks)
   s = s
-    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
-    .replace(/<(br|hr)\s*\/?>/gi, '\n')
-    .replace(/<li[^>]*>/gi, '• ')
-    .replace(/<[^>]+>/g, '')
-
-  // Entities
-  s = s
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-
-  // Light markdown cleanup
-  s = s
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/__(.*?)__/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
+    .split(/\n{2,}/)
+    .map((chunk) => {
+      const t = chunk.trim()
+      if (!t) return ''
+      if (/^<(h[1-6]|ul|ol|pre|blockquote)/i.test(t)) return t
+      return `<p>${t.replace(/\n/g, '<br/>')}</p>`
+    })
+    .filter(Boolean)
+    .join('\n')
 
   return s
 }
 
+/** Build safe HTML for the What's new panel. */
+function notesToSafeHtml(text: string | null | undefined): string {
+  if (!text) return ''
+  const raw = text.trim()
+  if (!raw) return ''
+
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(raw)
+  if (looksLikeHtml) {
+    return sanitizeReleaseHtml(raw)
+  }
+  return sanitizeReleaseHtml(markdownToHtml(raw))
+}
+
 /**
- * Listens for electron-updater events. Shows a confirm dialog when a new
- * NSIS / AppImage release is available — never downloads until the user agrees.
+ * Update dialog — confirms before download/install.
+ * "What's new" renders sanitized HTML (GitHub notes + our CHANGELOG body).
  */
 export function UpdateModal() {
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' })
@@ -66,7 +117,11 @@ export function UpdateModal() {
     return window.hive.updater.onStatus(setStatus)
   }, [])
 
-  // Only show modal when there is something to act on (or an error)
+  const notesHtml = useMemo(() => {
+    if (status.state !== 'available' && status.state !== 'ready') return ''
+    return notesToSafeHtml(status.releaseNotes)
+  }, [status])
+
   const hiddenByDismiss =
     status.state === 'available' && dismissedVersion === status.version
 
@@ -129,13 +184,16 @@ export function UpdateModal() {
           )}
         </div>
 
-        {(status.state === 'available' || status.state === 'ready') &&
-          stripNotes(status.releaseNotes) && (
-            <div className="update-notes">
-              <div className="meta-label">What&apos;s new</div>
-              <pre className="update-notes-body">{stripNotes(status.releaseNotes)}</pre>
-            </div>
-          )}
+        {(status.state === 'available' || status.state === 'ready') && notesHtml && (
+          <div className="update-notes">
+            <div className="meta-label">What&apos;s new</div>
+            <div
+              className="update-notes-body update-notes-html"
+              // Sanitized above — only allowlisted tags from GitHub/CHANGELOG content we publish.
+              dangerouslySetInnerHTML={{ __html: notesHtml }}
+            />
+          </div>
+        )}
 
         {status.state === 'downloading' && (
           <div className="featured-progress" style={{ marginTop: 12 }}>

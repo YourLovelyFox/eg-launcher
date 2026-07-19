@@ -209,12 +209,25 @@ jobs:
           echo "${{ needs.resolve-version.outputs.skip_reason }}"
           echo "Release ${{ needs.resolve-version.outputs.tag }} installers are frozen (same SHA forever until force_rebuild)."
 
+      - name: Checkout (for CHANGELOG.md)
+        if: needs.resolve-version.outputs.needs_build == 'true'
+        uses: actions/checkout@v4
+
       - name: Download all build artifacts
         if: needs.resolve-version.outputs.needs_build == 'true'
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+
+      - name: Build release notes from CHANGELOG.md
+        if: needs.resolve-version.outputs.needs_build == 'true'
+        id: notes
+        shell: bash
+        run: |
+          node scripts/extract-changelog.mjs "${{ needs.resolve-version.outputs.version }}" release-notes.md
+          echo "---- release-notes.md ----"
+          cat release-notes.md
 
       - name: List files + SHA-256
         if: needs.resolve-version.outputs.needs_build == 'true'
@@ -229,7 +242,9 @@ jobs:
         with:
           tag_name: ${{ needs.resolve-version.outputs.tag }}
           name: EG Launcher ${{ needs.resolve-version.outputs.version }}
-          generate_release_notes: true
+          # Human changelog from CHANGELOG.md (not only auto-generated compare links)
+          body_path: release-notes.md
+          generate_release_notes: false
           draft: false
           prerelease: ${{ contains(needs.resolve-version.outputs.version, '-') }}
           # NSIS setup + AppImage + latest.yml / latest-linux.yml

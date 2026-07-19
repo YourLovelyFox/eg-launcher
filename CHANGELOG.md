@@ -1,0 +1,58 @@
+# Changelog
+
+All notable changes to **EG Launcher** are documented here.
+
+Format: each release section is published as the GitHub Release body (and shown in the in-app update dialog).
+
+---
+
+## [1.0.4] — 2026-07-19
+
+### Added
+- Proper **What's new** display in the update dialog (renders HTML / formatted notes).
+- **CHANGELOG.md** as the source of release notes for every published version.
+
+### Fixed
+- Update dialog no longer shows raw HTML tags from GitHub release notes.
+
+---
+
+## [1.0.3] — 2026-07-19
+
+### Fixed
+- Attempted cleanup of update dialog release notes (plain-text stripping).
+
+### Changed
+- Version bump for auto-update testing.
+
+---
+
+## [1.0.2] — 2026-07-19
+
+### Added
+- Version bump to test **NSIS / AppImage auto-update** from 1.0.1 clients.
+
+---
+
+## [1.0.1] — 2026-07-19
+
+### Added
+- **Partners** menu with **Horizons SMP** (Fabric 1.21.11, default mods, server `play.horizons-smp.com`).
+- **Auto-update** via GitHub Releases (NSIS on Windows, AppImage on Linux) with user confirmation.
+- Release workflow that freezes installer hashes per version (unless force rebuild).
+
+### Changed
+- Windows release target: **NSIS** setup for auto-update support.
+- Linux release target: **AppImage**.
+
+---
+
+## [1.0.0] — 2026-07-19
+
+### Added
+- Initial public release of EG Launcher.
+- Microsoft account login (required to play).
+- Modrinth mod browse / install with dependencies.
+- Instances: Vanilla, Fabric, Forge, NeoForge.
+- Permanent featured pack: **Bee's SMP**.
+- Windows and Linux builds via GitHub Actions.
