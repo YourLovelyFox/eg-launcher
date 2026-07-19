@@ -55,15 +55,20 @@ jobs:
           echo "Resolved version: ${VERSION}"
           npm version "${VERSION}" --no-git-tag-version --allow-same-version
 
-      - name: Build Windows package
+      - name: Build app (Vite + Electron compile)
+        run: npm run build
+
+      - name: Package Windows (electron-builder)
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-          # Avoid interactive npm script prompts
           CI: 'true'
-        # --publish never: package only. softprops/action-gh-release creates the Release.
-        # Without this, electron-builder reads package.json "publish.provider=github"
-        # and fails with "GH_TOKEN is not set".
-        run: npm run dist -- --publish never
+          # Belt-and-suspenders: electron-builder accepts GITHUB_TOKEN or GH_TOKEN
+          # if publish is ever re-enabled. Releases are created by softprops below.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Invoke electron-builder directly (not via npm script) so flags are reliable on Windows.
+        # publish: null in package.json + --publish never => package only, no GitHub upload.
+        run: npx electron-builder --win --x64 --config.win.signAndEditExecutable=false --publish never
 
       - name: List release artifacts
         shell: bash

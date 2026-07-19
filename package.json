@@ -31,10 +31,7 @@
       "main": "dist-electron/main.js"
     },
     "forceCodeSigning": false,
-    "publish": {
-      "provider": "github",
-      "releaseType": "release"
-    },
+    "publish": null,
     "win": {
       "signAndEditExecutable": false,
       "signDlls": false,
