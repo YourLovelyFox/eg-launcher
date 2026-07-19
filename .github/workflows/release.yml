@@ -1,7 +1,7 @@
 name: Build & Release
 
 on:
-  # Automatic: push a version tag like v1.0.1
+  # Automatic: push a version tag like v1.0.2
   push:
     tags:
       - 'v*'
@@ -9,9 +9,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version without v prefix (e.g. 1.0.1). Leave empty to use package.json. Existing releases with the same tag are updated.'
+        description: 'Release version without v prefix (e.g. 1.0.2). Leave empty to use package.json.'
         required: false
         type: string
+      force_rebuild:
+        description: 'Force rebuild & REPLACE binaries (changes file HASH and resets SmartScreen reputation). Keep OFF for normal releases.'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -27,14 +32,20 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.version }}
       tag: ${{ steps.ver.outputs.tag }}
+      needs_build: ${{ steps.ver.outputs.needs_build }}
+      skip_reason: ${{ steps.ver.outputs.skip_reason }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve release version
+      - name: Resolve release version & hash-freeze check
         id: ver
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
           elif [[ -n "${{ inputs.version }}" ]]; then
@@ -42,13 +53,50 @@ jobs:
           else
             VERSION="$(node -p "require('./package.json').version")"
           fi
+
+          TAG="v${VERSION}"
+          # workflow_dispatch may set force_rebuild; tag pushes leave it empty → false
+          FORCE="${{ inputs.force_rebuild }}"
+          if [[ -z "${FORCE}" || "${FORCE}" == "null" ]]; then FORCE="false"; fi
+
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Resolved version: ${VERSION} (tag v${VERSION})"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${VERSION} (tag ${TAG}), force_rebuild=${FORCE}"
+
+          # If this version already has installer assets, do NOT rebuild by default.
+          # Re-uploading the same filename with a new binary changes SHA-256 and resets
+          # SmartScreen / reputation for that "EG Launcher x.y.z" file — like other indie
+          # apps, ship each version ONCE and leave the hash frozen.
+          HAS_WIN="false"
+          HAS_LINUX="false"
+          if gh release view "${TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            ASSETS="$(gh release view "${TAG}" --repo "${{ github.repository }}" --json assets -q '.assets[].name' 2>/dev/null || true)"
+            echo "Existing release assets:"
+            echo "${ASSETS}"
+            if echo "${ASSETS}" | grep -qiE 'setup\.exe$|\.exe$'; then HAS_WIN="true"; fi
+            if echo "${ASSETS}" | grep -qiE '\.AppImage$'; then HAS_LINUX="true"; fi
+          else
+            echo "No release for ${TAG} yet."
+          fi
+
+          if [[ "${FORCE}" != "true" && "${HAS_WIN}" == "true" && "${HAS_LINUX}" == "true" ]]; then
+            echo "needs_build=false" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=Release ${TAG} already has Windows+Linux installers. Hash frozen. Use force_rebuild only if you intentionally want a new hash." >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping rebuild — preserving installer hashes for ${TAG}"
+          else
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+            if [[ "${FORCE}" == "true" && ("${HAS_WIN}" == "true" || "${HAS_LINUX}" == "true") ]]; then
+              echo "skip_reason=force_rebuild: will REPLACE existing assets (new hash)." >> "$GITHUB_OUTPUT"
+              echo "::warning::force_rebuild is ON — SmartScreen file reputation for this version will reset."
+            else
+              echo "skip_reason=" >> "$GITHUB_OUTPUT"
+            fi
+          fi
 
   build-windows:
     name: Build Windows x64 (NSIS)
     needs: resolve-version
+    if: needs.resolve-version.outputs.needs_build == 'true'
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -77,12 +125,15 @@ jobs:
           CI: 'true'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Generates setup .exe + latest.yml (+ .blockmap) for electron-updater
+        # One NSIS setup per version + latest.yml for electron-updater
         run: npx electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never
 
-      - name: List artifacts
+      - name: List artifacts + SHA-256 (freeze this hash)
         shell: bash
-        run: ls -la release
+        run: |
+          ls -la release
+          echo "=== SHA-256 (publish once, do not replace) ==="
+          sha256sum release/*.{exe,yml,blockmap} 2>/dev/null || shasum -a 256 release/* || true
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -98,6 +149,7 @@ jobs:
   build-linux:
     name: Build Linux x64 (AppImage)
     needs: resolve-version
+    if: needs.resolve-version.outputs.needs_build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -125,11 +177,13 @@ jobs:
           CI: 'true'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Generates .AppImage + latest-linux.yml for electron-updater
         run: npx electron-builder --linux AppImage --x64 --publish never
 
-      - name: List artifacts
-        run: ls -la release
+      - name: List artifacts + SHA-256 (freeze this hash)
+        run: |
+          ls -la release
+          echo "=== SHA-256 (publish once, do not replace) ==="
+          sha256sum release/*.{AppImage,yml,blockmap} 2>/dev/null || sha256sum release/* || true
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -143,20 +197,34 @@ jobs:
           retention-days: 14
 
   publish-release:
-    name: Publish / update GitHub Release
+    name: Publish GitHub Release
     needs: [resolve-version, build-windows, build-linux]
+    # Run when we built, or when we skipped (to report freeze)
+    if: always() && needs.resolve-version.result == 'success' && (needs.resolve-version.outputs.needs_build != 'true' || (needs.build-windows.result == 'success' && needs.build-linux.result == 'success'))
     runs-on: ubuntu-latest
     steps:
+      - name: Hash frozen — nothing to upload
+        if: needs.resolve-version.outputs.needs_build != 'true'
+        run: |
+          echo "${{ needs.resolve-version.outputs.skip_reason }}"
+          echo "Release ${{ needs.resolve-version.outputs.tag }} installers are frozen (same SHA forever until force_rebuild)."
+
       - name: Download all build artifacts
+        if: needs.resolve-version.outputs.needs_build == 'true'
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
-      - name: List files to publish
-        run: find artifacts -type f | sort
+      - name: List files + SHA-256
+        if: needs.resolve-version.outputs.needs_build == 'true'
+        run: |
+          find artifacts -type f | sort
+          echo "=== SHA-256 ==="
+          find artifacts -type f -print0 | xargs -0 sha256sum
 
-      - name: Publish or update GitHub Release
+      - name: Publish GitHub Release (first publish of this version)
+        if: needs.resolve-version.outputs.needs_build == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.resolve-version.outputs.tag }}
@@ -164,7 +232,8 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(needs.resolve-version.outputs.version, '-') }}
-          # NSIS setup + AppImage + latest.yml / latest-linux.yml for auto-update
+          # NSIS setup + AppImage + latest.yml / latest-linux.yml
+          # IMPORTANT: Do not re-run with force_rebuild for the same version unless necessary.
           files: artifacts/*
           fail_on_unmatched_files: true
           make_latest: true

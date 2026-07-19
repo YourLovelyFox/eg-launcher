@@ -46,6 +46,7 @@
       "signAndEditExecutable": false,
       "signDlls": false,
       "verifyUpdateCodeSignature": false,
+      "requestedExecutionLevel": "asInvoker",
       "target": [
         {
           "target": "nsis",
@@ -65,6 +66,11 @@
       "createStartMenuShortcut": true,
       "shortcutName": "EG Launcher",
       "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "unicode": true,
+      "installerLanguages": ["en_US"],
+      "displayLanguageSelector": false,
+      "packElevateHelper": true,
       "artifactName": "EG-Launcher-${version}-win-x64-setup.${ext}"
     },
     "linux": {
