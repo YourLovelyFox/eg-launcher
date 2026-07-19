@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { APP_NAME, APP_TAGLINE, FEATURED_PACK } from '../../shared/branding'
+import { APP_NAME, APP_TAGLINE, FEATURED_PACK, PARTNERS } from '../../shared/branding'
+import horizonsIcon from '../assets/horizons-smp.png'
 import { useAppStore } from '../store'
 import {
   IconCube,
@@ -12,6 +13,7 @@ import {
   IconUser,
 } from './Icons'
 import { PlayerHeadWithFallback } from './PlayerHead'
+import { UpdateModal } from './UpdateModal'
 
 export function Layout() {
   const navigate = useNavigate()
@@ -78,6 +80,24 @@ export function Layout() {
             >
               <IconPack />
               {FEATURED_PACK.menuLabel}
+            </NavLink>
+          </div>
+
+          <div className="nav-section">
+            <div className="nav-label">Partners</div>
+            <NavLink
+              to="/partners/horizons-smp"
+              className={({ isActive }) => `nav-item nav-partner${isActive ? ' active' : ''}`}
+            >
+              <img
+                src={horizonsIcon}
+                alt=""
+                className="nav-partner-icon"
+                width={18}
+                height={18}
+                draggable={false}
+              />
+              {PARTNERS.horizonsSmp.menuLabel}
             </NavLink>
           </div>
 
@@ -171,6 +191,8 @@ export function Layout() {
           {toast.message}
         </div>
       )}
+
+      <UpdateModal />
     </div>
   )
 }

@@ -13,6 +13,8 @@ import type {
   ModrinthVersion,
   ProgressEvent,
   RunningGameInfo,
+  UpdateStatus,
+  AppVersionInfo,
 } from '../shared/types'
 
 const api = {
@@ -140,6 +142,31 @@ const api = {
       ipcRenderer.on('featured:installProgress', listener)
       return () => {
         ipcRenderer.removeListener('featured:installProgress', listener)
+      }
+    },
+  },
+  partners: {
+    getStatus: (id: string) => ipcRenderer.invoke('partners:status', id),
+    install: (id: string) => ipcRenderer.invoke('partners:install', id),
+    onInstallProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
+      const listener = (_: unknown, event: ProgressEvent) => cb(event)
+      ipcRenderer.on('partners:installProgress', listener)
+      return () => {
+        ipcRenderer.removeListener('partners:installProgress', listener)
+      }
+    },
+  },
+  updater: {
+    getStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:getStatus'),
+    getVersion: (): Promise<AppVersionInfo> => ipcRenderer.invoke('updater:getVersion'),
+    check: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:check'),
+    download: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:download'),
+    install: (): Promise<boolean> => ipcRenderer.invoke('updater:install'),
+    onStatus: (cb: (status: UpdateStatus) => void): (() => void) => {
+      const listener = (_: unknown, status: UpdateStatus) => cb(status)
+      ipcRenderer.on('updater:status', listener)
+      return () => {
+        ipcRenderer.removeListener('updater:status', listener)
       }
     },
   },

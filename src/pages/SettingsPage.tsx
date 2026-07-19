@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { LauncherSettings } from '../../shared/types'
+import type { AppVersionInfo, LauncherSettings, UpdateStatus } from '../../shared/types'
 import { useAppStore } from '../store'
 
 export function SettingsPage() {
@@ -7,6 +7,9 @@ export function SettingsPage() {
   const [form, setForm] = useState<LauncherSettings | null>(settings)
   const [javaInfo, setJavaInfo] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  const [versionInfo, setVersionInfo] = useState<AppVersionInfo | null>(null)
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
 
   useEffect(() => {
     setForm(settings)
@@ -21,6 +24,33 @@ export function SettingsPage() {
       setJavaInfo(v ? `Detected: Java ${v}` : 'Could not read Java version')
     })
   }, [form?.javaPath])
+
+  useEffect(() => {
+    window.hive.updater.getVersion().then(setVersionInfo).catch(() => undefined)
+    window.hive.updater.getStatus().then(setUpdateStatus).catch(() => undefined)
+    return window.hive.updater.onStatus(setUpdateStatus)
+  }, [])
+
+  async function checkUpdates() {
+    setCheckingUpdate(true)
+    try {
+      const status = await window.hive.updater.check()
+      setUpdateStatus(status)
+      if (status.state === 'available') {
+        showToast('success', `Update ${status.version} available`)
+      } else if (status.state === 'unavailable') {
+        showToast('success', 'You are on the latest version')
+      } else if (status.state === 'error') {
+        showToast('error', status.message)
+      } else if (status.state === 'ready') {
+        showToast('success', `Update ${status.version} ready to install`)
+      }
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
 
   if (!form) {
     return (
@@ -156,6 +186,66 @@ export function SettingsPage() {
           />
           Automatically install required mod dependencies
         </label>
+      </div>
+
+      <div className="panel">
+        <h2>Updates</h2>
+        <p className="hint">
+          EG Launcher checks GitHub Releases for new versions. Windows uses the NSIS installer;
+          Linux uses the AppImage. Nothing downloads until you confirm.
+        </p>
+        <div className="form-grid">
+          <div className="form-row">
+            <label>Installed version</label>
+            <div className="muted">
+              v{versionInfo?.version || '…'}
+              {versionInfo && !versionInfo.isPackaged ? ' (dev build — auto-update disabled)' : ''}
+              {versionInfo ? ` · ${versionInfo.platform}/${versionInfo.arch}` : ''}
+            </div>
+          </div>
+          <div className="form-row">
+            <label>Status</label>
+            <div className="muted">
+              {updateStatus.state === 'idle' && 'Not checked yet'}
+              {updateStatus.state === 'checking' && 'Checking…'}
+              {updateStatus.state === 'unavailable' && 'Up to date'}
+              {updateStatus.state === 'available' && `Update ${updateStatus.version} available`}
+              {updateStatus.state === 'downloading' &&
+                `Downloading ${updateStatus.version}… ${Math.round(updateStatus.percent)}%`}
+              {updateStatus.state === 'ready' &&
+                `Update ${updateStatus.version} ready — restart to install`}
+              {updateStatus.state === 'error' && `Error: ${updateStatus.message}`}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={checkUpdates}
+            disabled={checkingUpdate}
+          >
+            {checkingUpdate ? 'Checking…' : 'Check for updates'}
+          </button>
+          {updateStatus.state === 'available' && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => window.hive.updater.download()}
+            >
+              Download & install
+            </button>
+          )}
+          {updateStatus.state === 'ready' && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => window.hive.updater.install()}
+            >
+              Restart & install
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

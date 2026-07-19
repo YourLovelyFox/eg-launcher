@@ -182,6 +182,44 @@ export type RunningGameInfo = {
   startedAt: string | null
 }
 
+/** electron-updater status pushed to the renderer */
+export type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'unavailable'; currentVersion: string }
+  | {
+      state: 'available'
+      currentVersion: string
+      version: string
+      releaseName: string | null
+      releaseNotes: string | null
+      releaseDate: string | null
+    }
+  | {
+      state: 'downloading'
+      currentVersion: string
+      version: string
+      percent: number
+      bytesPerSecond: number
+      transferred: number
+      total: number
+    }
+  | {
+      state: 'ready'
+      currentVersion: string
+      version: string
+      releaseName: string | null
+      releaseNotes: string | null
+    }
+  | { state: 'error'; message: string; currentVersion: string }
+
+export type AppVersionInfo = {
+  version: string
+  isPackaged: boolean
+  platform: string
+  arch: string
+}
+
 export type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string }

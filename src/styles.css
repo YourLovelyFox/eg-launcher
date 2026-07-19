@@ -254,6 +254,140 @@ a:hover {
   border-color: rgba(255, 200, 87, 0.2);
 }
 
+.nav-partner-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.nav-partner.active {
+  background: linear-gradient(135deg, rgba(106, 168, 255, 0.14), rgba(61, 255, 176, 0.06));
+  color: var(--blue);
+  border-color: rgba(106, 168, 255, 0.22);
+}
+
+.partner-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.partner-hero-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.partner-glow {
+  opacity: 0.55;
+}
+
+.partner-steps {
+  margin: 10px 0 0 1.2em;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.partner-steps li::marker {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.partner-steps .mono,
+.featured-meta .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.partner-mods-panel {
+  margin-top: 16px;
+}
+
+.partner-mods-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.partner-mods-header h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+
+.partner-mods-list {
+  margin-top: 4px;
+}
+
+.partner-mod-row {
+  gap: 12px;
+}
+
+/* ========== Launcher auto-update modal ========== */
+.update-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(6, 8, 12, 0.62);
+  backdrop-filter: blur(6px);
+}
+
+.update-modal {
+  width: min(440px, 100%);
+  max-height: min(80vh, 640px);
+  overflow: auto;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+
+.update-modal-head h2 {
+  margin: 8px 0 6px;
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
+}
+
+.update-notes {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-soft);
+}
+
+.update-notes-body {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.45;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.update-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
 .sidebar-footer {
   margin-top: auto;
   padding-top: 14px;

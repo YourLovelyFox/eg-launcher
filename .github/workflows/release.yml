@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version without v prefix (e.g. 1.0.0). Leave empty to use package.json. Existing releases with the same tag are updated.'
+        description: 'Release version without v prefix (e.g. 1.0.1). Leave empty to use package.json. Existing releases with the same tag are updated.'
         required: false
         type: string
 
@@ -47,7 +47,7 @@ jobs:
           echo "Resolved version: ${VERSION} (tag v${VERSION})"
 
   build-windows:
-    name: Build Windows x64
+    name: Build Windows x64 (NSIS)
     needs: resolve-version
     runs-on: windows-latest
     timeout-minutes: 45
@@ -71,13 +71,14 @@ jobs:
       - name: Build app (Vite + Electron compile)
         run: npm run build
 
-      - name: Package Windows (electron-builder)
+      - name: Package Windows NSIS (electron-builder)
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           CI: 'true'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win --x64 --config.win.signAndEditExecutable=false --publish never
+        # Generates setup .exe + latest.yml (+ .blockmap) for electron-updater
+        run: npx electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never
 
       - name: List artifacts
         shell: bash
@@ -88,13 +89,14 @@ jobs:
         with:
           name: eg-launcher-windows-x64
           path: |
-            release/*.zip
             release/*.exe
+            release/*.yml
+            release/*.blockmap
           if-no-files-found: error
           retention-days: 14
 
   build-linux:
-    name: Build Linux x64
+    name: Build Linux x64 (AppImage)
     needs: resolve-version
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -117,14 +119,14 @@ jobs:
       - name: Build app (Vite + Electron compile)
         run: npm run build
 
-      - name: Package Linux (electron-builder)
+      - name: Package Linux AppImage (electron-builder)
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           CI: 'true'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # AppImage + tar.gz — portable, no extra fpm/rpm tooling required
-        run: npx electron-builder --linux AppImage tar.gz --x64 --publish never
+        # Generates .AppImage + latest-linux.yml for electron-updater
+        run: npx electron-builder --linux AppImage --x64 --publish never
 
       - name: List artifacts
         run: ls -la release
@@ -135,7 +137,8 @@ jobs:
           name: eg-launcher-linux-x64
           path: |
             release/*.AppImage
-            release/*.tar.gz
+            release/*.yml
+            release/*.blockmap
           if-no-files-found: error
           retention-days: 14
 
@@ -156,15 +159,14 @@ jobs:
       - name: Publish or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          # Same tag as existing v1.0.0 → assets are added/updated on that release
           tag_name: ${{ needs.resolve-version.outputs.tag }}
           name: EG Launcher ${{ needs.resolve-version.outputs.version }}
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(needs.resolve-version.outputs.version, '-') }}
+          # NSIS setup + AppImage + latest.yml / latest-linux.yml for auto-update
           files: artifacts/*
           fail_on_unmatched_files: true
-          # softprops uploads/replaces assets on an existing release for this tag
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

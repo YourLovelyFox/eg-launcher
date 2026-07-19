@@ -37,6 +37,7 @@ import {
   getFeaturedPackStatus,
   installFeaturedPack,
 } from './services/featuredPack'
+import { getPartnerStatus, installPartner } from './services/partners'
 import { installModWithDependencies } from './services/modInstall'
 import {
   getProject,
@@ -45,6 +46,15 @@ import {
   searchMods,
 } from './services/modrinth'
 import { loadSettings, saveSettings } from './services/settings'
+import {
+  checkForUpdates,
+  downloadUpdate,
+  getAppVersionInfo,
+  getUpdateStatus,
+  initAutoUpdater,
+  installUpdate,
+  setUpdaterWindow,
+} from './services/updater'
 import { getInstanceModsDir } from './paths'
 
 let mainWindow: BrowserWindow | null = null
@@ -66,6 +76,9 @@ function createWindow() {
       devTools: false,
     },
   })
+
+  setUpdaterWindow(mainWindow)
+  initAutoUpdater(mainWindow)
 
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
@@ -91,6 +104,13 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
+  })
+
+  // Background update check a few seconds after UI is ready
+  mainWindow.webContents.once('did-finish-load', () => {
+    setTimeout(() => {
+      checkForUpdates(false).catch((err) => console.warn('[updater] startup check', err))
+    }, 4000)
   })
 }
 
@@ -256,6 +276,24 @@ function registerIpc() {
       })
     },
   )
+
+  // Partners (e.g. Horizons SMP)
+  ipcMain.handle('partners:status', async (_e, id: string) => getPartnerStatus(id))
+  ipcMain.handle('partners:install', async (_e, id: string) => {
+    return installPartner(id, (progress) => {
+      sendProgress('partners:installProgress', progress)
+    })
+  })
+
+  // App auto-update (NSIS / AppImage via GitHub Releases)
+  ipcMain.handle('updater:getStatus', () => getUpdateStatus())
+  ipcMain.handle('updater:getVersion', () => getAppVersionInfo())
+  ipcMain.handle('updater:check', async () => checkForUpdates(true))
+  ipcMain.handle('updater:download', async () => downloadUpdate())
+  ipcMain.handle('updater:install', () => {
+    installUpdate()
+    return true
+  })
 }
 
 app.whenReady().then(() => {

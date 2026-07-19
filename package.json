@@ -1,20 +1,24 @@
 {
   "name": "eg-launcher",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "EG Launcher — Minecraft mods via Modrinth, with permanent Bee's SMP pack support.",
   "main": "dist-electron/main.js",
   "author": "EG Launcher",
   "license": "MIT",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YourLovelyFox/eg-launcher.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.node.json --noEmit && vite build",
     "preview": "vite preview",
     "start": "electron .",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
-    "dist": "npm run build && electron-builder --win --x64 --config.win.signAndEditExecutable=false --publish never",
+    "dist": "npm run build && electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never",
     "dist:dir": "npm run build && electron-builder --win --dir --x64 --config.win.signAndEditExecutable=false --publish never",
-    "dist:linux": "npm run build && electron-builder --linux AppImage tar.gz --x64 --publish never"
+    "dist:linux": "npm run build && electron-builder --linux AppImage --x64 --publish never"
   },
   "build": {
     "appId": "com.eg.launcher",
@@ -32,43 +36,59 @@
       "main": "dist-electron/main.js"
     },
     "forceCodeSigning": false,
-    "publish": null,
+    "publish": {
+      "provider": "github",
+      "owner": "YourLovelyFox",
+      "repo": "eg-launcher",
+      "releaseType": "release"
+    },
     "win": {
       "signAndEditExecutable": false,
       "signDlls": false,
       "verifyUpdateCodeSignature": false,
       "target": [
         {
-          "target": "zip",
-          "arch": ["x64"]
-        },
-        {
-          "target": "portable",
-          "arch": ["x64"]
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "artifactName": "EG-Launcher-${version}-win-${arch}.${ext}"
+      "artifactName": "EG-Launcher-${version}-win-${arch}-setup.${ext}"
     },
-    "portable": {
-      "artifactName": "EG-Launcher-${version}-win-x64-portable.exe"
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "EG Launcher",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "EG-Launcher-${version}-win-x64-setup.${ext}"
     },
     "linux": {
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
-        },
-        {
-          "target": "tar.gz",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "category": "Game",
-      "artifactName": "EG-Launcher-${version}-linux-${arch}.${ext}"
+      "artifactName": "EG-Launcher-${version}-linux-${arch}.${ext}",
+      "synopsis": "EG Launcher — Minecraft mods via Modrinth",
+      "description": "EG Launcher — Minecraft mods via Modrinth, with partner SMP support."
     },
-    "asar": true
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/electron-updater/**/*",
+      "**/node_modules/builder-util-runtime/**/*"
+    ]
   },
   "dependencies": {
+    "electron-updater": "^6.6.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
