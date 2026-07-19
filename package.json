@@ -1,6 +1,6 @@
 {
   "name": "eg-launcher",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "EG Launcher — Minecraft mods via Modrinth, with permanent Bee's SMP pack support.",
   "main": "dist-electron/main.js",
   "author": "EG Launcher",
@@ -68,7 +68,9 @@
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
       "unicode": true,
-      "installerLanguages": ["en_US"],
+      "installerLanguages": [
+        "en_US"
+      ],
       "displayLanguageSelector": false,
       "packElevateHelper": true,
       "artifactName": "EG-Launcher-${version}-win-x64-setup.${ext}"
