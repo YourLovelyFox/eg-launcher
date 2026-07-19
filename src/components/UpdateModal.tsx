@@ -9,13 +9,47 @@ function formatBytes(n: number): string {
   return `${n} B`
 }
 
+/** Turn GitHub HTML / markdown release notes into plain readable text. */
 function stripNotes(text: string | null | undefined): string {
   if (!text) return ''
-  return text
-    .replace(/\r\n/g, '\n')
+  let s = text.replace(/\r\n/g, '\n')
+
+  // Prefer extracting link labels before stripping tags
+  s = s.replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, href, label) => {
+    const t = String(label)
+      .replace(/<[^>]+>/g, '')
+      .replace(/<\/?tt>/gi, '')
+      .trim()
+    return t || String(href)
+  })
+
+  // Block tags → newlines
+  s = s
+    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
+    .replace(/<(br|hr)\s*\/?>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+
+  // Entities
+  s = s
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+
+  // Light markdown cleanup
+  s = s
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
     .trim()
+
+  return s
 }
 
 /**

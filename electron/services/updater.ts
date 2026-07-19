@@ -45,18 +45,45 @@ function push(status: UpdateStatus) {
   mainWindow?.webContents.send('updater:status', status)
 }
 
+/** Flatten electron-updater notes and strip GitHub HTML to plain text. */
 function notesToString(notes: UpdateInfo['releaseNotes']): string | null {
   if (!notes) return null
-  if (typeof notes === 'string') return notes
-  if (Array.isArray(notes)) {
-    return notes
+  let raw: string
+  if (typeof notes === 'string') {
+    raw = notes
+  } else if (Array.isArray(notes)) {
+    raw = notes
       .map((n) => {
         if (typeof n === 'string') return n
         return [n.version, n.note].filter(Boolean).join('\n')
       })
       .join('\n\n')
+  } else {
+    raw = String(notes)
   }
-  return String(notes)
+
+  let s = raw.replace(/\r\n/g, '\n')
+  s = s.replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, href, label) => {
+    const t = String(label)
+      .replace(/<[^>]+>/g, '')
+      .trim()
+    return t || String(href)
+  })
+  s = s
+    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
+    .replace(/<(br|hr)\s*\/?>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  return s || null
 }
 
 /**
