@@ -12,8 +12,8 @@
     "preview": "vite preview",
     "start": "electron .",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
-    "dist": "npm run build && electron-builder --win --config.win.signAndEditExecutable=false",
-    "dist:dir": "npm run build && electron-builder --win --dir --config.win.signAndEditExecutable=false"
+    "dist": "npm run build && electron-builder --win --x64 --config.win.signAndEditExecutable=false",
+    "dist:dir": "npm run build && electron-builder --win --dir --x64 --config.win.signAndEditExecutable=false"
   },
   "build": {
     "appId": "com.eg.launcher",
@@ -31,21 +31,28 @@
       "main": "dist-electron/main.js"
     },
     "forceCodeSigning": false,
+    "publish": {
+      "provider": "github",
+      "releaseType": "release"
+    },
     "win": {
       "signAndEditExecutable": false,
       "signDlls": false,
       "verifyUpdateCodeSignature": false,
       "target": [
         {
-          "target": "dir",
+          "target": "zip",
           "arch": ["x64"]
         },
         {
-          "target": "zip",
+          "target": "portable",
           "arch": ["x64"]
         }
       ],
-      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+      "artifactName": "EG-Launcher-${version}-win-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "EG-Launcher-${version}-win-x64-portable.exe"
     },
     "asar": true
   },

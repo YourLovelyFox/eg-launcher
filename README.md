@@ -31,6 +31,30 @@ npm run dev
 npm run dist
 ```
 
+## GitHub Releases (CI)
+
+Windows builds are produced automatically by GitHub Actions.
+
+### Automatic release (recommended)
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+That runs **Build & Release (Windows)** and publishes a GitHub Release with:
+
+- `EG-Launcher-<version>-win-x64.zip` (portable folder archive)
+- `EG-Launcher-<version>-win-x64-portable.exe` (single-file portable, when available)
+
+### Manual release
+
+1. Open **Actions** → **Build & Release (Windows)**  
+2. **Run workflow**  
+3. Optionally set a version (e.g. `1.0.1`)
+
+Workflow file: [`.github/workflows/release.yml`](.github/workflows/release.yml)
+
 ## Usage
 
 1. **Settings** → Auto-detect Java and set RAM  

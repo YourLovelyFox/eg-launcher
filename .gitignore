@@ -10,3 +10,4 @@ release
 .env
 .env.*
 !.env.example
+.github/workflows/*.local.yml
