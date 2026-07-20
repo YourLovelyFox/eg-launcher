@@ -168,6 +168,17 @@ a:hover {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.12) inset,
     0 8px 28px var(--green-glow);
+  flex-shrink: 0;
+}
+
+.brand-mark-img {
+  display: block;
+  object-fit: cover;
+  padding: 0;
+  background: transparent;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .brand-text {
@@ -577,6 +588,12 @@ a:hover {
   box-shadow: 0 12px 40px var(--green-glow);
 }
 
+.boot-mark-img {
+  object-fit: cover;
+  padding: 0;
+  background: transparent;
+}
+
 .boot-text {
   position: relative;
   text-align: center;
@@ -586,6 +603,94 @@ a:hover {
 .page {
   min-height: 100%;
   padding: 32px 36px 48px;
+}
+
+/* ========== Home news feed ========== */
+.home-news {
+  margin-bottom: 8px;
+}
+
+.home-news-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.home-news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.home-news-card {
+  border-radius: 14px;
+  border: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.home-news-card.is-open {
+  border-color: rgba(61, 255, 176, 0.18);
+  background: rgba(61, 255, 176, 0.04);
+}
+
+.home-news-card-head {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+  color: inherit;
+  cursor: pointer;
+}
+
+.home-news-card-head:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.home-news-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.home-news-card-meta time {
+  font-size: 12px;
+  color: var(--text-mute);
+}
+
+.home-news-title {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--text);
+}
+
+.home-news-preview {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-news-body {
+  padding: 0 16px 14px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.home-news-body-text {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 
 .page-header {

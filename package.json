@@ -25,12 +25,21 @@
     "productName": "EG Launcher",
     "copyright": "Copyright © EG Launcher",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
+    "icon": "build/icon.png",
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      }
+    ],
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "package.json"
+      "package.json",
+      "news/feed.json"
     ],
     "extraMetadata": {
       "main": "dist-electron/main.js"
@@ -43,6 +52,7 @@
       "releaseType": "release"
     },
     "win": {
+      "icon": "build/icon.ico",
       "signAndEditExecutable": false,
       "signDlls": false,
       "verifyUpdateCodeSignature": false,
@@ -76,6 +86,7 @@
       "artifactName": "EG-Launcher-${version}-win-x64-setup.${ext}"
     },
     "linux": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "AppImage",

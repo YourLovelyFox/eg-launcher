@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CreateInstanceModal } from '../components/CreateInstanceModal'
+import { HomeNews } from '../components/HomeNews'
 import { IconPlay, IconPlus, IconStop } from '../components/Icons'
 import { PlayerHeadWithFallback } from '../components/PlayerHead'
 import { loaderLabel, useAppStore } from '../store'
@@ -119,7 +120,9 @@ export function HomePage() {
         </div>
       )}
 
-      <section>
+      <HomeNews />
+
+      <section style={{ marginTop: 22 }}>
         <div className="page-header" style={{ marginBottom: 12 }}>
           <h2 style={{ fontSize: 18 }}>Recent instances</h2>
           <button className="btn btn-ghost" onClick={() => navigate('/instances')}>

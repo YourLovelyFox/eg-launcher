@@ -15,6 +15,7 @@ import type {
   RunningGameInfo,
   UpdateStatus,
   AppVersionInfo,
+  NewsFeedResult,
 } from '../shared/types'
 
 const api = {
@@ -169,6 +170,10 @@ const api = {
         ipcRenderer.removeListener('updater:status', listener)
       }
     },
+  },
+  news: {
+    fetch: (force?: boolean): Promise<NewsFeedResult> => ipcRenderer.invoke('news:fetch', force),
+    defaultUrl: (): Promise<string> => ipcRenderer.invoke('news:defaultUrl'),
   },
 }
 

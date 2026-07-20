@@ -25,6 +25,28 @@ export type LauncherSettings = {
   resolveDependencies: boolean
 }
 
+export type NewsTag = 'announcement' | 'update' | 'partner' | 'event' | 'info' | string
+
+export type NewsItem = {
+  id: string
+  title: string
+  summary?: string
+  body?: string
+  date: string
+  tag?: NewsTag
+  url?: string | null
+}
+
+export type NewsFeedResult = {
+  title: string
+  updated: string | null
+  sourceUrl: string
+  sourceType: 'json' | 'rss' | 'atom' | 'cache'
+  items: NewsItem[]
+  fromCache: boolean
+  error?: string
+}
+
 export type InstalledMod = {
   projectId: string
   versionId: string

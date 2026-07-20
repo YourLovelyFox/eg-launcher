@@ -5,6 +5,16 @@ export const APP_FULL_NAME = 'EG Launcher'
 /** Display version — keep in sync with package.json for UI; runtime uses app.getVersion(). */
 export const APP_VERSION = '1.0.5'
 
+/**
+ * Remote news feed (JSON or RSS/Atom). Update this file on GitHub (or any host)
+ * without shipping a new launcher build — the app fetches it at runtime.
+ *
+ * Default points at news/feed.json on the main branch.
+ * Override in Settings → News feed URL.
+ */
+export const DEFAULT_NEWS_FEED_URL =
+  'https://raw.githubusercontent.com/YourLovelyFox/eg-launcher/master/news/feed.json'
+
 /** Permanent featured modpack (Modrinth slug). Not auto-installed. */
 export const FEATURED_PACK = {
   id: 'beessmp',

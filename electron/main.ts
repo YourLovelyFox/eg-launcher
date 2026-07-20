@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import fs from 'fs'
 import path from 'path'
 import { migrateToHiveLauncher } from './migrate'
 import type {
@@ -55,6 +56,7 @@ import {
   installUpdate,
   setUpdaterWindow,
 } from './services/updater'
+import { fetchNews, getDefaultNewsFeedUrl } from './services/news'
 import { getInstanceModsDir } from './paths'
 
 // Reduce GPU / compositor freezes on some Windows setups after install
@@ -72,6 +74,10 @@ if (!gotLock) {
 let mainWindow: BrowserWindow | null = null
 
 function createWindow() {
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.join(__dirname, '../build/icon.png')
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -81,6 +87,7 @@ function createWindow() {
     title: 'EG Launcher',
     autoHideMenuBar: true,
     show: false, // show after ready-to-show so Windows doesn't mark "Not responding"
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -344,6 +351,10 @@ function registerIpc() {
     installUpdate()
     return true
   })
+
+  // Remote news (JSON or RSS) — updated without app releases
+  ipcMain.handle('news:fetch', async (_e, force?: boolean) => fetchNews({ force: Boolean(force) }))
+  ipcMain.handle('news:defaultUrl', () => getDefaultNewsFeedUrl())
 }
 
 app.on('second-instance', () => {
