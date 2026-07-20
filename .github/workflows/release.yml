@@ -241,7 +241,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.resolve-version.outputs.tag }}
-          name: EG Launcher ${{ needs.resolve-version.outputs.version }}
+          name: Release Version ${{ needs.resolve-version.outputs.version }}
           # Human changelog from CHANGELOG.md (not only auto-generated compare links)
           body_path: release-notes.md
           generate_release_notes: false
