@@ -24,6 +24,23 @@
       "modrinthPackSlug": null,
       "iconUrl": null,
       "enabled": true
+    },
+    {
+      "id": "test-patner",
+      "title": "Test Patner",
+      "menuLabel": "Test Partner",
+      "description": "Test Patner partner server.",
+      "gameVersion": "26.1.2",
+      "loader": "vanilla",
+      "serverAddress": "play.example.com",
+      "serverName": "Test",
+      "instanceName": "Test",
+      "newsTag": "TESTEST",
+      "newsUsername": "TESTP01",
+      "defaultMods": [],
+      "modrinthPackSlug": null,
+      "iconUrl": null,
+      "enabled": true
     }
   ]
 }
