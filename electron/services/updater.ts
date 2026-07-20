@@ -35,6 +35,7 @@ let mainWindow: BrowserWindow | null = null
 let lastStatus: UpdateStatus = { state: 'idle' }
 let configured = false
 let checking = false
+let downloading = false
 
 function currentVersion(): string {
   return app.getVersion()
@@ -42,7 +43,31 @@ function currentVersion(): string {
 
 function push(status: UpdateStatus) {
   lastStatus = status
-  mainWindow?.webContents.send('updater:status', status)
+  try {
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+      mainWindow.webContents.send('updater:status', status)
+    }
+  } catch (err) {
+    console.warn('[updater] push failed', err)
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`))
+    }, ms)
+    promise.then(
+      (v) => {
+        clearTimeout(timer)
+        resolve(v)
+      },
+      (err) => {
+        clearTimeout(timer)
+        reject(err)
+      },
+    )
+  })
 }
 
 /**
@@ -83,74 +108,94 @@ export function initAutoUpdater(win: BrowserWindow | null) {
   if (configured) return
   configured = true
 
-  autoUpdater.autoDownload = false
-  autoUpdater.autoInstallOnAppQuit = true
-  // Public repo — no GH_TOKEN required for checking/downloading
-  autoUpdater.allowPrerelease = false
-  autoUpdater.allowDowngrade = false
+  try {
+    autoUpdater.autoDownload = false
+    autoUpdater.autoInstallOnAppQuit = true
+    autoUpdater.allowPrerelease = false
+    autoUpdater.allowDowngrade = false
+    // Differential packages often hang or corrupt on Windows — full download is safer
+    autoUpdater.disableDifferentialDownload = true
+    // Avoid long SSL/DNS stalls blocking forever
+    autoUpdater.requestHeaders = {
+      'Cache-Control': 'no-cache',
+    }
 
-  autoUpdater.on('checking-for-update', () => {
-    checking = true
-    push({ state: 'checking' })
-  })
-
-  autoUpdater.on('update-available', (info: UpdateInfo) => {
-    checking = false
-    push({
-      state: 'available',
-      currentVersion: currentVersion(),
-      version: info.version,
-      releaseName: info.releaseName ?? null,
-      releaseNotes: notesToString(info.releaseNotes),
-      releaseDate: info.releaseDate ?? null,
+    autoUpdater.on('checking-for-update', () => {
+      checking = true
+      push({ state: 'checking' })
     })
-  })
 
-  autoUpdater.on('update-not-available', () => {
-    checking = false
-    push({
-      state: 'unavailable',
-      currentVersion: currentVersion(),
+    autoUpdater.on('update-available', (info: UpdateInfo) => {
+      checking = false
+      push({
+        state: 'available',
+        currentVersion: currentVersion(),
+        version: info.version,
+        releaseName: info.releaseName ?? null,
+        releaseNotes: notesToString(info.releaseNotes),
+        releaseDate: info.releaseDate ?? null,
+      })
     })
-  })
 
-  autoUpdater.on('download-progress', (p: ProgressInfo) => {
-    const version =
-      lastStatus.state === 'available' ||
-      lastStatus.state === 'downloading' ||
-      lastStatus.state === 'ready'
-        ? lastStatus.version
-        : ''
-    push({
-      state: 'downloading',
-      currentVersion: currentVersion(),
-      version,
-      percent: p.percent,
-      bytesPerSecond: p.bytesPerSecond,
-      transferred: p.transferred,
-      total: p.total,
+    autoUpdater.on('update-not-available', () => {
+      checking = false
+      push({
+        state: 'unavailable',
+        currentVersion: currentVersion(),
+      })
     })
-  })
 
-  autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-    push({
-      state: 'ready',
-      currentVersion: currentVersion(),
-      version: info.version,
-      releaseName: info.releaseName ?? null,
-      releaseNotes: notesToString(info.releaseNotes),
+    autoUpdater.on('download-progress', (p: ProgressInfo) => {
+      downloading = true
+      const version =
+        lastStatus.state === 'available' ||
+        lastStatus.state === 'downloading' ||
+        lastStatus.state === 'ready'
+          ? lastStatus.version
+          : ''
+      // Throttle-ish: always push; renderer is cheap
+      push({
+        state: 'downloading',
+        currentVersion: currentVersion(),
+        version,
+        percent: p.percent,
+        bytesPerSecond: p.bytesPerSecond,
+        transferred: p.transferred,
+        total: p.total,
+      })
     })
-  })
 
-  autoUpdater.on('error', (err: Error) => {
-    checking = false
-    console.error('[updater]', err)
+    autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+      downloading = false
+      checking = false
+      push({
+        state: 'ready',
+        currentVersion: currentVersion(),
+        version: info.version,
+        releaseName: info.releaseName ?? null,
+        releaseNotes: notesToString(info.releaseNotes),
+      })
+    })
+
+    autoUpdater.on('error', (err: Error) => {
+      checking = false
+      downloading = false
+      console.error('[updater]', err)
+      push({
+        state: 'error',
+        message: err?.message || String(err),
+        currentVersion: currentVersion(),
+      })
+    })
+  } catch (err) {
+    console.error('[updater] init failed', err)
+    configured = false
     push({
       state: 'error',
-      message: err?.message || String(err),
+      message: (err as Error).message,
       currentVersion: currentVersion(),
     })
-  })
+  }
 }
 
 export function setUpdaterWindow(win: BrowserWindow | null) {
@@ -161,25 +206,26 @@ export function getUpdateStatus(): UpdateStatus {
   return lastStatus
 }
 
-export async function checkForUpdates(manual = false): Promise<UpdateStatus> {
+export async function checkForUpdates(_manual = false): Promise<UpdateStatus> {
   if (!app.isPackaged) {
     const status: UpdateStatus = {
       state: 'unavailable',
       currentVersion: currentVersion(),
     }
     lastStatus = status
-    if (manual) push(status)
+    push(status)
     return status
   }
 
-  if (checking) return lastStatus
+  if (checking || downloading) return lastStatus
 
   try {
-    // ensure configured
     if (!configured) initAutoUpdater(mainWindow)
-    const result = await autoUpdater.checkForUpdates()
-    // Status events update lastStatus; if nothing fired, treat as unavailable
-    if (!result) {
+    // Never hang the app forever on a stuck GitHub request
+    await withTimeout(autoUpdater.checkForUpdates().then(() => undefined), 45_000, 'Update check')
+    // Events update lastStatus; if still "checking", mark unavailable
+    if (lastStatus.state === 'checking' || lastStatus.state === 'idle') {
+      checking = false
       const status: UpdateStatus = {
         state: 'unavailable',
         currentVersion: currentVersion(),
@@ -189,6 +235,7 @@ export async function checkForUpdates(manual = false): Promise<UpdateStatus> {
     }
     return lastStatus
   } catch (err) {
+    checking = false
     const status: UpdateStatus = {
       state: 'error',
       message: (err as Error).message,
@@ -199,21 +246,39 @@ export async function checkForUpdates(manual = false): Promise<UpdateStatus> {
   }
 }
 
-/** Start download after user confirmation. */
+/**
+ * Start download after user confirmation.
+ * Progress is pushed via events so the UI stays responsive.
+ */
 export async function downloadUpdate(): Promise<UpdateStatus> {
   if (!app.isPackaged) {
     return getUpdateStatus()
   }
-  if (lastStatus.state !== 'available' && lastStatus.state !== 'error') {
-    // allow retry from error if an update was previously found
-    if (lastStatus.state !== 'downloading') {
-      // still try download if update is cached by electron-updater
-    }
-  }
+  if (downloading) return lastStatus
+
   try {
-    await autoUpdater.downloadUpdate()
+    if (!configured) initAutoUpdater(mainWindow)
+    downloading = true
+    push({
+      state: 'downloading',
+      currentVersion: currentVersion(),
+      version:
+        lastStatus.state === 'available' || lastStatus.state === 'ready'
+          ? lastStatus.version
+          : '',
+      percent: 0,
+      bytesPerSecond: 0,
+      transferred: 0,
+      total: 0,
+    })
+
+    // Full package download; timeout after 15 minutes for slow links
+    await withTimeout(autoUpdater.downloadUpdate().then(() => undefined), 15 * 60_000, 'Update download')
+    downloading = false
     return lastStatus
   } catch (err) {
+    downloading = false
+    checking = false
     const status: UpdateStatus = {
       state: 'error',
       message: (err as Error).message,
@@ -224,11 +289,28 @@ export async function downloadUpdate(): Promise<UpdateStatus> {
   }
 }
 
-/** Quit and install the downloaded update (user confirmed). */
+/**
+ * Quit and run the NSIS/AppImage installer.
+ * Deferred so the UI can close cleanly and Windows does not mark us "Not responding".
+ */
 export function installUpdate(): void {
   if (!app.isPackaged) return
-  // isSilent=false, isForceRunAfter=true
-  autoUpdater.quitAndInstall(false, true)
+
+  try {
+    // isSilent=true avoids an interactive installer that waits on the still-running app
+    // isForceRunAfter=true relaunches after install
+    setTimeout(() => {
+      try {
+        autoUpdater.quitAndInstall(true, true)
+      } catch (err) {
+        console.error('[updater] quitAndInstall failed', err)
+        // Fallback: force quit so user can re-run installer manually
+        app.exit(0)
+      }
+    }, 300)
+  } catch (err) {
+    console.error('[updater] installUpdate failed', err)
+  }
 }
 
 export function getAppVersionInfo() {

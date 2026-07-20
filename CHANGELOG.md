@@ -6,6 +6,21 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [1.0.5] — 2026-07-20
+
+### Fixed
+- Windows freeze / **Not responding** after install and when running the launcher.
+- Auto-update freezes during check/download/install (timeouts, no differential download, quieter NSIS install).
+- Installer no longer launches the app before it fully closes (`runAfterFinish: false`) — start EG Launcher from the desktop/start menu shortcut.
+- Single-instance lock so double-starts from the installer do not stack hung windows.
+- Hardware acceleration disabled on Windows to avoid compositor hangs on some PCs.
+- Window shows only when ready (with a failsafe) so the first paint is responsive.
+
+### Changed
+- Background update check delayed until after the UI has loaded.
+
+---
+
 ## [1.0.4] — 2026-07-19
 
 ### Added

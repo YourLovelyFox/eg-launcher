@@ -57,6 +57,18 @@ import {
 } from './services/updater'
 import { getInstanceModsDir } from './paths'
 
+// Reduce GPU / compositor freezes on some Windows setups after install
+if (process.platform === 'win32') {
+  app.disableHardwareAcceleration()
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+}
+
+// Only one instance — second launch focuses the first (avoids installer/double-start freezes)
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+}
+
 let mainWindow: BrowserWindow | null = null
 
 function createWindow() {
@@ -68,23 +80,43 @@ function createWindow() {
     backgroundColor: '#0b0e14',
     title: 'EG Launcher',
     autoHideMenuBar: true,
+    show: false, // show after ready-to-show so Windows doesn't mark "Not responding"
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
       devTools: false,
+      backgroundThrottling: false,
     },
   })
 
   setUpdaterWindow(mainWindow)
-  initAutoUpdater(mainWindow)
 
-  if (process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
-  }
+  // Show as soon as the window is paintable
+  mainWindow.once('ready-to-show', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    mainWindow.show()
+    mainWindow.focus()
+  })
+
+  // Failsafe: never stay invisible if ready-to-show never fires
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show()
+    }
+  }, 4000)
+
+  const loadPromise = process.env.VITE_DEV_SERVER_URL
+    ? mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
+    : mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+
+  loadPromise.catch((err) => {
+    console.error('[EG Launcher] failed to load UI', err)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show()
+    }
+  })
 
   // Never open DevTools (including F12 / Ctrl+Shift+I)
   mainWindow.webContents.on('devtools-opened', () => {
@@ -106,16 +138,33 @@ function createWindow() {
     return { action: 'deny' }
   })
 
-  // Background update check a few seconds after UI is ready
+  mainWindow.on('closed', () => {
+    mainWindow = null
+    setUpdaterWindow(null)
+  })
+
+  // Init updater after the window exists; check much later so first paint is smooth
   mainWindow.webContents.once('did-finish-load', () => {
+    try {
+      initAutoUpdater(mainWindow)
+    } catch (err) {
+      console.warn('[updater] init on load failed', err)
+    }
+    // Delayed background check — never blocks startup
     setTimeout(() => {
       checkForUpdates(false).catch((err) => console.warn('[updater] startup check', err))
-    }, 4000)
+    }, 12_000)
   })
 }
 
 function sendProgress(channel: string, event: ProgressEvent) {
-  mainWindow?.webContents.send(channel, event)
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(channel, event)
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 function registerIpc() {
@@ -174,7 +223,10 @@ function registerIpc() {
     const instance = getInstance(instanceId)
     if (!instance) throw new Error('Instance not found')
     return installInstanceRuntime(instance, (progress) => {
-      sendProgress('mc:installProgress', { ...progress, message: `[${instance.name}] ${progress.message}` })
+      sendProgress('mc:installProgress', {
+        ...progress,
+        message: `[${instance.name}] ${progress.message}`,
+      })
     })
   })
 
@@ -230,20 +282,17 @@ function registerIpc() {
         instanceId: payload.instanceId,
         projectId: payload.projectId,
         versionId: payload.versionId,
-        // Always install required deps unless user turned the setting off
         resolveDependencies: settings.resolveDependencies !== false,
         onProgress: (progress) => {
           sendProgress('modrinth:downloadProgress', progress)
         },
       })
 
-      // Surface hard failures for the main mod
       const mainFailed = result.failed.find((f) => f.projectId === payload.projectId)
       if (mainFailed && !result.installed.some((i) => i.projectId === payload.projectId)) {
         throw new Error(mainFailed.error)
       }
 
-      // Return instance for UI compatibility, plus install summary
       return {
         ...result.instance,
         _installSummary: {
@@ -289,6 +338,7 @@ function registerIpc() {
   ipcMain.handle('updater:getStatus', () => getUpdateStatus())
   ipcMain.handle('updater:getVersion', () => getAppVersionInfo())
   ipcMain.handle('updater:check', async () => checkForUpdates(true))
+  // Download stays async; progress is pushed via events so the window can repaint
   ipcMain.handle('updater:download', async () => downloadUpdate())
   ipcMain.handle('updater:install', () => {
     installUpdate()
@@ -296,11 +346,23 @@ function registerIpc() {
   })
 }
 
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+})
+
 app.whenReady().then(() => {
-  // Migrate legacy data folders into EG Launcher userData
-  const migration = migrateToHiveLauncher()
-  if (migration.migrated) {
-    console.log('[EG Launcher] Migration:', migration.message)
+  // Defer migration so the window can open immediately (large legacy copies can block)
+  try {
+    const migration = migrateToHiveLauncher()
+    if (migration.migrated) {
+      console.log('[EG Launcher] Migration:', migration.message)
+    }
+  } catch (err) {
+    console.warn('[EG Launcher] Migration error (continuing):', err)
   }
 
   registerIpc()

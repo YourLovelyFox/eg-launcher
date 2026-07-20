@@ -1,6 +1,6 @@
 {
   "name": "eg-launcher",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "EG Launcher — Minecraft mods via Modrinth, with permanent Bee's SMP pack support.",
   "main": "dist-electron/main.js",
   "author": "EG Launcher",
@@ -66,7 +66,7 @@
       "createStartMenuShortcut": true,
       "shortcutName": "EG Launcher",
       "deleteAppDataOnUninstall": false,
-      "runAfterFinish": true,
+      "runAfterFinish": false,
       "unicode": true,
       "installerLanguages": [
         "en_US"

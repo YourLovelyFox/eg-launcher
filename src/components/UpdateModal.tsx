@@ -137,7 +137,12 @@ export function UpdateModal() {
   async function onUpdateNow() {
     setBusy(true)
     try {
+      // Progress arrives via onStatus events; do not block the UI thread conceptually —
+      // the main process still downloads asynchronously with timeouts.
       await window.hive.updater.download()
+    } catch (err) {
+      // Status event usually carries the error; keep UI usable
+      console.error(err)
     } finally {
       setBusy(false)
     }

@@ -18,7 +18,12 @@ export default function App() {
 
   useEffect(() => {
     document.title = APP_FULL_NAME
-    refreshAll()
+    // Don't leave the boot screen forever if IPC is slow
+    const safety = window.setTimeout(() => {
+      useAppStore.getState().setLoading(false)
+    }, 8000)
+    refreshAll().finally(() => window.clearTimeout(safety))
+    return () => window.clearTimeout(safety)
   }, [refreshAll])
 
   if (loading) {
