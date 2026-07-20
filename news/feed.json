@@ -1,8 +1,17 @@
 {
   "version": 1,
   "title": "EG Launcher News",
-  "updated": "2026-07-20T21:33:35.330Z",
+  "updated": "2026-07-20T21:35:38.540Z",
   "items": [
+    {
+      "id": "news-mrtqu2vl-954535",
+      "title": "Test",
+      "summary": "",
+      "body": "TEST",
+      "date": "2026-07-20T21:35:25.713Z",
+      "tag": "announcement",
+      "url": null
+    },
     {
       "id": "welcome-eg-launcher",
       "title": "Welcome to EG Launcher",
