@@ -24,6 +24,23 @@
       "modrinthPackSlug": null,
       "iconUrl": null,
       "enabled": true
+    },
+    {
+      "id": "testp01",
+      "title": "TESTP01",
+      "menuLabel": "TESTP01",
+      "description": "TESTP01",
+      "gameVersion": "26.1.2",
+      "loader": "vanilla",
+      "serverAddress": "TESTP01.com",
+      "serverName": "TESTP01",
+      "instanceName": "TESTP01",
+      "newsTag": "TESTP01",
+      "newsUsername": "TESTP01",
+      "defaultMods": [],
+      "modrinthPackSlug": null,
+      "iconUrl": null,
+      "enabled": true
     }
   ]
 }
