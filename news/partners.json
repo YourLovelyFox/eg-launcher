@@ -1,7 +1,7 @@
 {
   "version": 1,
   "title": "EG Partner News",
-  "updated": "2026-07-20T22:27:39.718Z",
+  "updated": "2026-07-20T22:29:34.674Z",
   "items": [
     {
       "id": "horizons-welcome",
@@ -9,15 +9,6 @@
       "summary": "Official partner news for Horizons SMP players.",
       "body": "Server: play.horizons-smp.com\n\nWatch this space for events, resets, and announcements.",
       "date": "2026-07-20T22:00:00.000Z",
-      "tag": "HorizonsSMP",
-      "url": null
-    },
-    {
-      "id": "pnews-mrtrfo6t-972b32",
-      "title": "Test From Launcher",
-      "summary": "",
-      "body": "asdasd",
-      "date": "2026-07-20T21:52:13.108Z",
       "tag": "HorizonsSMP",
       "url": null
     }
