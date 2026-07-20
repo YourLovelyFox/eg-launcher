@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { APP_NAME, APP_TAGLINE, FEATURED_PACK, PARTNERS } from '../../shared/branding'
+import { isAdminBuild } from '../../shared/features'
+import appIcon from '../assets/app-icon.png'
 import horizonsIcon from '../assets/horizons-smp.png'
 import { useAppStore } from '../store'
 import {
@@ -42,7 +44,14 @@ export function Layout() {
 
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">EG</div>
+          <img
+            src={appIcon}
+            alt=""
+            className="brand-mark brand-mark-img"
+            width={40}
+            height={40}
+            draggable={false}
+          />
           <div className="brand-text">
             <strong>{APP_NAME}</strong>
             <span>{APP_TAGLINE}</span>
@@ -117,6 +126,15 @@ export function Layout() {
               <IconSettings />
               Settings
             </NavLink>
+            {isAdminBuild() && (
+              <NavLink
+                to="/admin"
+                className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+              >
+                <IconSettings />
+                Admin
+              </NavLink>
+            )}
           </div>
         </nav>
 

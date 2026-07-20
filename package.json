@@ -1,6 +1,6 @@
 {
   "name": "eg-launcher",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "EG Launcher — Minecraft mods via Modrinth, with permanent Bee's SMP pack support.",
   "main": "dist-electron/main.js",
   "author": "EG Launcher",
@@ -12,11 +12,14 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.node.json --noEmit && vite build",
+    "build": "node scripts/run-with-env.mjs EG_ENABLE_ADMIN=0 -- npm run build:app",
+    "build:admin": "node scripts/run-with-env.mjs EG_ENABLE_ADMIN=1 -- npm run build:app",
+    "build:app": "tsc -p tsconfig.node.json --noEmit && vite build",
     "preview": "vite preview",
     "start": "electron .",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "dist": "npm run build && electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never",
+    "dist:admin": "npm run build:admin && electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never",
     "dist:dir": "npm run build && electron-builder --win --dir --x64 --config.win.signAndEditExecutable=false --publish never",
     "dist:linux": "npm run build && electron-builder --linux AppImage --x64 --publish never"
   },

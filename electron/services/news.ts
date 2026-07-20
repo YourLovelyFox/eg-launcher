@@ -3,13 +3,19 @@ import http from 'http'
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
-import { DEFAULT_NEWS_FEED_URL } from '../../shared/branding'
+import {
+  DEFAULT_NEWS_FEED_URL,
+  NEWS_GITHUB_API_URL,
+  NEWS_GITHUB_OWNER,
+  NEWS_GITHUB_PATH,
+  NEWS_GITHUB_REPO,
+} from '../../shared/branding'
 import type { NewsFeedResult, NewsItem } from '../../shared/types'
 import { getDataRoot, readJsonFile, writeJsonFile } from '../paths'
 
 const USER_AGENT = 'EGLauncher/1.0 (news-feed)'
-/** Soft cache only — UI polls often with force=true to pick up remote JSON changes. */
-const CACHE_TTL_MS = 30 * 1000
+/** Very short soft cache — force polls always hit the network */
+const CACHE_TTL_MS = 8_000
 
 type CacheFile = {
   fetchedAt: string
@@ -22,12 +28,16 @@ function cachePath(): string {
   return path.join(getDataRoot(), 'news-cache.json')
 }
 
-function resolveFeedUrl(): string {
-  return DEFAULT_NEWS_FEED_URL
+export function clearNewsCache(): void {
+  try {
+    const p = cachePath()
+    if (fs.existsSync(p)) fs.unlinkSync(p)
+  } catch {
+    /* ignore */
+  }
 }
 
 function hashContent(body: string): string {
-  // Simple non-crypto fingerprint to detect feed changes
   let h = 0
   for (let i = 0; i < body.length; i++) {
     h = (Math.imul(31, h) + body.charCodeAt(i)) | 0
@@ -35,7 +45,11 @@ function hashContent(body: string): string {
   return `${body.length}:${h}`
 }
 
-function httpGetText(url: string, redirects = 0): Promise<{ body: string; finalUrl: string }> {
+function httpGetText(
+  url: string,
+  headers: Record<string, string> = {},
+  redirects = 0,
+): Promise<{ body: string; finalUrl: string; etag?: string }> {
   return new Promise((resolve, reject) => {
     if (redirects > 6) {
       reject(new Error('Too many redirects'))
@@ -47,8 +61,9 @@ function httpGetText(url: string, redirects = 0): Promise<{ body: string; finalU
       {
         headers: {
           'User-Agent': USER_AGENT,
-          Accept: 'application/json, application/feed+json, application/rss+xml, application/atom+xml, text/xml, */*',
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store',
+          Pragma: 'no-cache',
+          ...headers,
         },
         timeout: 20_000,
       },
@@ -58,7 +73,7 @@ function httpGetText(url: string, redirects = 0): Promise<{ body: string; finalU
             ? res.headers.location
             : new URL(res.headers.location, url).toString()
           res.resume()
-          httpGetText(next, redirects + 1).then(resolve).catch(reject)
+          httpGetText(next, headers, redirects + 1).then(resolve).catch(reject)
           return
         }
         if (res.statusCode && res.statusCode >= 400) {
@@ -69,7 +84,11 @@ function httpGetText(url: string, redirects = 0): Promise<{ body: string; finalU
         const chunks: Buffer[] = []
         res.on('data', (c) => chunks.push(c))
         res.on('end', () => {
-          resolve({ body: Buffer.concat(chunks).toString('utf-8'), finalUrl: url })
+          resolve({
+            body: Buffer.concat(chunks).toString('utf-8'),
+            finalUrl: url,
+            etag: res.headers.etag,
+          })
         })
       },
     )
@@ -79,6 +98,49 @@ function httpGetText(url: string, redirects = 0): Promise<{ body: string; finalU
       reject(new Error('News feed request timed out'))
     })
   })
+}
+
+/**
+ * GitHub Contents API — no long CDN cache like raw.githubusercontent.com.
+ * Public repos need no token. Accept: raw returns file bytes directly.
+ */
+async function fetchFromGitHubApi(): Promise<{ body: string; sourceUrl: string }> {
+  const apiUrl =
+    NEWS_GITHUB_API_URL ||
+    `https://api.github.com/repos/${NEWS_GITHUB_OWNER}/${NEWS_GITHUB_REPO}/contents/${NEWS_GITHUB_PATH}?ref=master`
+
+  // Prefer raw media type (fresh file body)
+  try {
+    const { body } = await httpGetText(apiUrl, {
+      Accept: 'application/vnd.github.raw+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    })
+    if (body.trim().startsWith('{') || body.trim().startsWith('[')) {
+      return { body, sourceUrl: apiUrl }
+    }
+  } catch {
+    /* fall through to JSON content response */
+  }
+
+  const { body } = await httpGetText(apiUrl, {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  })
+  const meta = JSON.parse(body) as { content?: string; encoding?: string; message?: string }
+  if (!meta.content) {
+    throw new Error(meta.message || 'GitHub API returned no file content')
+  }
+  const decoded = Buffer.from(meta.content.replace(/\n/g, ''), 'base64').toString('utf-8')
+  return { body: decoded, sourceUrl: apiUrl }
+}
+
+/** Fallback: raw.githubusercontent with cache-buster (CDN can still lag) */
+async function fetchFromRawUrl(): Promise<{ body: string; sourceUrl: string }> {
+  const bust = `${DEFAULT_NEWS_FEED_URL}${DEFAULT_NEWS_FEED_URL.includes('?') ? '&' : '?'}_=${Date.now()}`
+  const { body } = await httpGetText(bust, {
+    Accept: 'application/json, text/plain, */*',
+  })
+  return { body, sourceUrl: DEFAULT_NEWS_FEED_URL }
 }
 
 function decodeXml(s: string): string {
@@ -151,7 +213,6 @@ function parseRssOrAtom(xml: string, sourceUrl: string): NewsFeedResult {
     }
   }
 
-  // RSS 2.0
   const channel = firstTag(xml, 'channel') || xml
   const feedTitle = firstTag(channel, 'title') || 'News'
   const channelItems = allBlocks(xml, 'item').slice(0, 30)
@@ -229,66 +290,93 @@ function saveCache(sourceUrl: string, result: NewsFeedResult, contentHash: strin
   writeJsonFile(cachePath(), payload)
 }
 
+/** Immediately apply a published feed body so Home updates without waiting for GitHub. */
+export function applyLocalFeedSnapshot(rawJson: string): NewsFeedResult {
+  const result = parseJsonFeed(rawJson, 'local-publish')
+  saveCache('local-publish', result, hashContent(rawJson))
+  return result
+}
+
 /**
- * Fetch launcher news from a remote JSON or RSS/Atom feed.
- * Falls back to disk cache if the network fails.
+ * Fetch launcher news.
+ * Uses GitHub API first (updates almost immediately when feed.json changes),
+ * then raw.githubusercontent.com with cache-bust, then disk cache / bundled.
  */
 export async function fetchNews(options?: {
   force?: boolean
 }): Promise<NewsFeedResult> {
-  const sourceUrl = resolveFeedUrl()
   const cache = loadCache()
 
-  if (!options?.force && cache?.result && cache.sourceUrl === sourceUrl) {
+  if (!options?.force && cache?.result) {
     const age = Date.now() - Date.parse(cache.fetchedAt)
     if (Number.isFinite(age) && age >= 0 && age < CACHE_TTL_MS) {
       return { ...cache.result, fromCache: true, sourceType: 'cache' }
     }
   }
 
+  if (options?.force) {
+    clearNewsCache()
+  }
+
+  const errors: string[] = []
+
+  // 1) GitHub API (best freshness)
   try {
-    const { body } = await httpGetText(sourceUrl)
+    const { body, sourceUrl } = await fetchFromGitHubApi()
+    const trimmed = body.trim()
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      const result = parseJsonFeed(trimmed, sourceUrl)
+      saveCache(sourceUrl, result, hashContent(trimmed))
+      return result
+    }
+    errors.push('GitHub API returned non-JSON')
+  } catch (err) {
+    errors.push(`GitHub API: ${(err as Error).message}`)
+  }
+
+  // 2) raw URL + cache buster
+  try {
+    const { body, sourceUrl } = await fetchFromRawUrl()
     const trimmed = body.trim()
     let result: NewsFeedResult
-
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       result = parseJsonFeed(trimmed, sourceUrl)
-    } else if (trimmed.includes('<rss') || trimmed.includes('<feed') || trimmed.includes('<RDF')) {
+    } else if (trimmed.includes('<rss') || trimmed.includes('<feed')) {
       result = parseRssOrAtom(trimmed, sourceUrl)
     } else {
-      throw new Error('Feed is not JSON or RSS/Atom')
+      throw new Error('not JSON/RSS')
     }
-
     saveCache(sourceUrl, result, hashContent(trimmed))
     return result
   } catch (err) {
-    if (cache?.result) {
-      return {
-        ...cache.result,
-        fromCache: true,
-        sourceType: 'cache',
-        error: `Using cached news — ${(err as Error).message}`,
-      }
-    }
+    errors.push(`raw: ${(err as Error).message}`)
+  }
 
-    // Bundled / repo fallback for first run offline or before the remote file exists
-    const localFallback = tryLoadBundledFeed(sourceUrl)
-    if (localFallback) {
-      return {
-        ...localFallback,
-        error: `Offline / remote unavailable — showing bundled news. ${(err as Error).message}`,
-      }
-    }
-
+  if (cache?.result) {
     return {
-      title: 'EG Launcher News',
-      updated: null,
-      sourceUrl,
-      sourceType: 'json',
-      items: [],
-      fromCache: false,
-      error: (err as Error).message,
+      ...cache.result,
+      fromCache: true,
+      sourceType: 'cache',
+      error: `Using cached news — ${errors.join('; ')}`,
     }
+  }
+
+  const localFallback = tryLoadBundledFeed(DEFAULT_NEWS_FEED_URL)
+  if (localFallback) {
+    return {
+      ...localFallback,
+      error: `Offline — bundled news. ${errors.join('; ')}`,
+    }
+  }
+
+  return {
+    title: 'EG Launcher News',
+    updated: null,
+    sourceUrl: DEFAULT_NEWS_FEED_URL,
+    sourceType: 'json',
+    items: [],
+    fromCache: false,
+    error: errors.join('; ') || 'Failed to load news',
   }
 }
 
@@ -296,7 +384,6 @@ function tryLoadBundledFeed(sourceUrl: string): NewsFeedResult | null {
   const candidates = [
     path.join(app.getAppPath(), 'news', 'feed.json'),
     path.join(process.resourcesPath, 'news', 'feed.json'),
-    // Dev: project root
     path.join(__dirname, '../../news/feed.json'),
   ]
   for (const p of candidates) {

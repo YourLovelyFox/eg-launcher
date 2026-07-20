@@ -551,6 +551,9 @@ a:hover {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 
 .boot-screen {
@@ -603,6 +606,9 @@ a:hover {
 .page {
   min-height: 100%;
   padding: 32px 36px 48px;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 
 /* ========== Home news feed ========== */
@@ -691,6 +697,87 @@ a:hover {
   color: var(--text-dim);
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+/* ========== Admin news editor ========== */
+.admin-news-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .admin-news-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 520px;
+  overflow: auto;
+}
+
+.admin-news-list-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-news-list-item strong {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.admin-news-list-item span {
+  font-size: 11px;
+  color: var(--text-mute);
+}
+
+.admin-news-list-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.admin-news-list-item.active {
+  border-color: rgba(61, 255, 176, 0.25);
+  background: rgba(61, 255, 176, 0.08);
+  color: var(--text);
+}
+
+.admin-textarea {
+  resize: vertical;
+  min-height: 140px;
+  line-height: 1.5;
+  display: block;
+}
+
+.admin-news-editor {
+  position: relative;
+  z-index: 4;
+  pointer-events: auto;
+}
+
+.admin-news-list-panel {
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
 }
 
 .page-header {
@@ -845,25 +932,50 @@ a:hover {
 }
 
 .input,
-.select {
-  background: rgba(8, 10, 16, 0.55);
+.select,
+textarea.input {
+  background: rgba(8, 10, 16, 0.72);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 11px 13px;
   outline: none;
   min-width: 0;
+  width: 100%;
+  color: var(--text);
+  opacity: 1;
+  /* Electron / overlay stacking: keep fields always clickable & typeable */
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 3;
+  -webkit-user-select: text;
+  user-select: text;
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
 
 .input:focus,
-.select:focus {
+.select:focus,
+textarea.input:focus {
   border-color: rgba(61, 255, 176, 0.55);
   box-shadow: 0 0 0 3px var(--green-soft);
-  background: rgba(8, 10, 16, 0.75);
+  background: rgba(8, 10, 16, 0.88);
+  color: var(--text);
+}
+
+.input:disabled,
+.select:disabled,
+textarea.input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .input::placeholder {
   color: var(--text-mute);
+}
+
+.form-row {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 
 /* Cards / grids */
@@ -1134,6 +1246,9 @@ a:hover {
 .form-row {
   display: grid;
   gap: 6px;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 
 .form-row label {

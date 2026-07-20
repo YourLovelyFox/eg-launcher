@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { isAdminBuild } from '../shared/features'
 import type {
   DeviceCodeResponse,
   GameInstance,
@@ -16,6 +17,7 @@ import type {
   UpdateStatus,
   AppVersionInfo,
   NewsFeedResult,
+  NewsItem,
 } from '../shared/types'
 
 const api = {
@@ -174,6 +176,75 @@ const api = {
   news: {
     fetch: (force?: boolean): Promise<NewsFeedResult> => ipcRenderer.invoke('news:fetch', force),
     defaultUrl: (): Promise<string> => ipcRenderer.invoke('news:defaultUrl'),
+  },
+  /**
+   * Admin API is only functional in the Dev Launcher.
+   * Public Live builds do not register these IPC handlers.
+   */
+  admin: {
+    isEnabled: (): boolean => isAdminBuild(),
+    login: (
+      password: string,
+    ): Promise<{ ok: true; sessionToken: string } | { ok: false; error: string }> => {
+      if (!isAdminBuild()) {
+        return Promise.resolve({ ok: false, error: 'Admin is not available in the Live launcher.' })
+      }
+      return ipcRenderer.invoke('admin:login', password)
+    },
+    logout: (sessionToken: string): Promise<boolean> => {
+      if (!isAdminBuild()) return Promise.resolve(false)
+      return ipcRenderer.invoke('admin:logout', sessionToken)
+    },
+    status: (
+      sessionToken: string,
+    ): Promise<{
+      authenticated: boolean
+      hasGithubToken: boolean
+      tokenFromLocalFile?: boolean
+      feedPath: string
+      feedUrl: string
+      repo: string
+      adminEnabled?: boolean
+    }> => {
+      if (!isAdminBuild()) {
+        return Promise.resolve({
+          authenticated: false,
+          hasGithubToken: false,
+          feedPath: '',
+          feedUrl: '',
+          repo: '',
+          adminEnabled: false,
+        })
+      }
+      return ipcRenderer.invoke('admin:status', sessionToken)
+    },
+    setGithubToken: (
+      sessionToken: string,
+      token: string,
+    ): Promise<{ ok: boolean; error?: string }> => {
+      if (!isAdminBuild()) return Promise.resolve({ ok: false, error: 'Admin disabled' })
+      return ipcRenderer.invoke('admin:setGithubToken', sessionToken, token)
+    },
+    loadNews: (
+      sessionToken: string,
+    ): Promise<{ ok: true; feed: NewsFeedResult } | { ok: false; error: string }> => {
+      if (!isAdminBuild()) return Promise.resolve({ ok: false, error: 'Admin disabled' })
+      return ipcRenderer.invoke('admin:loadNews', sessionToken)
+    },
+    publishNews: (
+      sessionToken: string,
+      items: NewsItem[],
+      title?: string,
+    ): Promise<
+      { ok: true; commitUrl?: string; message: string } | { ok: false; error: string }
+    > => {
+      if (!isAdminBuild()) return Promise.resolve({ ok: false, error: 'Admin disabled' })
+      return ipcRenderer.invoke('admin:publishNews', sessionToken, items, title)
+    },
+    newId: (): Promise<string> => {
+      if (!isAdminBuild()) return Promise.resolve(`news-${Date.now()}`)
+      return ipcRenderer.invoke('admin:newId')
+    },
   },
 }
 

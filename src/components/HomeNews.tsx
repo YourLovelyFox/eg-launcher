@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { NewsFeedResult, NewsItem } from '../../shared/types'
 
-/** Re-fetch remote JSON while Home is open so posts appear without a launcher update */
-const POLL_MS = 45_000
+/** Poll GitHub API often so Home picks up feed.json edits quickly */
+const POLL_MS = 12_000
 
 function formatNewsDate(iso: string): string {
   try {

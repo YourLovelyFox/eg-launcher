@@ -11,3 +11,8 @@ release
 .env.*
 !.env.example
 .github/workflows/*.local.yml
+
+# Dev-only secrets (never publish)
+admin.local.json
+**/eg-launcher-github-token.txt
+**/eg-launcher-admin-password.txt

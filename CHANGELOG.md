@@ -6,6 +6,24 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [1.0.6] — 2026-07-20
+
+### Added
+- Home **News** section fed from `news/feed.json` on GitHub (auto-refresh, no app release needed for posts).
+- Faster news updates via **GitHub Contents API** (avoids raw CDN lag).
+- App icon assets for installer / window / sidebar.
+- Dev-only **Admin** news editor (not included in Live public builds).
+
+### Fixed
+- Input fields hard to click/type (Admin editor and global input stacking).
+- Admin **Delete** now removes posts from `news/feed.json` on GitHub immediately.
+- Live vs Dev build split: public releases ship **without** Admin panel.
+
+### Changed
+- `npm run dist` / CI = Live (Admin off). `npm run dev` / `dist:admin` = Dev (Admin on).
+
+---
+
 ## [1.0.5] — 2026-07-20
 
 ### Fixed

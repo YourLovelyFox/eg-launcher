@@ -57,6 +57,17 @@ import {
   setUpdaterWindow,
 } from './services/updater'
 import { fetchNews, getDefaultNewsFeedUrl } from './services/news'
+import {
+  getAdminStatus,
+  loadNewsForAdmin,
+  logoutAdmin,
+  newNewsId,
+  publishNewsFeed,
+  setGithubToken,
+  verifyAdminPassword,
+} from './services/admin'
+import { isAdminBuild } from '../shared/features'
+import type { NewsItem } from '../shared/types'
 import { getInstanceModsDir } from './paths'
 
 // Reduce GPU / compositor freezes on some Windows setups after install
@@ -355,6 +366,29 @@ function registerIpc() {
   // Remote news (JSON or RSS) — updated without app releases
   ipcMain.handle('news:fetch', async (_e, force?: boolean) => fetchNews({ force: Boolean(force) }))
   ipcMain.handle('news:defaultUrl', () => getDefaultNewsFeedUrl())
+
+  // Admin panel — only registered in Dev Launcher builds (never in public Live)
+  if (isAdminBuild()) {
+    console.log('[EG Launcher] Dev build: Admin panel ENABLED')
+    ipcMain.handle('admin:login', (_e, password: string) => verifyAdminPassword(password))
+    ipcMain.handle('admin:logout', (_e, sessionToken: string) => {
+      logoutAdmin(sessionToken)
+      return true
+    })
+    ipcMain.handle('admin:status', (_e, sessionToken: string) => getAdminStatus(sessionToken))
+    ipcMain.handle('admin:setGithubToken', (_e, sessionToken: string, token: string) =>
+      setGithubToken(sessionToken, token),
+    )
+    ipcMain.handle('admin:loadNews', async (_e, sessionToken: string) => loadNewsForAdmin(sessionToken))
+    ipcMain.handle(
+      'admin:publishNews',
+      async (_e, sessionToken: string, items: NewsItem[], title?: string) =>
+        publishNewsFeed(sessionToken, items, title),
+    )
+    ipcMain.handle('admin:newId', () => newNewsId())
+  } else {
+    console.log('[EG Launcher] Live build: Admin panel DISABLED')
+  }
 }
 
 app.on('second-instance', () => {

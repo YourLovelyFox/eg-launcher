@@ -37,7 +37,9 @@ Edit [`feed.json`](./feed.json) on GitHub (web UI or git push). Users see update
 
 ## Auto-refresh
 
-The Home screen polls this feed about every 45 seconds (and when the window is focused). Edit and push `feed.json` — clients pick it up automatically (GitHub raw may lag a short time after push).
+The launcher loads news primarily via the **GitHub Contents API** (not the raw CDN), so changes to this file show up within a few seconds on open Home screens (poll ~12s + focus).
+
+Edit with **Dev Admin → Publish**, or push `feed.json` to `master`.
 
 ## Custom host
 
