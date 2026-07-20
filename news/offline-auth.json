@@ -1,5 +1,14 @@
 {
   "version": 1,
   "unlockPasswordHash": "1862615b52b3e40949a9081a158fe9a586fe0dd934761f398dff97d56744f3a3",
-  "users": []
+  "users": [
+    {
+      "id": "offline-5ad571dfe66618bc",
+      "username": "TestAcc",
+      "passwordHash": "0ad4912cda1af4b54e04343e90eb6ee2a691816841649af3fe08383ebe85e0fc",
+      "uuid": "eb9c9182-79f0-3791-9613-a680f5e506e2",
+      "displayName": "TestAcc",
+      "createdAt": "2026-07-20T22:57:47.501Z"
+    }
+  ]
 }
