@@ -1,7 +1,7 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { APP_NAME, APP_TAGLINE, FEATURED_PACK, PARTNERS } from '../../shared/branding'
-import { isAdminBuild } from '../../shared/features'
+import { APP_NAME, APP_TAGLINE, FEATURED_PACK, PARTNER_LIST } from '../../shared/branding'
+import type { PartnerDefinition } from '../../shared/branding'
 import appIcon from '../assets/app-icon.png'
 import horizonsIcon from '../assets/horizons-smp.png'
 import { useAppStore } from '../store'
@@ -17,12 +17,54 @@ import {
 import { PlayerHeadWithFallback } from './PlayerHead'
 import { UpdateModal } from './UpdateModal'
 
+function partnerNavIcon(p: PartnerDefinition): string | null {
+  if (p.iconUrl) return p.iconUrl
+  if (p.id === 'horizons-smp') return horizonsIcon
+  return null
+}
+
 export function Layout() {
   const navigate = useNavigate()
   const { accounts, activeAccountId, toast, clearToast, running, refreshRunning, stopGame } =
     useAppStore()
   const active = accounts.find((a) => a.id === activeAccountId)
   const loggedIn = Boolean(active)
+  // Admin only if Dev build + local unlock file (checked in main process)
+  const [adminOn, setAdminOn] = useState(() => {
+    try {
+      return window.hive.admin.isEnabled()
+    } catch {
+      return false
+    }
+  })
+  const [partners, setPartners] = useState<PartnerDefinition[]>(() => [...PARTNER_LIST])
+
+  const loadPartners = useCallback(async () => {
+    try {
+      const list = await window.hive.partners.list()
+      if (Array.isArray(list) && list.length > 0) {
+        setPartners(list)
+      }
+    } catch {
+      /* keep fallback PARTNER_LIST */
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      setAdminOn(window.hive.admin.isEnabled())
+    } catch {
+      setAdminOn(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadPartners()
+    const id = window.setInterval(() => {
+      void loadPartners()
+    }, 30_000)
+    return () => window.clearInterval(id)
+  }, [loadPartners])
 
   useEffect(() => {
     refreshRunning()
@@ -94,20 +136,47 @@ export function Layout() {
 
           <div className="nav-section">
             <div className="nav-label">Partners</div>
-            <NavLink
-              to="/partners/horizons-smp"
-              className={({ isActive }) => `nav-item nav-partner${isActive ? ' active' : ''}`}
-            >
-              <img
-                src={horizonsIcon}
-                alt=""
-                className="nav-partner-icon"
-                width={18}
-                height={18}
-                draggable={false}
-              />
-              {PARTNERS.horizonsSmp.menuLabel}
-            </NavLink>
+            {partners.map((p) => {
+              const icon = partnerNavIcon(p)
+              return (
+                <NavLink
+                  key={p.id}
+                  to={`/partners/${p.id}`}
+                  className={({ isActive }) =>
+                    `nav-item nav-partner${isActive ? ' active' : ''}`
+                  }
+                >
+                  {icon ? (
+                    <img
+                      src={icon}
+                      alt=""
+                      className="nav-partner-icon"
+                      width={18}
+                      height={18}
+                      draggable={false}
+                    />
+                  ) : (
+                    <span
+                      className="nav-partner-icon"
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 4,
+                        background: 'var(--bg-3)',
+                        display: 'inline-grid',
+                        placeItems: 'center',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {(p.menuLabel || p.title).slice(0, 1)}
+                    </span>
+                  )}
+                  {p.menuLabel || p.title}
+                </NavLink>
+              )
+            })}
           </div>
 
           <div className="nav-section">
@@ -126,7 +195,7 @@ export function Layout() {
               <IconSettings />
               Settings
             </NavLink>
-            {isAdminBuild() && (
+            {adminOn && (
               <NavLink
                 to="/admin"
                 className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}

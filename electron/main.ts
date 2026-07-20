@@ -38,7 +38,13 @@ import {
   getFeaturedPackStatus,
   installFeaturedPack,
 } from './services/featuredPack'
-import { getPartnerStatus, installPartner } from './services/partners'
+import { getPartnerStatus, installPartner, listPartnerDefinitions } from './services/partners'
+import {
+  deletePartnerConfig,
+  fetchPartnerConfigs,
+  upsertPartnerConfig,
+} from './services/partnerConfig'
+import { requireAdmin } from './services/admin'
 import { installModWithDependencies } from './services/modInstall'
 import {
   getProject,
@@ -56,7 +62,7 @@ import {
   installUpdate,
   setUpdaterWindow,
 } from './services/updater'
-import { fetchNews, getDefaultNewsFeedUrl } from './services/news'
+import { fetchNews, getDefaultNewsFeedUrl, setNewsUpdateListener } from './services/news'
 import {
   getAdminStatus,
   loadNewsForAdmin,
@@ -66,7 +72,17 @@ import {
   setGithubToken,
   verifyAdminPassword,
 } from './services/admin'
+import {
+  getPartnerSessionInfo,
+  loadPartnerNewsForEditor,
+  newPartnerNewsId,
+  partnerLogin,
+  partnerLogout,
+  publishPartnerNews,
+  mirrorPartnerAuthToPublic,
+} from './services/partnerAuth'
 import { isAdminBuild } from '../shared/features'
+import { getAdminUnlockInfo, isAdminAvailable } from './services/adminUnlock'
 import type { NewsItem } from '../shared/types'
 import { getInstanceModsDir } from './paths'
 
@@ -110,6 +126,15 @@ function createWindow() {
   })
 
   setUpdaterWindow(mainWindow)
+  setNewsUpdateListener((kind, feed) => {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('news:updated', { kind, feed })
+      }
+    } catch {
+      /* ignore */
+    }
+  })
 
   // Show as soon as the window is paintable
   mainWindow.once('ready-to-show', () => {
@@ -159,6 +184,7 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null
     setUpdaterWindow(null)
+    setNewsUpdateListener(null)
   })
 
   // Init updater after the window exists; check much later so first paint is smooth
@@ -344,7 +370,11 @@ function registerIpc() {
     },
   )
 
-  // Partners (e.g. Horizons SMP)
+  // Partners (dynamic CMS list)
+  ipcMain.handle('partners:list', async () => listPartnerDefinitions())
+  ipcMain.handle('partners:listConfig', async (_e, force?: boolean) =>
+    fetchPartnerConfigs(Boolean(force)),
+  )
   ipcMain.handle('partners:status', async (_e, id: string) => getPartnerStatus(id))
   ipcMain.handle('partners:install', async (_e, id: string) => {
     return installPartner(id, (progress) => {
@@ -363,13 +393,31 @@ function registerIpc() {
     return true
   })
 
-  // Remote news (JSON or RSS) — updated without app releases
-  ipcMain.handle('news:fetch', async (_e, force?: boolean) => fetchNews({ force: Boolean(force) }))
+  // Remote news — public mirrors; optional kind=launcher|partners, optional tag filter
+  ipcMain.handle(
+    'news:fetch',
+    async (
+      _e,
+      opts?: boolean | { force?: boolean; kind?: 'launcher' | 'partners'; tag?: string },
+    ) => {
+      if (typeof opts === 'boolean') return fetchNews({ force: opts })
+      return fetchNews({
+        force: Boolean(opts?.force),
+        kind: opts?.kind || 'launcher',
+        tag: opts?.tag,
+      })
+    },
+  )
   ipcMain.handle('news:defaultUrl', () => getDefaultNewsFeedUrl())
 
-  // Admin panel — only registered in Dev Launcher builds (never in public Live)
-  if (isAdminBuild()) {
-    console.log('[EG Launcher] Dev build: Admin panel ENABLED')
+  // Admin: Dev build + local unlock file only (public clones without unlock never get Admin)
+  ipcMain.on('admin:isUnlocked', (event) => {
+    event.returnValue = isAdminAvailable()
+  })
+  ipcMain.handle('admin:unlockInfo', () => getAdminUnlockInfo())
+
+  if (isAdminAvailable()) {
+    console.log('[EG Launcher] Admin ENABLED (Dev + local unlock file)')
     ipcMain.handle('admin:login', (_e, password: string) => verifyAdminPassword(password))
     ipcMain.handle('admin:logout', (_e, sessionToken: string) => {
       logoutAdmin(sessionToken)
@@ -386,9 +434,47 @@ function registerIpc() {
         publishNewsFeed(sessionToken, items, title),
     )
     ipcMain.handle('admin:newId', () => newNewsId())
+    ipcMain.handle('admin:mirrorPartnerAuth', async () => mirrorPartnerAuthToPublic())
+    ipcMain.handle('admin:listPartners', async (_e, sessionToken: string) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      const partners = await fetchPartnerConfigs(true)
+      return { ok: true as const, partners }
+    })
+    ipcMain.handle(
+      'admin:upsertPartner',
+      async (_e, sessionToken: string, input: unknown) =>
+        upsertPartnerConfig(sessionToken, input as never, requireAdmin),
+    )
+    ipcMain.handle(
+      'admin:deletePartner',
+      async (_e, sessionToken: string, partnerId: string) =>
+        deletePartnerConfig(sessionToken, partnerId, requireAdmin),
+    )
   } else {
-    console.log('[EG Launcher] Live build: Admin panel DISABLED')
+    const info = getAdminUnlockInfo()
+    console.log('[EG Launcher] Admin DISABLED:', info.reason)
   }
+
+  // Partner news auth + editor (available Live + Dev; publish needs write token on PC)
+  ipcMain.handle('partnerAuth:login', async (_e, username: string, password: string) =>
+    partnerLogin(username, password),
+  )
+  ipcMain.handle('partnerAuth:logout', (_e, sessionToken: string) => {
+    partnerLogout(sessionToken)
+    return true
+  })
+  ipcMain.handle('partnerAuth:status', (_e, sessionToken: string) =>
+    getPartnerSessionInfo(sessionToken),
+  )
+  ipcMain.handle('partnerAuth:loadNews', async (_e, sessionToken: string) =>
+    loadPartnerNewsForEditor(sessionToken),
+  )
+  ipcMain.handle(
+    'partnerAuth:publish',
+    async (_e, sessionToken: string, items: NewsItem[]) =>
+      publishPartnerNews(sessionToken, items),
+  )
+  ipcMain.handle('partnerAuth:newId', () => newPartnerNewsId())
 }
 
 app.on('second-instance', () => {

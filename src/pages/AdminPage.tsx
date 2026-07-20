@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NewsItem } from '../../shared/types'
 import { useAppStore } from '../store'
+import { AdminPartnersPanel } from './AdminPartnersPanel'
 
 const SESSION_KEY = 'eg-admin-session'
 
@@ -27,12 +28,14 @@ function toLocalInput(iso: string): string {
   }
 }
 
+/**
+ * Dev-only Home News editor (no password — only compiled into Dev launcher).
+ */
 export function AdminPage() {
   const { showToast } = useAppStore()
   const [session, setSession] = useState<string>(() => sessionStorage.getItem(SESSION_KEY) || '')
-  const [password, setPassword] = useState('')
-  const [loginBusy, setLoginBusy] = useState(false)
-  const [loginError, setLoginError] = useState('')
+  const [bootError, setBootError] = useState('')
+  const [booting, setBooting] = useState(!sessionStorage.getItem(SESSION_KEY))
 
   const [hasGithubToken, setHasGithubToken] = useState(false)
   const [tokenFromFile, setTokenFromFile] = useState(false)
@@ -45,10 +48,9 @@ export function AdminPage() {
   const [loading, setLoading] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  /** Local form draft — avoids focus loss / “grayed out” controlled-input fights */
   const [draft, setDraft] = useState<NewsItem | null>(null)
+  const [tab, setTab] = useState<'news' | 'partners'>('news')
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const passwordRef = useRef<HTMLInputElement>(null)
   const editingRef = useRef(false)
 
   const refreshStatus = useCallback(async (token: string) => {
@@ -80,7 +82,6 @@ export function AdminPage() {
 
         setSelectedId((prev) => {
           if (opts?.keepSelection && prev && list.some((i) => i.id === prev)) {
-            // Only refresh draft if user is not mid-keystroke
             if (!editingRef.current) {
               const found = list.find((i) => i.id === prev)!
               setDraft({ ...found })
@@ -100,19 +101,55 @@ export function AdminPage() {
     [showToast],
   )
 
+  // Auto-unlock on open (Dev only — Live build has no Admin route)
   useEffect(() => {
-    if (!session) return
-    refreshStatus(session)
-    loadNews(session, { keepSelection: false })
-  }, [session, refreshStatus, loadNews])
+    let cancelled = false
+    ;(async () => {
+      if (!window.hive.admin.isEnabled()) {
+        setBootError(
+          'Admin is locked on this PC. Create admin.local.json with "enableAdmin": true, or Desktop\\New folder\\eg-launcher-admin-unlock',
+        )
+        setBooting(false)
+        return
+      }
+      let token = sessionStorage.getItem(SESSION_KEY) || ''
+      if (token) {
+        const st = await window.hive.admin.status(token)
+        if (!st.authenticated) token = ''
+      }
+      if (!token) {
+        const res = await window.hive.admin.login('')
+        if (!res.ok) {
+          if (!cancelled) {
+            setBootError(res.error)
+            setBooting(false)
+          }
+          return
+        }
+        token = res.sessionToken
+        sessionStorage.setItem(SESSION_KEY, token)
+      }
+      if (cancelled) return
+      setSession(token)
+      setBooting(false)
+      await refreshStatus(token)
+      await loadNews(token, { keepSelection: false })
+    })().catch((err) => {
+      if (!cancelled) {
+        setBootError((err as Error).message)
+        setBooting(false)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [refreshStatus, loadNews])
 
-  // When user picks another post, load that post into the draft (not on every items tick)
   function selectPost(id: string) {
     editingRef.current = false
     setSelectedId(id)
     const found = items.find((i) => i.id === id)
     setDraft(found ? { ...found } : null)
-    // Focus title so typing works immediately (same pattern as Browse search fix)
     window.setTimeout(() => {
       titleInputRef.current?.focus({ preventScroll: true })
     }, 0)
@@ -123,31 +160,9 @@ export function AdminPage() {
     setDraft((d) => {
       if (!d) return d
       const next = { ...d, ...patch }
-      // Keep list in sync for the sidebar labels
       setItems((list) => list.map((i) => (i.id === next.id ? next : i)))
       return next
     })
-  }
-
-  async function login(e: React.FormEvent) {
-    e.preventDefault()
-    setLoginBusy(true)
-    setLoginError('')
-    try {
-      const res = await window.hive.admin.login(password)
-      if (!res.ok) {
-        setLoginError(res.error)
-        return
-      }
-      sessionStorage.setItem(SESSION_KEY, res.sessionToken)
-      setSession(res.sessionToken)
-      setPassword('')
-      showToast('success', 'Admin unlocked')
-    } catch (err) {
-      setLoginError((err as Error).message)
-    } finally {
-      setLoginBusy(false)
-    }
   }
 
   async function logout() {
@@ -159,6 +174,19 @@ export function AdminPage() {
     setSelectedId(null)
     setGithubTokenInput('')
     editingRef.current = false
+    // Immediately re-open (still Dev)
+    setBooting(true)
+    const res = await window.hive.admin.login('')
+    if (res.ok) {
+      sessionStorage.setItem(SESSION_KEY, res.sessionToken)
+      setSession(res.sessionToken)
+      setBooting(false)
+      await refreshStatus(res.sessionToken)
+      await loadNews(res.sessionToken, { keepSelection: false })
+    } else {
+      setBootError(res.error)
+      setBooting(false)
+    }
   }
 
   async function saveToken() {
@@ -185,7 +213,6 @@ export function AdminPage() {
   }
 
   function cleanItems(list: NewsItem[], { allowEmpty }: { allowEmpty: boolean }): NewsItem[] | null {
-    // Flush current draft into list first
     const withDraft =
       draft && list.some((i) => i.id === draft.id)
         ? list.map((i) => (i.id === draft.id ? draft : i))
@@ -243,7 +270,7 @@ export function AdminPage() {
     const label = doomed?.title?.trim() || 'this post'
     if (
       !window.confirm(
-        `Delete "${label}" from the launcher AND from news/feed.json on GitHub?\n\nThis cannot be undone.`,
+        `Delete "${label}" from the launcher AND from the CMS on GitHub?\n\nThis cannot be undone.`,
       )
     ) {
       return
@@ -267,7 +294,6 @@ export function AdminPage() {
   }
 
   async function publish() {
-    // Ensure draft is flushed into items
     const list =
       draft && items.some((i) => i.id === draft.id)
         ? items.map((i) => (i.id === draft.id ? draft : i))
@@ -276,50 +302,22 @@ export function AdminPage() {
     await publishList(list, { allowEmpty: false })
   }
 
-  if (!session) {
+  if (booting) {
     return (
       <div className="page">
-        <div className="page-header">
-          <div>
-            <div className="kicker">Restricted</div>
-            <h1>Admin</h1>
-            <p>Enter the admin password to manage launcher news.</p>
-          </div>
+        <div className="empty" style={{ padding: 40 }}>
+          <h3>Opening Admin…</h3>
         </div>
-        <div className="panel" style={{ maxWidth: 420 }}>
-          <form
-            onSubmit={login}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="form-row">
-              <label htmlFor="admin-password">Password</label>
-              <input
-                ref={passwordRef}
-                id="admin-password"
-                className="input"
-                type="password"
-                name="admin-password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="16-character admin password"
-                autoFocus
-              />
-            </div>
-            {loginError && (
-              <p className="hint" style={{ color: 'var(--red)', marginTop: 8 }}>
-                {loginError}
-              </p>
-            )}
-            <button
-              type="submit"
-              className="btn btn-primary"
-              style={{ marginTop: 14 }}
-              disabled={loginBusy || !password}
-            >
-              {loginBusy ? 'Checking…' : 'Unlock'}
-            </button>
-          </form>
+      </div>
+    )
+  }
+
+  if (bootError || !session) {
+    return (
+      <div className="page">
+        <div className="empty" style={{ padding: 40 }}>
+          <h3>Admin unavailable</h3>
+          <p>{bootError || 'Could not open Admin session.'}</p>
         </div>
       </div>
     )
@@ -329,40 +327,57 @@ export function AdminPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <div className="kicker">Admin</div>
-          <h1>News editor</h1>
+          <div className="kicker">Dev only · unlock file required</div>
+          <h1>Admin</h1>
           <p>
-            Publish updates to <span className="mono">{feedPath}</span> on{' '}
-            <span className="mono">{repo || 'GitHub'}</span>. All launchers poll this feed automatically.
+            CMS: private <span className="mono">eg-launcher-content</span> + public mirrors. Token from{' '}
+            <span className="mono">admin.local.json</span> / Desktop token file.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-ghost" onClick={logout}>
-            Lock admin
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => {
-              editingRef.current = false
-              loadNews(session, { keepSelection: true })
-            }}
-            disabled={loading}
-          >
-            {loading ? 'Loading…' : 'Reload'}
-          </button>
-          <button type="button" className="btn btn-primary" onClick={publish} disabled={publishing}>
-            {publishing ? 'Publishing…' : 'Publish to GitHub'}
-          </button>
+          {tab === 'news' && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  editingRef.current = false
+                  loadNews(session, { keepSelection: true })
+                }}
+                disabled={loading}
+              >
+                {loading ? 'Loading…' : 'Reload news'}
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => void publish()} disabled={publishing}>
+                {publishing ? 'Publishing…' : 'Publish news'}
+              </button>
+            </>
+          )}
         </div>
+      </div>
+
+      <div className="admin-tabs" style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <button
+          type="button"
+          className={`btn ${tab === 'news' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setTab('news')}
+        >
+          Home News
+        </button>
+        <button
+          type="button"
+          className={`btn ${tab === 'partners' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setTab('partners')}
+        >
+          Partners
+        </button>
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
         <h2 style={{ fontSize: 16 }}>GitHub token (this PC only)</h2>
         <p className="hint">
-          Dev Launcher loads a token from <span className="mono">admin.local.json</span> or{' '}
-          <span className="mono">Desktop\New folder\eg-launcher-github-token.txt</span> automatically.
-          Never put the token in a public Live build.
+          Needed for publish. File: <span className="mono">Desktop\New folder\eg-launcher-github-token.txt</span> or{' '}
+          <span className="mono">admin.local.json</span> with enableAdmin + githubToken.
         </p>
         <div className="badge-row" style={{ marginBottom: 10 }}>
           <span className={`badge${hasGithubToken ? ' badge-green' : ' badge-orange'}`}>
@@ -372,6 +387,8 @@ export function AdminPage() {
                 : 'Token saved on this PC'
               : 'Token required to publish'}
           </span>
+          <span className="badge">{feedPath}</span>
+          <span className="badge">{repo}</span>
         </div>
         {!tokenFromFile && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -385,18 +402,21 @@ export function AdminPage() {
               value={githubTokenInput}
               onChange={(e) => setGithubTokenInput(e.target.value)}
             />
-            <button type="button" className="btn btn-secondary" onClick={saveToken}>
+            <button type="button" className="btn btn-secondary" onClick={() => void saveToken()}>
               Save token
             </button>
           </div>
         )}
       </div>
 
+      {tab === 'partners' && <AdminPartnersPanel session={session} />}
+
+      {tab === 'news' && (
       <div className="admin-news-layout">
         <div className="panel admin-news-list-panel">
           <div className="page-header" style={{ marginBottom: 12 }}>
             <h2 style={{ fontSize: 16, margin: 0 }}>Posts</h2>
-            <button type="button" className="btn btn-secondary" onClick={addItem}>
+            <button type="button" className="btn btn-secondary" onClick={() => void addItem()}>
               Add post
             </button>
           </div>
@@ -465,7 +485,6 @@ export function AdminPage() {
                       editingRef.current = true
                     }}
                     onBlur={() => {
-                      // small delay so click-to-other-field doesn't fight reload
                       window.setTimeout(() => {
                         editingRef.current = false
                       }, 200)
@@ -555,6 +574,7 @@ export function AdminPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }
