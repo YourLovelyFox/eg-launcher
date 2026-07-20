@@ -4,15 +4,6 @@
   "updated": "2026-07-20T21:26:55.528Z",
   "items": [
     {
-      "id": "news-mrtqikie-9be024",
-      "title": "Test",
-      "summary": "",
-      "body": "A Test News.",
-      "date": "2026-07-20T21:26:28.694Z",
-      "tag": "info",
-      "url": null
-    },
-    {
       "id": "welcome-eg-launcher",
       "title": "Welcome to EG Launcher",
       "summary": "Browse Modrinth mods, manage instances, and play with Microsoft login.",
