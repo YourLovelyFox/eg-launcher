@@ -1,5 +1,14 @@
 {
   "version": 1,
   "unlockPasswordHash": "1862615b52b3e40949a9081a158fe9a586fe0dd934761f398dff97d56744f3a3",
-  "users": []
+  "users": [
+    {
+      "id": "offline-2fe78f40816b5dff",
+      "username": "Denes",
+      "passwordHash": "24d393cfa4a781459d8cea792e9decbf39a86ba811be5974ad1022c62a262da7",
+      "uuid": "4af3f566-9f13-3a0b-8d11-e7835da55c4c",
+      "displayName": "Denes",
+      "createdAt": "2026-07-20T23:00:42.448Z"
+    }
+  ]
 }
