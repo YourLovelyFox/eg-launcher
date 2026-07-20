@@ -1,5 +1,29 @@
 export type LoaderType = 'vanilla' | 'fabric' | 'forge' | 'neoforge'
 
+/** Partner definition stored in CMS (private + public mirror). */
+export type PartnerConfig = {
+  id: string
+  title: string
+  menuLabel: string
+  description: string
+  gameVersion: string
+  loader: LoaderType
+  serverAddress: string
+  serverName: string
+  instanceName: string
+  /** News tag e.g. HorizonsSMP */
+  newsTag: string
+  /** Login username for partner news portal */
+  newsUsername: string
+  /** Modrinth mod slugs/ids installed automatically */
+  defaultMods: string[]
+  /** Optional Modrinth modpack project slug/id */
+  modrinthPackSlug?: string | null
+  /** Optional icon URL (https) */
+  iconUrl?: string | null
+  enabled?: boolean
+}
+
 export type ProgressEvent = {
   stage: string
   progress: number

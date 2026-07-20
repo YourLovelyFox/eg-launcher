@@ -1,6 +1,6 @@
 import path from 'path'
-import { PARTNER_LIST, type PartnerDefinition } from '../../shared/branding'
-import type { GameInstance, LoaderType, ProgressEvent } from '../../shared/types'
+import type { PartnerDefinition } from '../../shared/branding'
+import type { GameInstance, LoaderType, PartnerConfig, ProgressEvent } from '../../shared/types'
 import {
   getDataRoot,
   getInstanceDir,
@@ -10,8 +10,29 @@ import {
 import { createInstance, getInstance, listInstances, updateInstance } from './instances'
 import { installInstanceRuntime, listLoaderVersions } from './minecraft'
 import { installModWithDependencies } from './modInstall'
+import { installFeaturedPack } from './featuredPack'
 import { getProject, getProjectVersions } from './modrinth'
+import { fetchPartnerConfigs, getPartnerConfigById } from './partnerConfig'
 import { ensureDefaultServer } from './serversDat'
+
+function toDefinition(p: PartnerConfig): PartnerDefinition {
+  return {
+    id: p.id,
+    title: p.title,
+    menuLabel: p.menuLabel,
+    description: p.description,
+    gameVersion: p.gameVersion,
+    loader: p.loader,
+    serverAddress: p.serverAddress,
+    serverName: p.serverName,
+    instanceName: p.instanceName,
+    defaultMods: p.defaultMods,
+    newsTag: p.newsTag,
+    newsUsername: p.newsUsername,
+    modrinthPackSlug: p.modrinthPackSlug,
+    iconUrl: p.iconUrl,
+  }
+}
 
 export type PartnerLocalState = {
   id: string
@@ -49,8 +70,14 @@ function defaultLocal(id: string): PartnerLocalState {
   }
 }
 
-export function getPartnerDefinition(id: string): PartnerDefinition | null {
-  return PARTNER_LIST.find((p) => p.id === id) ?? null
+export async function listPartnerDefinitions(): Promise<PartnerDefinition[]> {
+  const list = await fetchPartnerConfigs(false)
+  return list.map(toDefinition)
+}
+
+export async function getPartnerDefinition(id: string): Promise<PartnerDefinition | null> {
+  const p = await getPartnerConfigById(id)
+  return p ? toDefinition(p) : null
 }
 
 export function getPartnerLocal(id: string): PartnerLocalState {
@@ -63,8 +90,8 @@ export function getPartnerLocal(id: string): PartnerLocalState {
   return local
 }
 
-export function getPartnerStatus(id: string): PartnerStatus {
-  const partner = getPartnerDefinition(id)
+export async function getPartnerStatus(id: string): Promise<PartnerStatus> {
+  const partner = await getPartnerDefinition(id)
   if (!partner) throw new Error(`Unknown partner: ${id}`)
 
   const local = getPartnerLocal(id)
@@ -123,7 +150,7 @@ export async function installPartner(
   id: string,
   onProgress?: (event: ProgressEvent) => void,
 ): Promise<PartnerStatus> {
-  const partner = getPartnerDefinition(id)
+  const partner = await getPartnerDefinition(id)
   if (!partner) throw new Error(`Unknown partner: ${id}`)
 
   const emit = (stage: string, progress: number, message: string) => {
@@ -132,7 +159,7 @@ export async function installPartner(
 
   emit('prepare', 0.02, `Preparing ${partner.title}…`)
 
-  let status = getPartnerStatus(id)
+  let status = await getPartnerStatus(id)
   let instance = status.instance
 
   const loaderVersion = await resolveLoaderVersion(partner.loader, partner.gameVersion)
@@ -178,6 +205,22 @@ export async function installPartner(
 
   // Refresh instance after runtime (metadata may be unchanged but mods install needs current)
   instance = getInstance(instance.id) || instance
+
+  // Optional Modrinth modpack
+  const packSlug = partner.modrinthPackSlug?.trim()
+  if (packSlug) {
+    try {
+      emit('pack', 0.48, `Installing Modrinth pack ${packSlug}…`)
+      await installFeaturedPack(
+        { slug: packSlug },
+        (p) => emit(p.stage, 0.48 + p.progress * 0.2, p.message),
+      )
+      // featured pack may create its own instance — re-bind if needed
+      instance = getInstance(instance.id) || instance
+    } catch (err) {
+      console.warn('[partners] pack install failed, continuing with mods:', err)
+    }
+  }
 
   const modSlugs = partner.defaultMods || []
   if (modSlugs.length > 0) {

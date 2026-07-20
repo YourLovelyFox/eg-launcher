@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { NewsFeedResult, NewsItem } from '../../shared/types'
 
-/** Poll GitHub API often so Home picks up feed.json edits quickly */
-const POLL_MS = 12_000
+/** Poll often; main process pins local publishes so force won't clobber them */
+const POLL_MS = 8_000
 
 function formatNewsDate(iso: string): string {
   try {
@@ -33,9 +33,16 @@ function tagClass(tag?: string): string {
 
 function feedFingerprint(feed: NewsFeedResult | null): string {
   if (!feed) return ''
-  return [feed.updated || '', feed.items.map((i) => `${i.id}:${i.date}:${i.title}`).join('|')].join(
-    '::',
-  )
+  return [
+    feed.updated || '',
+    feed.items.length,
+    feed.items
+      .map(
+        (i) =>
+          `${i.id}|${i.date}|${i.title}|${i.tag || ''}|${i.summary || ''}|${i.body || ''}|${i.url || ''}`,
+      )
+      .join('||'),
+  ].join('::')
 }
 
 export function HomeNews() {
@@ -47,16 +54,20 @@ export function HomeNews() {
   useEffect(() => {
     let cancelled = false
 
+    function applyFeed(data: NewsFeedResult, always = false) {
+      if (cancelled) return
+      const nextFp = feedFingerprint(data)
+      if (always || nextFp !== fingerprintRef.current || !fingerprintRef.current) {
+        fingerprintRef.current = nextFp
+        setFeed(data)
+      }
+    }
+
     async function load(force: boolean, silent: boolean) {
       if (!silent) setLoading(true)
       try {
-        const data = await window.hive.news.fetch(force)
-        if (cancelled) return
-        const nextFp = feedFingerprint(data)
-        if (nextFp !== fingerprintRef.current || !fingerprintRef.current) {
-          fingerprintRef.current = nextFp
-          setFeed(data)
-        }
+        const data = await window.hive.news.fetch({ force, kind: 'launcher' })
+        applyFeed(data)
       } catch (err) {
         if (!cancelled && !silent) {
           setFeed({
@@ -74,24 +85,31 @@ export function HomeNews() {
       }
     }
 
-    load(true, false)
+    void load(true, false)
 
     const interval = window.setInterval(() => {
-      load(true, true)
+      void load(true, true)
     }, POLL_MS)
 
-    const onFocus = () => load(true, true)
+    const onFocus = () => void load(true, true)
     const onVisible = () => {
-      if (document.visibilityState === 'visible') load(true, true)
+      if (document.visibilityState === 'visible') void load(true, true)
     }
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisible)
+
+    const offUpdated = window.hive.news.onUpdated((payload) => {
+      if (payload.kind !== 'launcher') return
+      applyFeed(payload.feed, true)
+      setLoading(false)
+    })
 
     return () => {
       cancelled = true
       window.clearInterval(interval)
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisible)
+      offUpdated()
     }
   }, [])
 

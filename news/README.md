@@ -41,6 +41,16 @@ The launcher loads news primarily via the **GitHub Contents API** (not the raw C
 
 Edit with **Dev Admin → Publish**, or push `feed.json` to `master`.
 
+## Partners config
+
+Sidebar partners (Live) load from:
+
+```
+news/partners-config.json
+```
+
+Create/edit partners via **Dev Admin → Partners** (writes private CMS + this public mirror). Built-in fallback is Horizons SMP if the file is missing.
+
 ## Custom host
 
 Change `DEFAULT_NEWS_FEED_URL` in `shared/branding.ts` if you host the feed elsewhere (requires a launcher build).

@@ -1,16 +1,15 @@
 import { useEffect } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { APP_FULL_NAME, APP_NAME } from '../shared/branding'
-import { isAdminBuild } from '../shared/features'
 import appIcon from './assets/app-icon.png'
 import { Layout } from './components/Layout'
 import { AccountPage } from './pages/AccountPage'
 import { BeesSmpPage } from './pages/BeesSmpPage'
-import { HorizonsSmpPage } from './pages/HorizonsSmpPage'
 import { BrowsePage } from './pages/BrowsePage'
 import { HomePage } from './pages/HomePage'
 import { InstanceDetailPage } from './pages/InstanceDetailPage'
 import { InstancesPage } from './pages/InstancesPage'
+import { PartnerPage } from './pages/PartnerPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AdminPage } from './pages/AdminPage'
 import { useAppStore } from './store'
@@ -47,10 +46,10 @@ export default function App() {
           <Route path="instances" element={<InstancesPage />} />
           <Route path="instances/:id" element={<InstanceDetailPage />} />
           <Route path="bees-smp" element={<BeesSmpPage />} />
-          <Route path="partners/horizons-smp" element={<HorizonsSmpPage />} />
+          <Route path="partners/:id" element={<PartnerPage />} />
           <Route path="account" element={<AccountPage />} />
           <Route path="settings" element={<SettingsPage />} />
-          {isAdminBuild() && <Route path="admin" element={<AdminPage />} />}
+          <Route path="admin" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

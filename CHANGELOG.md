@@ -6,6 +6,25 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [1.0.7] — 2026-07-21
+
+### Added
+- **CMS-driven Partners**: sidebar partners load from `news/partners-config.json` (create/edit/delete in Dev Admin).
+- Generic partner page at `/partners/:id` (install, play, mods list, partner news).
+- **Partner news portal**: partners log in on their page to publish tagged posts (public hash auth + private CMS).
+- Dev Admin **Partners** tab (name, news user/pass, server IP, version/loader, Modrinth pack or mods, icon URL).
+- Private CMS dual-write (`eg-launcher-content`) with public mirrors for Live clients.
+
+### Fixed
+- Partner create/delete GitHub **409 conflicts** (sequential Contents API writes + retries).
+- Partner login reliability (BOM strip, token-backed auth fetch, no random password overwrites).
+- Home / partner **news refresh**: pin local publish, ETag, rate-limit backoff, instant `news:updated` push after publish.
+
+### Changed
+- Live builds still ship **without** Admin; partner login + news work for everyone.
+
+---
+
 ## [1.0.6] — 2026-07-20
 
 ### Added

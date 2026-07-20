@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "partners": [
+    {
+      "id": "horizons-smp",
+      "title": "Horizons SMP",
+      "menuLabel": "Horizons SMP",
+      "description": "Official partner server. Fabric Minecraft with performance & QoL mods and the Horizons SMP multiplayer server ready to join.",
+      "gameVersion": "1.21.11",
+      "loader": "fabric",
+      "serverAddress": "play.horizons-smp.com",
+      "serverName": "Horizons SMP",
+      "instanceName": "Horizons SMP",
+      "newsTag": "HorizonsSMP",
+      "newsUsername": "HorizonsSMP",
+      "defaultMods": [
+        "sodium",
+        "xaeros-minimap",
+        "xaeros-world-map",
+        "appleskin",
+        "3dskinlayers",
+        "zoomify"
+      ],
+      "modrinthPackSlug": null,
+      "iconUrl": null,
+      "enabled": true
+    }
+  ]
+}

@@ -1,5 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { isAdminBuild } from '../shared/features'
+
+function adminUnlockedSync(): boolean {
+  if (!isAdminBuild()) return false
+  try {
+    return Boolean(ipcRenderer.sendSync('admin:isUnlocked'))
+  } catch {
+    return false
+  }
+}
 import type {
   DeviceCodeResponse,
   GameInstance,
@@ -18,7 +27,9 @@ import type {
   AppVersionInfo,
   NewsFeedResult,
   NewsItem,
+  PartnerConfig,
 } from '../shared/types'
+import type { PartnerDefinition } from '../shared/branding'
 
 const api = {
   settings: {
@@ -149,6 +160,9 @@ const api = {
     },
   },
   partners: {
+    list: (): Promise<PartnerDefinition[]> => ipcRenderer.invoke('partners:list'),
+    listConfig: (force?: boolean): Promise<PartnerConfig[]> =>
+      ipcRenderer.invoke('partners:listConfig', force),
     getStatus: (id: string) => ipcRenderer.invoke('partners:status', id),
     install: (id: string) => ipcRenderer.invoke('partners:install', id),
     onInstallProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
@@ -174,25 +188,84 @@ const api = {
     },
   },
   news: {
-    fetch: (force?: boolean): Promise<NewsFeedResult> => ipcRenderer.invoke('news:fetch', force),
+    fetch: (
+      opts?: boolean | { force?: boolean; kind?: 'launcher' | 'partners'; tag?: string },
+    ): Promise<NewsFeedResult> => ipcRenderer.invoke('news:fetch', opts),
     defaultUrl: (): Promise<string> => ipcRenderer.invoke('news:defaultUrl'),
+    /** Fired when Admin/partner publish pins a new feed, or a poll finds changes */
+    onUpdated: (
+      cb: (payload: { kind: 'launcher' | 'partners'; feed: NewsFeedResult }) => void,
+    ): (() => void) => {
+      const listener = (
+        _: unknown,
+        payload: { kind: 'launcher' | 'partners'; feed: NewsFeedResult },
+      ) => cb(payload)
+      ipcRenderer.on('news:updated', listener)
+      return () => {
+        ipcRenderer.removeListener('news:updated', listener)
+      }
+    },
+  },
+  partnerAuth: {
+    login: (
+      username: string,
+      password: string,
+    ): Promise<
+      | {
+          ok: true
+          sessionToken: string
+          partnerId: string
+          newsTag: string
+          displayName: string
+        }
+      | { ok: false; error: string }
+    > => ipcRenderer.invoke('partnerAuth:login', username, password),
+    logout: (sessionToken: string): Promise<boolean> =>
+      ipcRenderer.invoke('partnerAuth:logout', sessionToken),
+    status: (
+      sessionToken: string,
+    ): Promise<
+      | {
+          authenticated: true
+          partnerId: string
+          username: string
+          newsTag: string
+          displayName: string
+        }
+      | { authenticated: false }
+    > => ipcRenderer.invoke('partnerAuth:status', sessionToken),
+    loadNews: (
+      sessionToken: string,
+    ): Promise<
+      { ok: true; feed: NewsFeedResult; newsTag: string } | { ok: false; error: string }
+    > => ipcRenderer.invoke('partnerAuth:loadNews', sessionToken),
+    publish: (
+      sessionToken: string,
+      items: NewsItem[],
+    ): Promise<{ ok: true; message: string; commitUrl?: string } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('partnerAuth:publish', sessionToken, items),
+    newId: (): Promise<string> => ipcRenderer.invoke('partnerAuth:newId'),
   },
   /**
    * Admin API is only functional in the Dev Launcher.
    * Public Live builds do not register these IPC handlers.
    */
   admin: {
-    isEnabled: (): boolean => isAdminBuild(),
+    /** Dev build + local unlock file on this PC */
+    isEnabled: (): boolean => adminUnlockedSync(),
     login: (
       password: string,
     ): Promise<{ ok: true; sessionToken: string } | { ok: false; error: string }> => {
-      if (!isAdminBuild()) {
-        return Promise.resolve({ ok: false, error: 'Admin is not available in the Live launcher.' })
+      if (!adminUnlockedSync()) {
+        return Promise.resolve({
+          ok: false,
+          error: 'Admin is locked. Create admin.local.json with "enableAdmin": true on this PC.',
+        })
       }
       return ipcRenderer.invoke('admin:login', password)
     },
     logout: (sessionToken: string): Promise<boolean> => {
-      if (!isAdminBuild()) return Promise.resolve(false)
+      if (!adminUnlockedSync()) return Promise.resolve(false)
       return ipcRenderer.invoke('admin:logout', sessionToken)
     },
     status: (
@@ -206,7 +279,7 @@ const api = {
       repo: string
       adminEnabled?: boolean
     }> => {
-      if (!isAdminBuild()) {
+      if (!adminUnlockedSync()) {
         return Promise.resolve({
           authenticated: false,
           hasGithubToken: false,
@@ -222,13 +295,13 @@ const api = {
       sessionToken: string,
       token: string,
     ): Promise<{ ok: boolean; error?: string }> => {
-      if (!isAdminBuild()) return Promise.resolve({ ok: false, error: 'Admin disabled' })
+      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:setGithubToken', sessionToken, token)
     },
     loadNews: (
       sessionToken: string,
     ): Promise<{ ok: true; feed: NewsFeedResult } | { ok: false; error: string }> => {
-      if (!isAdminBuild()) return Promise.resolve({ ok: false, error: 'Admin disabled' })
+      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:loadNews', sessionToken)
     },
     publishNews: (
@@ -238,12 +311,32 @@ const api = {
     ): Promise<
       { ok: true; commitUrl?: string; message: string } | { ok: false; error: string }
     > => {
-      if (!isAdminBuild()) return Promise.resolve({ ok: false, error: 'Admin disabled' })
+      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:publishNews', sessionToken, items, title)
     },
     newId: (): Promise<string> => {
-      if (!isAdminBuild()) return Promise.resolve(`news-${Date.now()}`)
+      if (!adminUnlockedSync()) return Promise.resolve(`news-${Date.now()}`)
       return ipcRenderer.invoke('admin:newId')
+    },
+    listPartners: (
+      sessionToken: string,
+    ): Promise<{ ok: true; partners: PartnerConfig[] } | { ok: false; error: string }> => {
+      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
+      return ipcRenderer.invoke('admin:listPartners', sessionToken)
+    },
+    upsertPartner: (
+      sessionToken: string,
+      input: Record<string, unknown>,
+    ): Promise<{ ok: true; partner: PartnerConfig } | { ok: false; error: string }> => {
+      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
+      return ipcRenderer.invoke('admin:upsertPartner', sessionToken, input)
+    },
+    deletePartner: (
+      sessionToken: string,
+      partnerId: string,
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
+      return ipcRenderer.invoke('admin:deletePartner', sessionToken, partnerId)
     },
   },
 }
