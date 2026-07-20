@@ -6,6 +6,13 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [1.0.8] — 2026-07-21
+
+### Changed
+- Dev Admin news editor: removed **Link (optional)** field (posts no longer store an external URL).
+
+---
+
 ## [1.0.7] — 2026-07-21
 
 ### Added

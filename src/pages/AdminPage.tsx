@@ -225,7 +225,7 @@ export function AdminPage() {
         summary: (i.summary || '').trim(),
         body: (i.body || '').trim(),
         tag: (i.tag || 'info').trim() || 'info',
-        url: i.url && String(i.url).trim() ? String(i.url).trim() : null,
+        url: null,
       }))
       .filter((i) => i.title)
 
@@ -548,22 +548,6 @@ export function AdminPage() {
                     rows={8}
                     value={draft.body || ''}
                     onChange={(e) => updateDraft({ body: e.target.value })}
-                    onFocus={() => {
-                      editingRef.current = true
-                    }}
-                  />
-                </div>
-                <div className="form-row">
-                  <label htmlFor="news-url">Link (optional)</label>
-                  <input
-                    id="news-url"
-                    className="input"
-                    type="url"
-                    name="news-url"
-                    autoComplete="off"
-                    placeholder="https://"
-                    value={draft.url || ''}
-                    onChange={(e) => updateDraft({ url: e.target.value || null })}
                     onFocus={() => {
                       editingRef.current = true
                     }}

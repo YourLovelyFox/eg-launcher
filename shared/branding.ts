@@ -3,7 +3,7 @@ export const APP_NAME = 'EG'
 export const APP_TAGLINE = 'Launcher'
 export const APP_FULL_NAME = 'EG Launcher'
 /** Display version — keep in sync with package.json for UI; runtime uses app.getVersion(). */
-export const APP_VERSION = '1.0.7'
+export const APP_VERSION = '1.0.8'
 
 /**
  * News / partner content — CMS lives in private `eg-launcher-content`.
