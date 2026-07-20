@@ -137,6 +137,17 @@ export function PartnerPage() {
       if (result.success) {
         showToast('success', result.message)
         await refreshAll()
+      } else if (result.requiresConfirmation) {
+        if (window.confirm(result.message)) {
+          const retry = await window.hive.mc.launch(instanceId, { acknowledgeLowMemory: true })
+          await refreshRunning()
+          if (retry.success) {
+            showToast('success', retry.message)
+            await refreshAll()
+          } else {
+            showToast('error', retry.message.split('\n')[0])
+          }
+        }
       } else {
         if (result.message.length > 120 || result.message.includes('\n')) {
           window.alert(result.message)

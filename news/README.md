@@ -51,6 +51,16 @@ news/partners-config.json
 
 Create/edit partners via **Dev Admin → Partners** (writes private CMS + this public mirror). Built-in fallback is Horizons SMP if the file is missing.
 
+## Offline auth (optional)
+
+Offline / cracked account hashes + unlock password hash:
+
+```
+news/offline-auth.json
+```
+
+Managed via **Dev Admin → Offline accounts** (also writes private `auth/offline-users.json` in the content repo). Live clients only read password hashes from this public file.
+
 ## Custom host
 
 Change `DEFAULT_NEWS_FEED_URL` in `shared/branding.ts` if you host the feed elsewhere (requires a launcher build).

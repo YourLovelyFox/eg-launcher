@@ -100,7 +100,7 @@ export function InstanceDetailPage() {
     }
   }
 
-  async function launch() {
+  async function launch(acknowledgeLowMemory = false) {
     if (!loggedIn) {
       showToast('error', 'Sign in with Microsoft to play')
       navigate('/account')
@@ -108,12 +108,17 @@ export function InstanceDetailPage() {
     }
     setBusy('launch')
     try {
-      const result = await window.hive.mc.launch(instance!.id)
+      const result = await window.hive.mc.launch(instance!.id, { acknowledgeLowMemory })
       await refreshRunning()
       if (result.success) {
         showToast('success', result.message)
         await refreshAll()
         await reload()
+      } else if (result.requiresConfirmation) {
+        if (window.confirm(result.message)) {
+          await launch(true)
+          return
+        }
       } else {
         if (result.message.length > 120 || result.message.includes('\n')) {
           window.alert(result.message)
@@ -250,7 +255,7 @@ export function InstanceDetailPage() {
           ) : (
             <button
               className="btn btn-primary btn-lg"
-              onClick={launch}
+              onClick={() => launch()}
               disabled={!!busy || running.running || !loggedIn}
               title={loggedIn ? 'Play' : 'Sign in with Microsoft first'}
             >

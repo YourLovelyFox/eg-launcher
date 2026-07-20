@@ -950,16 +950,19 @@ export async function launchInstance(
     return {
       success: false,
       message:
-        'Microsoft login required. Sign in under Microsoft Login before playing — offline mode is disabled.',
+        'Sign in required. Use a Microsoft account, or unlock Offline mode in Settings and log in with an offline account.',
     }
   }
   // Redacted token from renderer must never be used for launch
   if (account.accessToken === '***') {
     return {
       success: false,
-      message: 'Invalid account session. Sign out and sign in again with Microsoft.',
+      message: 'Invalid account session. Sign out and sign in again.',
     }
   }
+
+  const isOfflineAccount =
+    account.type === 'offline' || String(account.id || '').startsWith('offline-')
 
   if (processAlive()) {
     const name = runningInstanceName || 'another instance'
@@ -1047,6 +1050,8 @@ export async function launchInstance(
   // Mojang profile IDs are undashed; keep as-is
   const uuid = account.uuid.replace(/-/g, '')
   const accessToken = account.accessToken
+  // Offline / cracked accounts use legacy user type (not MSA)
+  const userType = isOfflineAccount ? 'legacy' : 'msa'
 
   const replacements: Record<string, string> = {
     '${auth_player_name}': username,
@@ -1058,7 +1063,7 @@ export async function launchInstance(
     '${auth_access_token}': accessToken,
     '${clientid}': CLIENT_ID_FOR_LAUNCH,
     '${auth_xuid}': '0',
-    '${user_type}': 'msa',
+    '${user_type}': userType,
     '${version_type}': 'release',
     '${natives_directory}': nativesDir,
     '${launcher_name}': 'EGLauncher',

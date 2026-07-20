@@ -3,7 +3,7 @@ export const APP_NAME = 'EG'
 export const APP_TAGLINE = 'Launcher'
 export const APP_FULL_NAME = 'EG Launcher'
 /** Display version — keep in sync with package.json for UI; runtime uses app.getVersion(). */
-export const APP_VERSION = '1.0.8'
+export const APP_VERSION = '1.0.9'
 
 /**
  * News / partner content — CMS lives in private `eg-launcher-content`.
@@ -70,6 +70,16 @@ export const FEATURED_PACK = {
   description:
     'Heavy tech modpack with custom world generation, Leaving Earth, and space exploration.',
   menuLabel: "Bee's SMP",
+  /**
+   * Minimum total system RAM (rounded GB) required to install.
+   * Below this, the pack is blocked — risk of system instability / BSoD.
+   */
+  minSystemRamGb: 12,
+  /**
+   * Recommended allocated Minecraft RAM (MB) for a good experience.
+   * On 12 GB systems the launcher only allows ~6 GB (50%) — play is allowed with a warning.
+   */
+  recommendedAllocatedMb: 8192,
 } as const
 
 /** Partner servers / SMPs pinned in the sidebar. Not auto-installed. */

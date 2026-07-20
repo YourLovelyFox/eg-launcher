@@ -17,7 +17,7 @@ export function HomePage() {
 
   const loggedIn = Boolean(active)
 
-  async function launch(id: string) {
+  async function launch(id: string, acknowledgeLowMemory = false) {
     if (!loggedIn) {
       showToast('error', 'Sign in with Microsoft to play')
       navigate('/account')
@@ -25,11 +25,16 @@ export function HomePage() {
     }
     setLaunchingId(id)
     try {
-      const result = await window.hive.mc.launch(id)
+      const result = await window.hive.mc.launch(id, { acknowledgeLowMemory })
       await refreshRunning()
       if (result.success) {
         showToast('success', result.message)
         await refreshAll()
+      } else if (result.requiresConfirmation) {
+        if (window.confirm(result.message)) {
+          await launch(id, true)
+          return
+        }
       } else {
         if (result.message.length > 120 || result.message.includes('\n')) {
           window.alert(result.message)

@@ -30,6 +30,8 @@ export type ProgressEvent = {
   message: string
 }
 
+export type MinecraftAccountType = 'microsoft' | 'offline'
+
 export type MinecraftAccount = {
   id: string
   username: string
@@ -38,6 +40,8 @@ export type MinecraftAccount = {
   refreshToken?: string
   expiresAt?: number
   skinUrl?: string
+  /** microsoft = paid MSA; offline = cracked / non-premium local account */
+  type?: MinecraftAccountType
 }
 
 export type LauncherSettings = {
@@ -47,6 +51,68 @@ export type LauncherSettings = {
   gameDirectory: string
   closeOnLaunch: boolean
   resolveDependencies: boolean
+  /**
+   * Hidden: offline (cracked) login unlocked after correct password in Settings.
+   * Does not enable multiplayer on official/premium servers.
+   */
+  offlineModeEnabled?: boolean
+}
+
+/** Offline auth user record (password hash only — never plain passwords on disk/GitHub). */
+export type OfflineAuthUser = {
+  id: string
+  username: string
+  passwordHash: string
+  uuid: string
+  displayName: string
+  createdAt: string
+}
+
+export type OfflineAuthFile = {
+  version: 1
+  /** SHA-256 of the Settings unlock password (feature gate) */
+  unlockPasswordHash: string | null
+  users: OfflineAuthUser[]
+}
+
+/** Physical RAM + launcher allocation cap derived from total memory. */
+export type SystemMemoryInfo = {
+  /** Total physical memory in MB */
+  totalMb: number
+  /** Rounded GB (for tier matching; 8 GB sticks often report ~7.8) */
+  totalGbRounded: number
+  /** Max MB the launcher will allow for Minecraft (-Xmx) */
+  maxAllowedMb: number
+  /** Cap as percent of total (50 or 75) */
+  allowedPercent: number
+}
+
+/**
+ * Memory gate for heavy featured packs (e.g. Bee's SMP).
+ * Enforced on install / play in main process + shown in the pack UI.
+ */
+export type FeaturedPackMemoryGate = {
+  system: SystemMemoryInfo
+  /** Current Settings max RAM (MB) */
+  allocatedMb: number
+  minSystemRamGb: number
+  recommendedAllocatedMb: number
+  /** False when total system RAM is below the pack's minimum */
+  canInstall: boolean
+  installBlockReason: string | null
+  /**
+   * User can allocate the recommended amount but currently has less set.
+   * Play should be blocked until they raise Max RAM in Settings.
+   */
+  playNeedsMoreAllocated: boolean
+  /**
+   * System cannot allocate the recommended amount (e.g. 12 GB PC → 50% = 6 GB).
+   * Play is allowed after an explicit low-memory warning.
+   */
+  playNeedsLowMemoryWarning: boolean
+  /** Short label for UI, e.g. "6.0 GB" */
+  maxAllowedLabel: string
+  recommendedLabel: string
 }
 
 export type NewsTag = 'announcement' | 'update' | 'partner' | 'event' | 'info' | string
@@ -218,6 +284,11 @@ export type LaunchResult = {
   success: boolean
   message: string
   pid?: number
+  /**
+   * Soft gate (e.g. Bee's SMP on 12 GB PCs). UI should confirm, then re-launch
+   * with `acknowledgeLowMemory: true`.
+   */
+  requiresConfirmation?: boolean
 }
 
 export type RunningGameInfo = {

@@ -6,6 +6,23 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [1.0.9] — 2026-07-21
+
+### Added
+- **System RAM detection**: the launcher reads total PC memory and caps Maximum RAM so the OS keeps headroom (50% on ≤12 GB systems, 75% on 14–16 GB+).
+- **Bee's SMP requirements**: needs at least **12 GB** system RAM to install; recommended **8 GB** allocated to play when the PC can provide it.
+- On **12 GB** PCs (where max allocation is ~6 GB), install is allowed with a clear **low-memory warning** before play.
+- Bee's SMP requires a **paid Microsoft Minecraft account** to install or launch.
+
+### Changed
+- Minimum Java heap is fixed at **2 GB** (no longer user-adjustable); Settings only shows Maximum RAM.
+- Memory sliders and launch settings are clamped to the system-based cap automatically.
+
+### Fixed
+- Safer launch path for heavy packs when system memory is too low (blocked install instead of risking hard crashes).
+
+---
+
 ## [1.0.8] — 2026-07-21
 
 ### Changed

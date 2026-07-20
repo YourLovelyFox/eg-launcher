@@ -198,6 +198,7 @@ export function getAccounts(): { accounts: MinecraftAccount[]; activeAccountId: 
   return {
     accounts: store.accounts.map((a) => ({
       ...a,
+      type: a.type || (a.id.startsWith('offline-') ? 'offline' : 'microsoft'),
       refreshToken: undefined,
       accessToken: a.accessToken ? '***' : '',
     })),
@@ -223,6 +224,15 @@ export function removeAccount(accountId: string): void {
   if (store.activeAccountId === accountId) {
     store.activeAccountId = store.accounts[0]?.id ?? null
   }
+  saveStore(store)
+}
+
+/** Insert or replace an account (used by Microsoft login + offline accounts). */
+export function upsertAccount(account: MinecraftAccount): void {
+  const store = loadStore()
+  const existing = store.accounts.findIndex((a) => a.id === account.id)
+  if (existing >= 0) store.accounts[existing] = account
+  else store.accounts.push(account)
   saveStore(store)
 }
 
@@ -405,6 +415,7 @@ async function completeAuthChain(
     refreshToken,
     expiresAt: Date.now() + (expiresIn ? expiresIn * 1000 : mc.expires_in * 1000),
     skinUrl: profile.skinUrl,
+    type: 'microsoft',
   }
 }
 

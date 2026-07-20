@@ -35,6 +35,7 @@ import {
   listMinecraftVersions,
 } from './services/minecraft'
 import {
+  checkFeaturedPackPlay,
   getFeaturedPackStatus,
   installFeaturedPack,
 } from './services/featuredPack'
@@ -52,7 +53,7 @@ import {
   getVersion,
   searchMods,
 } from './services/modrinth'
-import { loadSettings, saveSettings } from './services/settings'
+import { getSystemMemoryInfo, loadSettings, saveSettings } from './services/settings'
 import {
   checkForUpdates,
   downloadUpdate,
@@ -81,6 +82,18 @@ import {
   publishPartnerNews,
   mirrorPartnerAuthToPublic,
 } from './services/partnerAuth'
+import {
+  adminCreateOfflineUser,
+  adminDeleteOfflineUser,
+  adminPublishOfflineAuth,
+  getOfflinePublicStatus,
+  listOfflineUsersAdmin,
+  lockOfflineMode,
+  loginOfflineAccount,
+  offlineMultiplayerWarning,
+  setOfflineUnlockPassword,
+  unlockOfflineMode,
+} from './services/offlineAuth'
 import { isAdminBuild } from '../shared/features'
 import { getAdminUnlockInfo, isAdminAvailable } from './services/adminUnlock'
 import type { NewsItem } from '../shared/types'
@@ -215,6 +228,7 @@ function registerIpc() {
   // Settings
   ipcMain.handle('settings:get', () => loadSettings())
   ipcMain.handle('settings:save', (_e, settings: LauncherSettings) => saveSettings(settings))
+  ipcMain.handle('settings:systemMemory', () => getSystemMemoryInfo())
 
   // Java
   ipcMain.handle('java:find', async () => findJava())
@@ -232,6 +246,19 @@ function registerIpc() {
   })
   ipcMain.handle('auth:startDeviceCode', async () => startDeviceCodeLogin())
   ipcMain.handle('auth:pollDeviceCode', async (_e, deviceCode: string) => pollDeviceCodeLogin(deviceCode))
+
+  // Offline (cracked) accounts — feature unlock + register/login
+  ipcMain.handle('offline:status', () => getOfflinePublicStatus())
+  ipcMain.handle('offline:unlock', async (_e, password: string) => unlockOfflineMode(password))
+  ipcMain.handle('offline:lock', () => {
+    lockOfflineMode()
+    return getOfflinePublicStatus()
+  })
+  // Offline account creation is Admin-only (admin:createOfflineUser) — no public register
+  ipcMain.handle('offline:login', async (_e, username: string, password: string) =>
+    loginOfflineAccount(username, password),
+  )
+  ipcMain.handle('offline:warning', () => offlineMultiplayerWarning())
 
   // Instances
   ipcMain.handle('instances:list', () => listInstances())
@@ -274,16 +301,43 @@ function registerIpc() {
     })
   })
 
-  ipcMain.handle('mc:launch', async (_e, instanceId: string) => {
-    const instance = getInstance(instanceId)
-    if (!instance) throw new Error('Instance not found')
-    const account = getActiveAccountSecret()
-    const result = await launchInstance(instance, account)
-    if (result.success) {
-      updateInstance(instanceId, { lastPlayed: new Date().toISOString() })
-    }
-    return result
-  })
+  ipcMain.handle(
+    'mc:launch',
+    async (_e, instanceId: string, options?: { acknowledgeLowMemory?: boolean }) => {
+      const instance = getInstance(instanceId)
+      if (!instance) throw new Error('Instance not found')
+
+      // Heavy featured pack (Bee's SMP): system / allocated RAM rules
+      const packGate = checkFeaturedPackPlay(instanceId)
+      if (packGate && 'error' in packGate) {
+        return { success: false, message: packGate.error }
+      }
+      if (packGate && 'warning' in packGate && !options?.acknowledgeLowMemory) {
+        return {
+          success: false,
+          message: packGate.warning,
+          requiresConfirmation: true,
+        }
+      }
+
+      const account = getActiveAccountSecret()
+      const result = await launchInstance(instance, account)
+      if (result.success) {
+        updateInstance(instanceId, { lastPlayed: new Date().toISOString() })
+        // Soft warning for offline / cracked accounts (official servers won't work)
+        if (
+          account &&
+          (account.type === 'offline' || String(account.id || '').startsWith('offline-'))
+        ) {
+          return {
+            ...result,
+            message: `${result.message}\n\n${offlineMultiplayerWarning()}`,
+          }
+        }
+      }
+      return result
+    },
+  )
 
   ipcMain.handle('mc:forceStop', () => forceClearRunningGame())
   ipcMain.handle('mc:running', () => getRunningGameInfo())
@@ -450,6 +504,36 @@ function registerIpc() {
       async (_e, sessionToken: string, partnerId: string) =>
         deletePartnerConfig(sessionToken, partnerId, requireAdmin),
     )
+    // Offline accounts CMS
+    ipcMain.handle('admin:listOfflineUsers', async (_e, sessionToken: string) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      return listOfflineUsersAdmin()
+    })
+    ipcMain.handle(
+      'admin:createOfflineUser',
+      async (_e, sessionToken: string, username: string, password: string) => {
+        if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+        return adminCreateOfflineUser(username, password)
+      },
+    )
+    ipcMain.handle(
+      'admin:deleteOfflineUser',
+      async (_e, sessionToken: string, userId: string) => {
+        if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+        return adminDeleteOfflineUser(userId)
+      },
+    )
+    ipcMain.handle(
+      'admin:setOfflineUnlockPassword',
+      async (_e, sessionToken: string, password: string) => {
+        if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+        return setOfflineUnlockPassword(password)
+      },
+    )
+    ipcMain.handle('admin:publishOfflineAuth', async (_e, sessionToken: string) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      return adminPublishOfflineAuth()
+    })
   } else {
     const info = getAdminUnlockInfo()
     console.log('[EG Launcher] Admin DISABLED:', info.reason)

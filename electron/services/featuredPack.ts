@@ -2,7 +2,12 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { FEATURED_PACK } from '../../shared/branding'
-import type { GameInstance, LoaderType, ProgressEvent } from '../../shared/types'
+import type {
+  FeaturedPackMemoryGate,
+  GameInstance,
+  LoaderType,
+  ProgressEvent,
+} from '../../shared/types'
 import {
   ensureDir,
   getDataRoot,
@@ -14,6 +19,10 @@ import {
 import { createInstance, getInstance, listInstances, updateInstance } from './instances'
 import { downloadFile, getProject, getProjectVersions, getVersion, pickPrimaryFile } from './modrinth'
 import { installInstanceRuntime } from './minecraft'
+import { getActiveAccountSecret } from './auth'
+import { isOfflineAccount } from './offlineAuth'
+import { loadSettings } from './settings'
+import { formatMbLabel, getSystemMemoryInfo } from './systemMemory'
 
 export type FeaturedPackState = {
   slug: string
@@ -64,6 +73,94 @@ export type FeaturedPackStatus = {
   instance: GameInstance | null
   /** Recent version changelogs from Modrinth (newest first). */
   news: FeaturedPackNewsItem[]
+  /** System RAM requirements for this heavy pack */
+  memory: FeaturedPackMemoryGate
+  /** Offline accounts cannot install this pack (paid Minecraft required) */
+  requiresPaidAccount: boolean
+  paidAccountOk: boolean
+}
+
+/**
+ * Evaluate whether this PC can install / play the featured pack safely.
+ * - Below 12 GB system RAM → install blocked (BSoD risk)
+ * - Recommended 8 GB allocated; if the PC can allocate 8 GB it must be set
+ * - On 12 GB systems (50% cap ≈ 6 GB) play is allowed after a low-memory warning
+ */
+export function evaluateFeaturedPackMemory(
+  allocatedMb?: number,
+): FeaturedPackMemoryGate {
+  const system = getSystemMemoryInfo()
+  const settings = loadSettings()
+  const allocated = allocatedMb ?? settings.ramMaxMb
+  const minSystemRamGb = FEATURED_PACK.minSystemRamGb
+  const recommendedAllocatedMb = FEATURED_PACK.recommendedAllocatedMb
+
+  const canInstall = system.totalGbRounded >= minSystemRamGb
+  const installBlockReason = canInstall
+    ? null
+    : `${FEATURED_PACK.title} needs at least ${minSystemRamGb} GB of system RAM. Your PC has about ${system.totalGbRounded} GB. This pack is too heavy to install safely — low memory can freeze or crash Windows (BSoD).`
+
+  const canAllocateRecommended = system.maxAllowedMb >= recommendedAllocatedMb
+  const playNeedsMoreAllocated = canInstall && canAllocateRecommended && allocated < recommendedAllocatedMb
+  const playNeedsLowMemoryWarning =
+    canInstall && !canAllocateRecommended
+
+  return {
+    system,
+    allocatedMb: allocated,
+    minSystemRamGb,
+    recommendedAllocatedMb,
+    canInstall,
+    installBlockReason,
+    playNeedsMoreAllocated,
+    playNeedsLowMemoryWarning,
+    maxAllowedLabel: formatMbLabel(system.maxAllowedMb),
+    recommendedLabel: formatMbLabel(recommendedAllocatedMb),
+  }
+}
+
+/** True when this instance is the featured Bee's SMP pack. */
+export function isFeaturedPackInstance(instanceId: string | null | undefined): boolean {
+  if (!instanceId) return false
+  const local = getFeaturedPackLocal(FEATURED_PACK.slug)
+  return Boolean(local.instanceId && local.instanceId === instanceId)
+}
+
+/**
+ * Hard gate used before launch. Returns an error message, a soft warning, or null if OK.
+ * Soft warnings are returned as `{ warning }` so the UI can confirm; hard blocks as `{ error }`.
+ */
+export function checkFeaturedPackPlay(
+  instanceId: string,
+): { error: string } | { warning: string } | null {
+  if (!isFeaturedPackInstance(instanceId)) return null
+
+  const active = getActiveAccountSecret()
+  if (!active || isOfflineAccount(active)) {
+    return {
+      error: `${FEATURED_PACK.title} requires a paid Microsoft Minecraft account. Offline accounts cannot play this pack.`,
+    }
+  }
+
+  const gate = evaluateFeaturedPackMemory()
+  if (!gate.canInstall) {
+    return {
+      error:
+        gate.installBlockReason ||
+        `${FEATURED_PACK.title} cannot run on this PC (not enough system RAM).`,
+    }
+  }
+  if (gate.playNeedsMoreAllocated) {
+    return {
+      error: `${FEATURED_PACK.title} needs at least ${gate.recommendedLabel} of Maximum RAM in Settings (currently ${formatMbLabel(gate.allocatedMb)}). Your PC can allocate up to ${gate.maxAllowedLabel}.`,
+    }
+  }
+  if (gate.playNeedsLowMemoryWarning) {
+    return {
+      warning: `${FEATURED_PACK.title} is a heavy pack and ideally needs ${gate.recommendedLabel} of RAM.\n\nYour PC has about ${gate.system.totalGbRounded} GB total, so the launcher only allows ${gate.maxAllowedLabel} for Minecraft.\n\nPlaying on ${gate.maxAllowedLabel} will likely feel slow, laggy, or unstable. Continue anyway?`,
+    }
+  }
+  return null
 }
 
 type PackStore = Record<string, FeaturedPackState>
@@ -175,6 +272,12 @@ export async function getFeaturedPackStatus(
     updateAvailable,
     instance,
     news,
+    memory: evaluateFeaturedPackMemory(),
+    requiresPaidAccount: true,
+    paidAccountOk: (() => {
+      const active = getActiveAccountSecret()
+      return Boolean(active && !isOfflineAccount(active))
+    })(),
   }
 }
 
@@ -261,6 +364,20 @@ export async function installFeaturedPack(
   const slug = options.slug || FEATURED_PACK.slug
   const emit = (stage: string, progress: number, message: string) => {
     onProgress?.({ stage, progress, message })
+  }
+
+  // Hard block: heavy pack must not install on low-RAM systems (BSoD risk)
+  const memoryGate = evaluateFeaturedPackMemory()
+  if (!memoryGate.canInstall) {
+    throw new Error(memoryGate.installBlockReason || 'Not enough system RAM to install this pack.')
+  }
+
+  // Paid Minecraft only — offline / cracked accounts cannot install Bee's SMP
+  const active = getActiveAccountSecret()
+  if (!active || isOfflineAccount(active)) {
+    throw new Error(
+      `${FEATURED_PACK.title} requires a paid Microsoft Minecraft account. Offline (cracked) accounts cannot download or install this pack.`,
+    )
   }
 
   emit('meta', 0.02, 'Fetching pack metadata…')

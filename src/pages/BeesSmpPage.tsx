@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FEATURED_PACK } from '../../shared/branding'
+import type { FeaturedPackMemoryGate } from '../../shared/types'
 import { IconDownload, IconPlay, IconStop } from '../components/Icons'
 import { loaderLabel, useAppStore } from '../store'
 
@@ -49,6 +50,9 @@ type PackStatus = {
   updateAvailable: boolean
   instance: { id: string; name: string } | null
   news: PackNewsItem[]
+  memory: FeaturedPackMemoryGate
+  requiresPaidAccount: boolean
+  paidAccountOk: boolean
 }
 
 function formatBytes(n: number): string {
@@ -128,6 +132,18 @@ export function BeesSmpPage() {
   }, [setDownloadProgress])
 
   async function installOrUpdate() {
+    if (status?.memory && !status.memory.canInstall) {
+      showToast('error', status.memory.installBlockReason || 'Not enough system RAM')
+      return
+    }
+    if (status && !status.paidAccountOk) {
+      showToast(
+        'error',
+        `${FEATURED_PACK.title} requires a paid Microsoft Minecraft account. Offline accounts cannot install this pack.`,
+      )
+      navigate('/account')
+      return
+    }
     setBusy('install')
     setDownloadProgress({ stage: 'start', progress: 0, message: 'Starting pack install…' })
     try {
@@ -146,7 +162,7 @@ export function BeesSmpPage() {
     }
   }
 
-  async function play() {
+  async function play(acknowledgeLowMemory = false) {
     if (!loggedIn) {
       showToast('error', 'Sign in with Microsoft to play')
       navigate('/account')
@@ -157,13 +173,37 @@ export function BeesSmpPage() {
       showToast('error', 'Install the pack first')
       return
     }
+    const mem = status?.memory
+    if (mem?.playNeedsMoreAllocated) {
+      showToast(
+        'error',
+        `Set Maximum RAM to at least ${mem.recommendedLabel} in Settings (currently ${Math.round(mem.allocatedMb / 1024)} GB).`,
+      )
+      navigate('/settings')
+      return
+    }
+    if (mem?.playNeedsLowMemoryWarning && !acknowledgeLowMemory) {
+      const ok = window.confirm(
+        `${FEATURED_PACK.title} ideally needs ${mem.recommendedLabel} of RAM.\n\n` +
+          `Your PC has about ${mem.system.totalGbRounded} GB total, so the launcher only allows ${mem.maxAllowedLabel}.\n\n` +
+          `Playing on ${mem.maxAllowedLabel} will likely feel slow, laggy, or unstable. Continue anyway?`,
+      )
+      if (!ok) return
+      acknowledgeLowMemory = true
+    }
     setBusy('launch')
     try {
-      const result = await window.hive.mc.launch(instanceId)
+      const result = await window.hive.mc.launch(instanceId, { acknowledgeLowMemory })
       await refreshRunning()
       if (result.success) {
         showToast('success', result.message)
         await refreshAll()
+      } else if (result.requiresConfirmation) {
+        const ok = window.confirm(result.message)
+        if (ok) {
+          await play(true)
+          return
+        }
       } else {
         if (result.message.length > 120 || result.message.includes('\n')) {
           window.alert(result.message)
@@ -199,8 +239,9 @@ export function BeesSmpPage() {
     )
   }
 
-  const { project, latest, local, updateAvailable, news } = status
+  const { project, latest, local, updateAvailable, news, memory, paidAccountOk } = status
   const newCount = news.filter((n) => n.isNew).length
+  const canInstallPack = memory.canInstall && paidAccountOk
 
   return (
     <div className="page pack-page">
@@ -215,6 +256,11 @@ export function BeesSmpPage() {
               <span className="badge badge-green">Up to date</span>
             )}
             {!local.installed && <span className="badge">Not installed</span>}
+            {!memory.canInstall && <span className="badge badge-orange">Needs 12+ GB RAM</span>}
+            {!paidAccountOk && <span className="badge badge-orange">Paid account required</span>}
+            {memory.canInstall && paidAccountOk && memory.playNeedsLowMemoryWarning && (
+              <span className="badge badge-orange">Low memory PC</span>
+            )}
           </div>
 
           <div className="featured-title-row featured-title-row-clean">
@@ -258,20 +304,106 @@ export function BeesSmpPage() {
             </div>
           </div>
 
+          {!memory.canInstall && (
+            <div
+              className="panel"
+              style={{
+                marginTop: 12,
+                marginBottom: 4,
+                borderColor: 'rgba(239, 68, 68, 0.45)',
+                background: 'rgba(239, 68, 68, 0.08)',
+              }}
+            >
+              <strong style={{ color: 'var(--danger, #f87171)' }}>Cannot install — low system RAM</strong>
+              <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
+                {memory.installBlockReason}
+              </p>
+            </div>
+          )}
+
+          {!paidAccountOk && (
+            <div
+              className="panel"
+              style={{
+                marginTop: 12,
+                marginBottom: 4,
+                borderColor: 'rgba(239, 68, 68, 0.45)',
+                background: 'rgba(239, 68, 68, 0.08)',
+              }}
+            >
+              <strong style={{ color: 'var(--danger, #f87171)' }}>
+                Paid Microsoft account required
+              </strong>
+              <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
+                {FEATURED_PACK.title} cannot be downloaded or played with an offline (cracked)
+                account. Sign in with a Microsoft account that owns Minecraft: Java Edition.
+              </p>
+            </div>
+          )}
+
+          {canInstallPack && memory.playNeedsLowMemoryWarning && (
+            <div
+              className="panel"
+              style={{
+                marginTop: 12,
+                marginBottom: 4,
+                borderColor: 'rgba(245, 158, 11, 0.45)',
+                background: 'rgba(245, 158, 11, 0.08)',
+              }}
+            >
+              <strong>Low memory warning</strong>
+              <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
+                {FEATURED_PACK.title} ideally needs {memory.recommendedLabel} allocated. Your PC has
+                about {memory.system.totalGbRounded} GB total, so max is {memory.maxAllowedLabel}. You
+                can still play, but performance will likely be poor.
+              </p>
+            </div>
+          )}
+
+          {canInstallPack && memory.playNeedsMoreAllocated && (
+            <div
+              className="panel"
+              style={{
+                marginTop: 12,
+                marginBottom: 4,
+                borderColor: 'rgba(245, 158, 11, 0.45)',
+                background: 'rgba(245, 158, 11, 0.08)',
+              }}
+            >
+              <strong>Raise Maximum RAM to play</strong>
+              <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
+                Set Maximum RAM to at least {memory.recommendedLabel} in Settings (currently{' '}
+                {Math.round((memory.allocatedMb / 1024) * 10) / 10} GB). Your PC allows up to{' '}
+                {memory.maxAllowedLabel}.
+              </p>
+            </div>
+          )}
+
           <div className="featured-actions">
             {!local.installed ? (
               <button
                 className="btn btn-primary btn-lg"
-                disabled={busy === 'install' || !latest}
+                disabled={busy === 'install' || !latest || !canInstallPack}
                 onClick={installOrUpdate}
+                title={
+                  !canInstallPack
+                    ? memory.installBlockReason || 'Not enough system RAM'
+                    : 'Install pack'
+                }
               >
                 <IconDownload />
-                {busy === 'install' ? 'Installing…' : 'Install pack'}
+                {busy === 'install'
+                  ? 'Installing…'
+                  : !memory.canInstall
+                    ? 'Needs 12+ GB RAM'
+                    : !paidAccountOk
+                      ? 'Paid account required'
+                      : 'Install pack'}
               </button>
             ) : updateAvailable ? (
               <button
                 className="btn btn-primary btn-lg"
-                disabled={busy === 'install'}
+                disabled={busy === 'install' || !canInstallPack}
                 onClick={installOrUpdate}
               >
                 <IconDownload />
@@ -293,18 +425,33 @@ export function BeesSmpPage() {
             ) : (
               <button
                 className="btn btn-primary btn-lg"
-                disabled={!local.installed || busy !== null || running.running || !loggedIn}
-                onClick={play}
+                disabled={
+                  !local.installed ||
+                  busy !== null ||
+                  running.running ||
+                  !loggedIn ||
+                  !canInstallPack ||
+                  memory.playNeedsMoreAllocated
+                }
+                onClick={() => play(false)}
                 title={
                   !local.installed
                     ? 'Install first'
                     : !loggedIn
                       ? 'Sign in required'
-                      : `Play ${FEATURED_PACK.title}`
+                      : !canInstallPack
+                        ? memory.installBlockReason || 'Not enough system RAM'
+                        : memory.playNeedsMoreAllocated
+                          ? `Set Maximum RAM to ${memory.recommendedLabel} in Settings`
+                          : `Play ${FEATURED_PACK.title}`
                 }
               >
                 <IconPlay />
-                {!loggedIn ? 'Sign in to play' : 'Play'}
+                {!loggedIn
+                  ? 'Sign in to play'
+                  : memory.playNeedsMoreAllocated
+                    ? `Need ${memory.recommendedLabel} RAM`
+                    : 'Play'}
               </button>
             )}
 
@@ -425,6 +572,12 @@ export function BeesSmpPage() {
           <strong>{FEATURED_PACK.title}</strong> is pinned in EG Launcher permanently. It is never
           installed automatically — use Install when you want it. The News section above always
           shows Modrinth release notes so everyone can see what changed.
+        </p>
+        <p className="hint" style={{ marginTop: 8 }}>
+          <strong>RAM requirements:</strong> at least {FEATURED_PACK.minSystemRamGb} GB system
+          memory to install. Recommended allocation {FEATURED_PACK.recommendedAllocatedMb / 1024} GB
+          (required when your PC can provide it). On 12 GB PCs the launcher caps Minecraft at ~50%
+          (~6 GB) — play is allowed after a warning, but the experience will be poor.
         </p>
         <div className="list" style={{ marginTop: 12 }}>
           <div className="list-item">

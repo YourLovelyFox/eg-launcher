@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NewsItem } from '../../shared/types'
 import { useAppStore } from '../store'
+import { AdminOfflinePanel } from './AdminOfflinePanel'
 import { AdminPartnersPanel } from './AdminPartnersPanel'
 
 const SESSION_KEY = 'eg-admin-session'
@@ -49,7 +50,7 @@ export function AdminPage() {
   const [publishing, setPublishing] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [draft, setDraft] = useState<NewsItem | null>(null)
-  const [tab, setTab] = useState<'news' | 'partners'>('news')
+  const [tab, setTab] = useState<'news' | 'partners' | 'offline'>('news')
   const titleInputRef = useRef<HTMLInputElement>(null)
   const editingRef = useRef(false)
 
@@ -371,6 +372,13 @@ export function AdminPage() {
         >
           Partners
         </button>
+        <button
+          type="button"
+          className={`btn ${tab === 'offline' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setTab('offline')}
+        >
+          Offline accounts
+        </button>
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
@@ -410,6 +418,7 @@ export function AdminPage() {
       </div>
 
       {tab === 'partners' && <AdminPartnersPanel session={session} />}
+      {tab === 'offline' && <AdminOfflinePanel session={session} />}
 
       {tab === 'news' && (
       <div className="admin-news-layout">

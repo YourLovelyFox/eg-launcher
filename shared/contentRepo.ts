@@ -6,6 +6,7 @@
  *     feeds/launcher.json
  *     feeds/partners.json
  *     auth/partners.json
+ *     auth/offline-users.json
  *     config/partners.json
  *
  * Public mirrors (Live launcher reads, no secrets):
@@ -13,6 +14,7 @@
  *     news/feed.json
  *     news/partners.json
  *     news/partner-auth.json   (password hashes only)
+ *     news/offline-auth.json   (offline unlock + user hashes)
  *     news/partners-config.json
  */
 
@@ -27,11 +29,13 @@ export const PUBLIC_BRANCH = 'master'
 export const FEED_LAUNCHER_PRIVATE = 'feeds/launcher.json'
 export const FEED_PARTNERS_PRIVATE = 'feeds/partners.json'
 export const AUTH_PARTNERS_PRIVATE = 'auth/partners.json'
+export const AUTH_OFFLINE_PRIVATE = 'auth/offline-users.json'
 export const CONFIG_PARTNERS_PRIVATE = 'config/partners.json'
 
 export const FEED_LAUNCHER_PUBLIC = 'news/feed.json'
 export const FEED_PARTNERS_PUBLIC = 'news/partners.json'
 export const AUTH_PARTNERS_PUBLIC = 'news/partner-auth.json'
+export const AUTH_OFFLINE_PUBLIC = 'news/offline-auth.json'
 export const CONFIG_PARTNERS_PUBLIC = 'news/partners-config.json'
 
 export type FeedKind = 'launcher' | 'partners'

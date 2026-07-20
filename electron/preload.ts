@@ -13,6 +13,7 @@ import type {
   DeviceCodeResponse,
   GameInstance,
   LauncherSettings,
+  SystemMemoryInfo,
   LaunchResult,
   LoaderType,
   LoaderVersionInfo,
@@ -36,6 +37,7 @@ const api = {
     get: (): Promise<LauncherSettings> => ipcRenderer.invoke('settings:get'),
     save: (settings: LauncherSettings): Promise<LauncherSettings> =>
       ipcRenderer.invoke('settings:save', settings),
+    systemMemory: (): Promise<SystemMemoryInfo> => ipcRenderer.invoke('settings:systemMemory'),
   },
   java: {
     find: (): Promise<{ path: string; version: string } | null> => ipcRenderer.invoke('java:find'),
@@ -64,6 +66,28 @@ const api = {
       | { status: 'declined' }
     > => ipcRenderer.invoke('auth:pollDeviceCode', deviceCode),
   },
+  offline: {
+    status: (): Promise<{
+      offlineModeEnabled: boolean
+      unlockConfigured: boolean
+      activeIsOffline: boolean
+      activeUsername: string | null
+    }> => ipcRenderer.invoke('offline:status'),
+    unlock: (password: string): Promise<{ ok: true } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('offline:unlock', password),
+    lock: (): Promise<{
+      offlineModeEnabled: boolean
+      unlockConfigured: boolean
+      activeIsOffline: boolean
+      activeUsername: string | null
+    }> => ipcRenderer.invoke('offline:lock'),
+    login: (
+      username: string,
+      password: string,
+    ): Promise<{ ok: true; account: MinecraftAccount } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('offline:login', username, password),
+    warning: (): Promise<string> => ipcRenderer.invoke('offline:warning'),
+  },
   instances: {
     list: (): Promise<GameInstance[]> => ipcRenderer.invoke('instances:list'),
     get: (id: string): Promise<GameInstance | null> => ipcRenderer.invoke('instances:get', id),
@@ -90,8 +114,10 @@ const api = {
       ipcRenderer.invoke('mc:listLoaders', loader, gameVersion),
     install: (instanceId: string): Promise<{ versionId: string }> =>
       ipcRenderer.invoke('mc:install', instanceId),
-    launch: (instanceId: string): Promise<LaunchResult> =>
-      ipcRenderer.invoke('mc:launch', instanceId),
+    launch: (
+      instanceId: string,
+      options?: { acknowledgeLowMemory?: boolean },
+    ): Promise<LaunchResult> => ipcRenderer.invoke('mc:launch', instanceId, options),
     stop: (): Promise<RunningGameInfo> => ipcRenderer.invoke('mc:forceStop'),
     running: (): Promise<RunningGameInfo> => ipcRenderer.invoke('mc:running'),
     onInstallProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
@@ -337,6 +363,54 @@ const api = {
     ): Promise<{ ok: true } | { ok: false; error: string }> => {
       if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:deletePartner', sessionToken, partnerId)
+    },
+    listOfflineUsers: (
+      sessionToken: string,
+    ): Promise<
+      | {
+          ok: true
+          users: Array<{
+            id: string
+            username: string
+            uuid: string
+            displayName: string
+            createdAt: string
+          }>
+          unlockPasswordConfigured: boolean
+          remoteSynced: boolean
+        }
+      | { ok: false; error: string }
+    > => {
+      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
+      return ipcRenderer.invoke('admin:listOfflineUsers', sessionToken)
+    },
+    createOfflineUser: (
+      sessionToken: string,
+      username: string,
+      password: string,
+    ): Promise<{ ok: true; message: string } | { ok: false; error: string }> => {
+      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
+      return ipcRenderer.invoke('admin:createOfflineUser', sessionToken, username, password)
+    },
+    deleteOfflineUser: (
+      sessionToken: string,
+      userId: string,
+    ): Promise<{ ok: true; message: string } | { ok: false; error: string }> => {
+      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
+      return ipcRenderer.invoke('admin:deleteOfflineUser', sessionToken, userId)
+    },
+    setOfflineUnlockPassword: (
+      sessionToken: string,
+      password: string,
+    ): Promise<{ ok: true; message: string } | { ok: false; error: string }> => {
+      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
+      return ipcRenderer.invoke('admin:setOfflineUnlockPassword', sessionToken, password)
+    },
+    publishOfflineAuth: (
+      sessionToken: string,
+    ): Promise<{ ok: true; message: string; commitUrl?: string } | { ok: false; error: string }> => {
+      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
+      return ipcRenderer.invoke('admin:publishOfflineAuth', sessionToken)
     },
   },
 }
