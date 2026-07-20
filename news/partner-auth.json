@@ -7,6 +7,13 @@
       "passwordHash": "c927964e062350ff710002e8a6d6f3ce3a480af6c54a64dc59f77fc9941e55ab",
       "newsTag": "HorizonsSMP",
       "displayName": "Horizons SMP"
+    },
+    {
+      "id": "testp01",
+      "username": "TESTP01",
+      "passwordHash": "ba21289f8047af3392c3be5317c2392d271b17c14b4428984b187a87f3419f86",
+      "newsTag": "TESTP01",
+      "displayName": "TESTP01"
     }
   ]
 }
