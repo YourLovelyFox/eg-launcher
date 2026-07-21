@@ -1,8 +1,11 @@
-; Standalone helper: finds EG Launcher in Windows Uninstall registry and runs it.
+; Standalone helper: finds EG Launcher uninstall entry and runs it.
+; Optional checkbox: pass --delete-app-data (and our custom UI still shows in the main uninstaller).
 ; Compiled by scripts/build-win-uninstaller.mjs
 
 !include "LogicLib.nsh"
 !include "x64.nsh"
+!include "nsDialogs.nsh"
+!include "MUI2.nsh"
 
 Name "Uninstall EG Launcher"
 BrandingText "EG Launcher"
@@ -16,10 +19,43 @@ Var Found
 Var EnumIndex
 Var KeyName
 Var DisplayName
+Var DeleteDataState
+Var Dialog
+Var DeleteCheckbox
+
+!define MUI_ABORTWARNING
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW StandaloneWelcomeShow
+!insertmacro MUI_PAGE_WELCOME
+Page custom DeleteDataPageCreate DeleteDataPageLeave
+!insertmacro MUI_PAGE_INSTFILES
+!insertmacro MUI_LANGUAGE "English"
+
+Function StandaloneWelcomeShow
+  ; MUI welcome text is fine as-is
+FunctionEnd
+
+Function DeleteDataPageCreate
+  nsDialogs::Create 1018
+  Pop $Dialog
+
+  ${NSD_CreateLabel} 0 0 100% 40u "This helper will launch the EG Launcher uninstaller registered on this PC.$\r$\n$\r$\nChoose whether to also wipe all launcher data."
+  Pop $0
+
+  ${NSD_CreateCheckbox} 0 55u 100% 24u "Remove all data (settings, accounts, instances, mods, cache)"
+  Pop $DeleteCheckbox
+  ${NSD_SetState} $DeleteCheckbox ${BST_UNCHECKED}
+
+  nsDialogs::Show
+FunctionEnd
+
+Function DeleteDataPageLeave
+  ${NSD_GetState} $DeleteCheckbox $DeleteDataState
+FunctionEnd
 
 Function .onInit
   StrCpy $Found "0"
   StrCpy $UninstallCmd ""
+  StrCpy $DeleteDataState ${BST_UNCHECKED}
 
   Call SearchHKCU
   ${If} $Found == "0"
@@ -39,10 +75,8 @@ Function .onInit
 FunctionEnd
 
 Function IsEgLauncherName
-  ; $DisplayName in → $R9 = 1 if match
   StrCpy $R9 "0"
   StrCmp $DisplayName "EG Launcher" match
-  ; Starts with "EG Launcher" (versioned names)
   StrCpy $R8 $DisplayName 11
   StrCmp $R8 "EG Launcher" match
   Return
@@ -58,9 +92,10 @@ Function SearchHKCU
     ReadRegStr $DisplayName HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\$KeyName" "DisplayName"
     Call IsEgLauncherName
     ${If} $R9 == "1"
-      ReadRegStr $UninstallCmd HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\$KeyName" "QuietUninstallString"
+      ; Prefer interactive UninstallString so our custom checkbox page appears
+      ReadRegStr $UninstallCmd HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\$KeyName" "UninstallString"
       ${If} $UninstallCmd == ""
-        ReadRegStr $UninstallCmd HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\$KeyName" "UninstallString"
+        ReadRegStr $UninstallCmd HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\$KeyName" "QuietUninstallString"
       ${EndIf}
       ${If} $UninstallCmd != ""
         StrCpy $Found "1"
@@ -80,9 +115,9 @@ Function SearchHKLM
     ReadRegStr $DisplayName HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$KeyName" "DisplayName"
     Call IsEgLauncherName
     ${If} $R9 == "1"
-      ReadRegStr $UninstallCmd HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$KeyName" "QuietUninstallString"
+      ReadRegStr $UninstallCmd HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$KeyName" "UninstallString"
       ${If} $UninstallCmd == ""
-        ReadRegStr $UninstallCmd HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$KeyName" "UninstallString"
+        ReadRegStr $UninstallCmd HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$KeyName" "QuietUninstallString"
       ${EndIf}
       ${If} $UninstallCmd != ""
         StrCpy $Found "1"
@@ -94,10 +129,14 @@ Function SearchHKLM
   lm_done:
 FunctionEnd
 
-; Must NOT be named "Uninstall" — that is reserved for NSIS uninstaller sections.
 Section "Remove EG Launcher"
+  ; If user checked "remove all data", append electron-builder flag AND our page will also run
+  ${If} $DeleteDataState == ${BST_CHECKED}
+    StrCpy $UninstallCmd "$UninstallCmd --delete-app-data"
+    DetailPrint "Will request full data removal (--delete-app-data)"
+  ${EndIf}
+
   DetailPrint "Running: $UninstallCmd"
-  ; UninstallString is typically quoted path + args
   ExecWait '$UninstallCmd' $0
   DetailPrint "Exit code: $0"
   ${If} $0 == 0
@@ -106,4 +145,3 @@ Section "Remove EG Launcher"
     MessageBox MB_ICONEXCLAMATION|MB_OK "Uninstall returned code $0.$\r$\nIf the app is still present, use Windows Settings → Apps."
   ${EndIf}
 SectionEnd
-
