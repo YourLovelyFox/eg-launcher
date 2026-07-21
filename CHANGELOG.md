@@ -14,21 +14,32 @@ Format: each release section is published as the GitHub Release body (and shown 
 - Partner login verifies credentials on the server (password hashes are not shipped in public repo auth files).
 - Offline unlock and offline user management via CMS (Admin only for creating users).
 - Dev Admin **CMS API key** setting for publishing news, partners, and offline auth from the Admin panel.
-- **Windows uninstaller**: Start Menu “Uninstall EG Launcher” shortcut after install, plus downloadable `EG-Launcher-*-win-x64-uninstall.exe` on the GitHub release.
-- Uninstall checkbox **Remove all data** (optional) — deletes settings, accounts, instances, mods, and cache under AppData when checked; left unchecked by default.
+- **Windows installer code signing** with a self-signed certificate (Publisher: EG Launcher). SmartScreen may still show “Unknown publisher” until a commercial certificate is used.
+- **Windows uninstaller**
+  - Start Menu shortcut: **Uninstall EG Launcher**
+  - Downloadable helper on the release: `EG-Launcher-*-win-x64-uninstall.exe`
+  - Uninstall wizard checkbox: **Remove all data** — optional wipe of settings, accounts, instances, mods, and cache under AppData (**unchecked by default** so a reinstall can keep your data)
 
 ### Changed
 - News, partners, and auth no longer depend on public repository JSON mirrors for Live operation.
 - Removed GitHub personal access token requirements from Admin for content publishing (CMS key replaces that for CMS features).
 - Public repo auth JSON files are emptied / deprecated; hashes stay private on the CMS.
+- Windows uninstall keeps user data unless **Remove all data** is checked.
 
 ### Security
 - Database credentials stay on the server only (not in the Live installer).
 - Config secrets on the web host are blocked from public HTTP access.
 - Admin CMS writes require a local Admin key on Dev PCs only.
+- Partner / offline / unlock passwords use strong password hashing on the server (Argon2id or bcrypt), with automatic upgrade from older hashes on next successful login.
+- Login and unlock attempts are rate-limited on the CMS to slow brute-force attacks.
+- CMS API error responses stay generic (no internal exception details sent to clients).
 
 ### Fixed
 - Partner and Home news refresh reliability when content is published from Admin or partner portals.
+
+### Downloads
+- Windows: `EG-Launcher-2.0.0-win-x64-setup.exe` (install) and `EG-Launcher-2.0.0-win-x64-uninstall.exe` (uninstall helper)
+- Linux: `EG-Launcher-2.0.0-linux-x86_64.AppImage`
 
 ---
 
