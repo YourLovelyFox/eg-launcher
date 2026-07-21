@@ -6,6 +6,18 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.0.6] — 2026-07-21
+
+### Fixed
+- **Auto-update with self-signed Windows builds**: electron-updater no longer rejects updates because Windows reports the self-signed root as untrusted (`StatusMessage: … root certificate which is not trusted`). Installers are still signed as **CN=EG Launcher**; full chain trust requires a commercial code-signing certificate later.
+- If you are stuck on **2.0.5** and auto-update fails with “not signed by the application owner”, install **2.0.6** once from the release page; later updates will work normally.
+
+### Downloads
+- Windows: `EG-Launcher-2.0.6-win-x64-setup.exe` and `EG-Launcher-2.0.6-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.0.6-linux-x86_64.AppImage`
+
+---
+
 ## [2.0.5] — 2026-07-21
 
 Live update from **2.0.0** — installers are signed; uninstall can optionally wipe data; CMS auth is hardened.

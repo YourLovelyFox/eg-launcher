@@ -115,6 +115,10 @@ export function initAutoUpdater(win: BrowserWindow | null) {
     autoUpdater.allowDowngrade = false
     // Differential packages often hang or corrupt on Windows — full download is safer
     autoUpdater.disableDifferentialDownload = true
+    // Self-signed code signing (A1): Windows reports "root not trusted", so chain-based
+    // verifyUpdateCodeSignature fails even when CN=EG Launcher matches. Installers remain
+    // Authenticode-signed; re-enable when using a commercial OV/EV cert.
+    autoUpdater.verifyUpdateCodeSignature = false
     // Avoid long SSL/DNS stalls blocking forever
     autoUpdater.requestHeaders = {
       'Cache-Control': 'no-cache',
