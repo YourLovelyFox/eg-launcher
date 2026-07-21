@@ -94,9 +94,10 @@ Function SearchHKLM
   lm_done:
 FunctionEnd
 
-Section "Uninstall"
+; Must NOT be named "Uninstall" — that is reserved for NSIS uninstaller sections.
+Section "Remove EG Launcher"
   DetailPrint "Running: $UninstallCmd"
-  ; UninstallString is typically quoted path + args — ExecWait needs proper parsing
+  ; UninstallString is typically quoted path + args
   ExecWait '$UninstallCmd' $0
   DetailPrint "Exit code: $0"
   ${If} $0 == 0
@@ -105,3 +106,4 @@ Section "Uninstall"
     MessageBox MB_ICONEXCLAMATION|MB_OK "Uninstall returned code $0.$\r$\nIf the app is still present, use Windows Settings → Apps."
   ${EndIf}
 SectionEnd
+
