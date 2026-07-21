@@ -291,13 +291,14 @@ jobs:
           # Human changelog from CHANGELOG.md (not only auto-generated compare links)
           body_path: release-notes.md
           generate_release_notes: false
-          # Only Release Version 2.0 (tag v2.0.0) is public; all other releases stay draft (private to collaborators).
-          draft: ${{ needs.resolve-version.outputs.tag != 'v2.0.0' }}
+          # Live 2.x releases are public so already-installed launchers can auto-update via latest.yml.
+          # Other major lines (e.g. 1.x) stay draft unless you change this.
+          draft: ${{ !startsWith(needs.resolve-version.outputs.tag, 'v2.') }}
           prerelease: ${{ contains(needs.resolve-version.outputs.version, '-') }}
           # NSIS setup + AppImage + latest.yml / latest-linux.yml
           # IMPORTANT: Do not re-run with force_rebuild for the same version unless necessary.
           files: artifacts/*
           fail_on_unmatched_files: true
-          make_latest: ${{ needs.resolve-version.outputs.tag == 'v2.0.0' }}
+          make_latest: ${{ startsWith(needs.resolve-version.outputs.tag, 'v2.') && !contains(needs.resolve-version.outputs.version, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
