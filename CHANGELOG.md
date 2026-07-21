@@ -6,21 +6,9 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.0.6] — 2026-07-21
-
-### Fixed
-- **Auto-update with self-signed Windows builds**: electron-updater no longer rejects updates because Windows reports the self-signed root as untrusted (`StatusMessage: … root certificate which is not trusted`). Installers are still signed as **CN=EG Launcher**; full chain trust requires a commercial code-signing certificate later.
-- If you are stuck on **2.0.5** and auto-update fails with “not signed by the application owner”, install **2.0.6** once from the release page; later updates will work normally.
-
-### Downloads
-- Windows: `EG-Launcher-2.0.6-win-x64-setup.exe` and `EG-Launcher-2.0.6-win-x64-uninstall.exe`
-- Linux: `EG-Launcher-2.0.6-linux-x86_64.AppImage`
-
----
-
 ## [2.0.5] — 2026-07-21
 
-Live update from **2.0.0** — installers are signed; uninstall can optionally wipe data; CMS auth is hardened.
+Live update from **2.0.0** — signed installers, optional data wipe on uninstall, hardened CMS auth, and working auto-update with the self-signed certificate.
 
 ### Added
 - **Windows installer code signing** with a self-signed certificate (Publisher: EG Launcher). SmartScreen may still show “Unknown publisher” until a commercial certificate is used.
@@ -35,9 +23,14 @@ Live update from **2.0.0** — installers are signed; uninstall can optionally w
 - CMS API errors stay generic (no internal details to clients).
 - Database credentials and host config secrets remain server-only (not in the Live installer).
 
+### Fixed
+- **Auto-update with self-signed Windows builds**: electron-updater no longer rejects updates because Windows reports the self-signed root as untrusted (`StatusMessage: … root certificate which is not trusted` / “not signed by the application owner”). Installers remain Authenticode-signed as **CN=EG Launcher**; full chain trust still needs a commercial OV/EV cert later.
+- If auto-update still fails after this rebuild (same version already installed), reinstall **2.0.5** once from the release page.
+
 ### Changed
 - Uninstall keeps user data unless **Remove all data** is checked.
 - Public Live track continues on the **2.x** line (this release is the current auto-update target).
+- `verifyUpdateCodeSignature` is off for self-signed A1 (chain not trusted by Windows); re-enable when using a commercial cert.
 
 ### Downloads
 - Windows: `EG-Launcher-2.0.5-win-x64-setup.exe` and `EG-Launcher-2.0.5-win-x64-uninstall.exe`
