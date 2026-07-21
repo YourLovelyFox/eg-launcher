@@ -1,0 +1,17 @@
+# EG Launcher CMS API
+Options -Indexes
+<IfModule mod_authz_core.c>
+  Require all granted
+</IfModule>
+
+# Block raw config if server mis-serves php
+<Files "config.php">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+</Files>
+<Files "config.sample.php">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+</Files>

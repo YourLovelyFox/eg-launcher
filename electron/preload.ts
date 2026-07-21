@@ -298,8 +298,7 @@ const api = {
       sessionToken: string,
     ): Promise<{
       authenticated: boolean
-      hasGithubToken: boolean
-      tokenFromLocalFile?: boolean
+      hasCmsApiKey?: boolean
       feedPath: string
       feedUrl: string
       repo: string
@@ -308,7 +307,7 @@ const api = {
       if (!adminUnlockedSync()) {
         return Promise.resolve({
           authenticated: false,
-          hasGithubToken: false,
+          hasCmsApiKey: false,
           feedPath: '',
           feedUrl: '',
           repo: '',
@@ -317,12 +316,12 @@ const api = {
       }
       return ipcRenderer.invoke('admin:status', sessionToken)
     },
-    setGithubToken: (
+    setCmsApiKey: (
       sessionToken: string,
-      token: string,
+      key: string,
     ): Promise<{ ok: boolean; error?: string }> => {
       if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
-      return ipcRenderer.invoke('admin:setGithubToken', sessionToken, token)
+      return ipcRenderer.invoke('admin:setCmsApiKey', sessionToken, key)
     },
     loadNews: (
       sessionToken: string,

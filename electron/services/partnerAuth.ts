@@ -1,29 +1,8 @@
 import crypto from 'crypto'
-import {
-  AUTH_PARTNERS_PRIVATE,
-  AUTH_PARTNERS_PUBLIC,
-  CONTENT_BRANCH,
-  CONTENT_OWNER,
-  CONTENT_REPO,
-  FEED_PARTNERS_PRIVATE,
-  FEED_PARTNERS_PUBLIC,
-  PUBLIC_BRANCH,
-  PUBLIC_OWNER,
-  PUBLIC_REPO,
-} from '../../shared/contentRepo'
-// crypto.randomBytes used for session / ids
-import { isAdminBuild } from '../../shared/features'
 import type { NewsFeedResult, NewsItem } from '../../shared/types'
+import { cmsRequest } from './cms/httpClient'
 import { applyLocalFeedSnapshot, fetchNews } from './news'
-import {
-  getRepoFileText,
-  privateRepo,
-  publicRepo,
-  putRepoFile,
-} from './githubContent'
-import { loadDevGithubToken } from './devToken'
 
-const PARTNER_SALT = 'eg-partner-auth-v1'
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000
 
 export type PartnerAuthRecord = {
@@ -40,6 +19,7 @@ type PartnerSession = {
   newsTag: string
   displayName: string
   expiresAt: number
+  token: string
 }
 
 const sessions = new Map<string, PartnerSession>()
@@ -47,7 +27,7 @@ const sessions = new Map<string, PartnerSession>()
 export function hashPartnerPassword(username: string, password: string): string {
   return crypto
     .createHash('sha256')
-    .update(`${PARTNER_SALT}:${username}:${password}`)
+    .update(`eg-partner-auth-v1:${username}:${password}`)
     .digest('hex')
 }
 
@@ -58,78 +38,7 @@ function purgeSessions() {
   }
 }
 
-/** Strip UTF-8 BOM (PowerShell / Windows editors often add it). */
-function stripBom(text: string): string {
-  if (!text) return text
-  // EF BB BF / U+FEFF
-  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text.replace(/^\uFEFF/, '')
-}
-
-function parseJsonSafe<T>(text: string): T {
-  return JSON.parse(stripBom(text)) as T
-}
-
-function normalizeAuthRecords(raw: unknown): PartnerAuthRecord[] {
-  const data = raw as { partners?: PartnerAuthRecord[] }
-  return (data.partners || [])
-    .filter((x) => x && x.username && x.passwordHash)
-    .map((x) => ({
-      id: String(x.id || ''),
-      username: String(x.username).trim(),
-      passwordHash: String(x.passwordHash).trim().toLowerCase(),
-      newsTag: String(x.newsTag || '').trim(),
-      displayName: String(x.displayName || x.username).trim(),
-    }))
-}
-
-async function loadPartnerAuthList(): Promise<PartnerAuthRecord[]> {
-  const token = loadDevGithubToken()
-
-  // Prefer public mirror (hashes only) so Live works without private token.
-  // Use token when available to avoid unauthenticated rate limits.
-  const publicFile = await getRepoFileText({
-    token: token || undefined,
-    owner: PUBLIC_OWNER,
-    repo: PUBLIC_REPO,
-    branch: PUBLIC_BRANCH,
-    path: AUTH_PARTNERS_PUBLIC,
-  })
-  if (publicFile.ok) {
-    try {
-      return normalizeAuthRecords(parseJsonSafe(publicFile.text))
-    } catch {
-      /* fall through */
-    }
-  }
-
-  // Dev / staff PC: private auth file
-  if (token) {
-    const priv = await getRepoFileText({
-      token,
-      owner: CONTENT_OWNER,
-      repo: CONTENT_REPO,
-      branch: CONTENT_BRANCH,
-      path: AUTH_PARTNERS_PRIVATE,
-    })
-    if (priv.ok) {
-      try {
-        return normalizeAuthRecords(parseJsonSafe(priv.text))
-      } catch {
-        /* fall through */
-      }
-    }
-  }
-
-  return []
-}
-
-function hashesMatch(expectedHex: string, actualHex: string): boolean {
-  const a = Buffer.from(expectedHex.trim().toLowerCase(), 'utf8')
-  const b = Buffer.from(actualHex.trim().toLowerCase(), 'utf8')
-  if (a.length !== b.length || a.length === 0) return false
-  return crypto.timingSafeEqual(a, b)
-}
-
+/** Password checked on server over HTTPS — hashes never sent to the client. */
 export async function partnerLogin(
   username: string,
   password: string,
@@ -141,50 +50,52 @@ export async function partnerLogin(
   const p = (password || '').trim()
   if (!u || !p) return { ok: false, error: 'Enter username and password' }
 
-  let list: PartnerAuthRecord[]
   try {
-    list = await loadPartnerAuthList()
-  } catch (err) {
-    return { ok: false, error: `Could not load partner accounts: ${(err as Error).message}` }
-  }
+    const r = await cmsRequest<{
+      sessionToken?: string
+      partnerId?: string
+      newsTag?: string
+      displayName?: string
+      error?: string
+    }>({
+      path: 'partner_auth.php?action=login',
+      method: 'POST',
+      body: { username: u, password: p },
+    })
 
-  if (!list.length) {
-    return {
-      ok: false,
-      error:
-        'No partner accounts found (auth file missing or unreadable). Use Admin → Partners to create one, or check news/partner-auth.json.',
+    if (!r.sessionToken || !r.partnerId) {
+      return { ok: false, error: r.error || 'Invalid credentials' }
     }
-  }
 
-  const rec = list.find((x) => x.username.toLowerCase() === u.toLowerCase())
-  if (!rec) return { ok: false, error: 'Invalid credentials' }
+    purgeSessions()
+    sessions.set(r.sessionToken, {
+      partnerId: r.partnerId,
+      username: u,
+      newsTag: r.newsTag || '',
+      displayName: r.displayName || u,
+      expiresAt: Date.now() + SESSION_TTL_MS,
+      token: r.sessionToken,
+    })
 
-  // Hash is bound to the stored username (case-sensitive salt input)
-  const hash = hashPartnerPassword(rec.username, p)
-  if (!hashesMatch(hash, rec.passwordHash)) {
-    return { ok: false, error: 'Invalid credentials' }
-  }
-
-  purgeSessions()
-  const sessionToken = crypto.randomBytes(24).toString('hex')
-  sessions.set(sessionToken, {
-    partnerId: rec.id,
-    username: rec.username,
-    newsTag: rec.newsTag,
-    displayName: rec.displayName,
-    expiresAt: Date.now() + SESSION_TTL_MS,
-  })
-  return {
-    ok: true,
-    sessionToken,
-    partnerId: rec.id,
-    newsTag: rec.newsTag,
-    displayName: rec.displayName,
+    return {
+      ok: true,
+      sessionToken: r.sessionToken,
+      partnerId: r.partnerId,
+      newsTag: r.newsTag || '',
+      displayName: r.displayName || u,
+    }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
   }
 }
 
 export function partnerLogout(sessionToken: string): void {
   sessions.delete(sessionToken)
+  void cmsRequest({
+    path: 'partner_auth.php?action=logout',
+    method: 'POST',
+    sessionToken,
+  }).catch(() => undefined)
 }
 
 export function requirePartner(sessionToken: string | null | undefined): PartnerSession | null {
@@ -233,9 +144,6 @@ function buildPartnersFeedJson(items: NewsItem[], title = 'EG Partner News'): st
   )
 }
 
-/**
- * Partner publishes only their tagged posts; other tags preserved from full feed.
- */
 export async function publishPartnerNews(
   sessionToken: string,
   partnerItems: NewsItem[],
@@ -243,56 +151,21 @@ export async function publishPartnerNews(
   const session = requirePartner(sessionToken)
   if (!session) return { ok: false, error: 'Not authenticated as partner' }
 
-  const token = loadDevGithubToken()
-  if (!token) {
+  try {
+    await cmsRequest({
+      path: 'partner_news.php',
+      method: 'POST',
+      sessionToken,
+      body: { items: partnerItems },
+    })
+    const feed = await fetchNews({ force: true, kind: 'partners' })
+    applyLocalFeedSnapshot(buildPartnersFeedJson(feed.items, feed.title), 'partners')
     return {
-      ok: false,
-      error: isAdminBuild()
-        ? 'GitHub write token missing (admin.local.json or Desktop token file).'
-        : 'Partner publishing requires the Dev Launcher with a write token on this PC.',
+      ok: true,
+      message: 'Partner news published. Live clients update within a few seconds.',
     }
-  }
-
-  // Load full partners feed
-  const current = await fetchNews({ force: true, kind: 'partners' })
-  const tag = session.newsTag
-  const others = current.items.filter((i) => (i.tag || '').toLowerCase() !== tag.toLowerCase())
-  const own = partnerItems.map((i) => ({
-    ...i,
-    tag, // force partner tag
-  }))
-  const merged = [...own, ...others]
-  const content = buildPartnersFeedJson(merged)
-
-  const msg = `chore(partners): ${session.newsTag} news via partner portal (${new Date().toISOString()})`
-
-  // Private CMS
-  const priv = await putRepoFile({
-    token,
-    ...privateRepo,
-    path: FEED_PARTNERS_PRIVATE,
-    content,
-    message: msg,
-  })
-  if (!priv.ok) return { ok: false, error: `Private repo: ${priv.error}` }
-
-  // Public mirror for Live clients
-  const pub = await putRepoFile({
-    token,
-    ...publicRepo,
-    path: FEED_PARTNERS_PUBLIC,
-    content,
-    message: msg,
-  })
-  if (!pub.ok) return { ok: false, error: `Public mirror: ${pub.error}` }
-
-  // Pin + push UI immediately (do not re-fetch GitHub; avoids stale overwrite)
-  applyLocalFeedSnapshot(content, 'partners')
-
-  return {
-    ok: true,
-    message: 'Partner news published. This PC updates immediately; others on the next poll.',
-    commitUrl: pub.commitUrl || priv.commitUrl,
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
   }
 }
 
@@ -309,24 +182,6 @@ export function newPartnerNewsId(): string {
   return `pnews-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`
 }
 
-/** Ensure public partner-auth mirror exists (hashes only). Call from admin if needed. */
 export async function mirrorPartnerAuthToPublic(): Promise<{ ok: boolean; error?: string }> {
-  const token = loadDevGithubToken()
-  if (!token) return { ok: false, error: 'No write token' }
-  const priv = await getRepoFileText({
-    token,
-    owner: CONTENT_OWNER,
-    repo: CONTENT_REPO,
-    branch: CONTENT_BRANCH,
-    path: AUTH_PARTNERS_PRIVATE,
-  })
-  if (!priv.ok) return { ok: false, error: priv.error }
-  const put = await putRepoFile({
-    token,
-    ...publicRepo,
-    path: AUTH_PARTNERS_PUBLIC,
-    content: priv.text.endsWith('\n') ? priv.text : priv.text + '\n',
-    message: 'chore(auth): mirror partner password hashes for Live login',
-  })
-  return put.ok ? { ok: true } : { ok: false, error: put.error }
+  return { ok: true }
 }

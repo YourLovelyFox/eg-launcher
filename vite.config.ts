@@ -51,6 +51,8 @@ export default defineConfig(({ command }) => {
                   'lodash.isequal',
                   'semver',
                   'tiny-typed-emitter',
+                  'mysql2',
+                  'mysql2/promise',
                 ],
               },
             },

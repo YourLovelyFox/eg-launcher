@@ -1,5 +1,4 @@
 {
   "enableAdmin": true,
-  "githubToken": "ghp_REPLACE_WITH_YOUR_TOKEN_CONTENTS_READ_WRITE",
-  "offlineUnlockPassword": "change-me-offline-unlock"
+  "cmsApiKey": "REPLACE_WITH_YOUR_ADMIN_KEY"
 }

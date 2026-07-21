@@ -1,5 +1,6 @@
 {
   "version": 1,
-  "unlockPasswordHash": "1862615b52b3e40949a9081a158fe9a586fe0dd934761f398dff97d56744f3a3",
-  "users": []
+  "unlockPasswordHash": null,
+  "users": [],
+  "_notice": "DEPRECATED public file. Offline auth lives in private MariaDB only. Do not store password hashes here."
 }

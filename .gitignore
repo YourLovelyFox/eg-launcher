@@ -16,3 +16,13 @@ release
 admin.local.json
 **/eg-launcher-github-token.txt
 **/eg-launcher-admin-password.txt
+
+# Server-side CMS secrets (upload to host only — never in the launcher)
+cms-api/config.php
+
+# Local ops notes / CMS deploy tools — do not publish infrastructure docs
+sql/**/*.md
+cms-api/**/*.md
+scripts/init-cms-db.mjs
+scripts/_ftp-upload-cms.mjs
+scripts/_verify-cms.mjs

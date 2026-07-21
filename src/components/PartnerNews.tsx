@@ -212,7 +212,7 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
 
   async function deletePost() {
     if (!selectedId || !session) return
-    if (!window.confirm('Delete this post from partner news on GitHub?')) return
+    if (!window.confirm('Delete this post from partner news on the CMS?')) return
     const next = items.filter((i) => i.id !== selectedId)
     setItems(next)
     setSelectedId(next[0]?.id ?? null)
@@ -226,7 +226,7 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
         if (news.ok) setItems(news.feed.items)
         return
       }
-      showToast('success', 'Post deleted on GitHub')
+      showToast('success', 'Post deleted on CMS')
       fingerprintRef.current = ''
       await loadPublic(true, false, { alwaysSet: true })
       // Also refresh editor from server snapshot

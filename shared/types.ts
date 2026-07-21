@@ -58,7 +58,7 @@ export type LauncherSettings = {
   offlineModeEnabled?: boolean
 }
 
-/** Offline auth user record (password hash only — never plain passwords on disk/GitHub). */
+/** Offline auth user record (password hash only — never plain passwords in the client). */
 export type OfflineAuthUser = {
   id: string
   username: string

@@ -70,7 +70,7 @@ import {
   logoutAdmin,
   newNewsId,
   publishNewsFeed,
-  setGithubToken,
+  setCmsApiKeyForAdmin,
   verifyAdminPassword,
 } from './services/admin'
 import {
@@ -478,8 +478,8 @@ function registerIpc() {
       return true
     })
     ipcMain.handle('admin:status', (_e, sessionToken: string) => getAdminStatus(sessionToken))
-    ipcMain.handle('admin:setGithubToken', (_e, sessionToken: string, token: string) =>
-      setGithubToken(sessionToken, token),
+    ipcMain.handle('admin:setCmsApiKey', (_e, sessionToken: string, key: string) =>
+      setCmsApiKeyForAdmin(sessionToken, key),
     )
     ipcMain.handle('admin:loadNews', async (_e, sessionToken: string) => loadNewsForAdmin(sessionToken))
     ipcMain.handle(

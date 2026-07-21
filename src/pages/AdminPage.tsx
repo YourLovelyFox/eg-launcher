@@ -38,11 +38,10 @@ export function AdminPage() {
   const [bootError, setBootError] = useState('')
   const [booting, setBooting] = useState(!sessionStorage.getItem(SESSION_KEY))
 
-  const [hasGithubToken, setHasGithubToken] = useState(false)
-  const [tokenFromFile, setTokenFromFile] = useState(false)
-  const [githubTokenInput, setGithubTokenInput] = useState('')
+  const [hasCmsApiKey, setHasCmsApiKey] = useState(false)
+  const [cmsApiKeyInput, setCmsApiKeyInput] = useState('')
   const [repo, setRepo] = useState('')
-  const [feedPath, setFeedPath] = useState('news/feed.json')
+  const [feedPath, setFeedPath] = useState('CMS')
 
   const [items, setItems] = useState<NewsItem[]>([])
   const [title, setTitle] = useState('EG Launcher News')
@@ -62,8 +61,7 @@ export function AdminPage() {
       setSession('')
       return
     }
-    setHasGithubToken(st.hasGithubToken)
-    setTokenFromFile(Boolean(st.tokenFromLocalFile))
+    setHasCmsApiKey(Boolean(st.hasCmsApiKey))
     setRepo(st.repo)
     setFeedPath(st.feedPath)
   }, [])
@@ -173,7 +171,6 @@ export function AdminPage() {
     setItems([])
     setDraft(null)
     setSelectedId(null)
-    setGithubTokenInput('')
     editingRef.current = false
     // Immediately re-open (still Dev)
     setBooting(true)
@@ -190,17 +187,16 @@ export function AdminPage() {
     }
   }
 
-  async function saveToken() {
+  async function saveCmsApiKey() {
     if (!session) return
-    const res = await window.hive.admin.setGithubToken(session, githubTokenInput)
+    const res = await window.hive.admin.setCmsApiKey(session, cmsApiKeyInput)
     if (!res.ok) {
-      showToast('error', res.error || 'Failed to save token')
+      showToast('error', res.error || 'Failed to save CMS API key')
       return
     }
-    const hadValue = Boolean(githubTokenInput.trim())
-    setGithubTokenInput('')
+    setCmsApiKeyInput('')
     await refreshStatus(session)
-    showToast('success', hadValue ? 'GitHub token saved' : 'GitHub token cleared')
+    showToast('success', 'CMS API key saved on this PC')
   }
 
   async function addItem() {
@@ -271,7 +267,7 @@ export function AdminPage() {
     const label = doomed?.title?.trim() || 'this post'
     if (
       !window.confirm(
-        `Delete "${label}" from the launcher AND from the CMS on GitHub?\n\nThis cannot be undone.`,
+        `Delete "${label}" from the launcher CMS?\n\nThis cannot be undone.`,
       )
     ) {
       return
@@ -286,10 +282,10 @@ export function AdminPage() {
 
     const ok = await publishList(next, {
       allowEmpty: true,
-      successMsg: 'Post deleted and feed updated on GitHub.',
+      successMsg: 'Post deleted and feed updated on CMS.',
     })
     if (!ok) {
-      showToast('error', 'Delete was not saved to GitHub — reloading feed')
+      showToast('error', 'Delete was not saved to CMS — reloading feed')
       await loadNews(session, { keepSelection: false })
     }
   }
@@ -382,39 +378,35 @@ export function AdminPage() {
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
-        <h2 style={{ fontSize: 16 }}>GitHub token (this PC only)</h2>
+        <h2 style={{ fontSize: 16 }}>CMS API key (this PC only)</h2>
         <p className="hint">
-          Needed for publish. File: <span className="mono">Desktop\New folder\eg-launcher-github-token.txt</span> or{' '}
-          <span className="mono">admin.local.json</span> with enableAdmin + githubToken.
+          Required for Admin publish / partners / offline user management. Same value as server{' '}
+          <span className="mono">config.php → admin_api_key</span>. Also works in{' '}
+          <span className="mono">admin.local.json</span> as <span className="mono">cmsApiKey</span>.
+          Partner login for Horizons does <strong>not</strong> need this key.
         </p>
         <div className="badge-row" style={{ marginBottom: 10 }}>
-          <span className={`badge${hasGithubToken ? ' badge-green' : ' badge-orange'}`}>
-            {hasGithubToken
-              ? tokenFromFile
-                ? 'Token loaded from local file'
-                : 'Token saved on this PC'
-              : 'Token required to publish'}
+          <span className={`badge${hasCmsApiKey ? ' badge-green' : ' badge-orange'}`}>
+            {hasCmsApiKey ? 'CMS API key loaded' : 'CMS API key missing — save below'}
           </span>
           <span className="badge">{feedPath}</span>
           <span className="badge">{repo}</span>
         </div>
-        {!tokenFromFile && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <input
-              className="input"
-              style={{ flex: 1, minWidth: 220 }}
-              type="password"
-              name="github-token"
-              autoComplete="off"
-              placeholder={hasGithubToken ? 'Paste new token to replace' : 'ghp_… or github_pat_…'}
-              value={githubTokenInput}
-              onChange={(e) => setGithubTokenInput(e.target.value)}
-            />
-            <button type="button" className="btn btn-secondary" onClick={() => void saveToken()}>
-              Save token
-            </button>
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          <input
+            className="input"
+            style={{ flex: 1, minWidth: 220 }}
+            type="password"
+            name="cms-api-key"
+            autoComplete="off"
+            placeholder={hasCmsApiKey ? 'Paste new key to replace' : 'Paste admin_api_key from server'}
+            value={cmsApiKeyInput}
+            onChange={(e) => setCmsApiKeyInput(e.target.value)}
+          />
+          <button type="button" className="btn btn-primary" onClick={() => void saveCmsApiKey()}>
+            Save CMS key
+          </button>
+        </div>
       </div>
 
       {tab === 'partners' && <AdminPartnersPanel session={session} />}

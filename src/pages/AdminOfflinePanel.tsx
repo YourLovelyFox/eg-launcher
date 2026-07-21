@@ -64,7 +64,7 @@ export function AdminOfflinePanel({ session }: { session: string }) {
   }
 
   async function removeUser(id: string, name: string) {
-    if (!window.confirm(`Delete offline user “${name}” from local + GitHub auth files?`)) return
+    if (!window.confirm(`Delete offline user “${name}” from the CMS?`)) return
     setBusy(true)
     try {
       const res = await window.hive.admin.deleteOfflineUser(session, id)
@@ -104,32 +104,13 @@ export function AdminOfflinePanel({ session }: { session: string }) {
     }
   }
 
-  async function publish() {
-    setBusy(true)
-    try {
-      const res = await window.hive.admin.publishOfflineAuth(session)
-      if (!res.ok) {
-        showToast('error', res.error)
-        return
-      }
-      showToast('success', res.message)
-      await refresh()
-    } catch (err) {
-      showToast('error', (err as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <div>
       <div className="panel" style={{ marginBottom: 16 }}>
         <h2>Offline mode unlock password</h2>
         <p className="hint">
-          Users must enter this password in Settings (hidden) before they can register or log in
-          with offline accounts. Stored as a hash in{' '}
-          <code className="mono">auth/offline-users.json</code> (private) and{' '}
-          <code className="mono">news/offline-auth.json</code> (public).
+          Users must enter this password in Settings (hidden) before they can log in with offline
+          accounts. Stored as a hash in the private CMS database only.
         </p>
         <p className="muted" style={{ marginBottom: 12 }}>
           Status:{' '}
@@ -138,7 +119,7 @@ export function AdminOfflinePanel({ session }: { session: string }) {
           ) : (
             <span className="badge badge-orange">Not set</span>
           )}{' '}
-          · GitHub token: {remoteSynced ? 'available' : 'missing (local only)'}
+          · CMS: {remoteSynced ? 'connected' : 'unreachable'}
         </p>
         <div className="form-grid">
           <div className="form-row">
@@ -166,9 +147,6 @@ export function AdminOfflinePanel({ session }: { session: string }) {
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
           <button className="btn btn-primary" disabled={busy || !unlockPass} onClick={saveUnlockPassword}>
             Set unlock password
-          </button>
-          <button className="btn btn-secondary" disabled={busy} onClick={publish}>
-            Publish auth files to GitHub
           </button>
         </div>
       </div>

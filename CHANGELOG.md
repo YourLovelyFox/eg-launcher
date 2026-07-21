@@ -6,6 +6,30 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.0.0] — 2026-07-21
+
+### Added
+- **Private CMS** for launcher news, partner news, partner accounts, and offline accounts (stored server-side; not in public repository files).
+- Live clients load news and partner data from the CMS API for near-instant updates after publish.
+- Partner login verifies credentials on the server (password hashes are not shipped in public repo auth files).
+- Offline unlock and offline user management via CMS (Admin only for creating users).
+- Dev Admin **CMS API key** setting for publishing news, partners, and offline auth from the Admin panel.
+
+### Changed
+- News, partners, and auth no longer depend on public repository JSON mirrors for Live operation.
+- Removed GitHub personal access token requirements from Admin for content publishing (CMS key replaces that for CMS features).
+- Public repo auth JSON files are emptied / deprecated; hashes stay private on the CMS.
+
+### Security
+- Database credentials stay on the server only (not in the Live installer).
+- Config secrets on the web host are blocked from public HTTP access.
+- Admin CMS writes require a local Admin key on Dev PCs only.
+
+### Fixed
+- Partner and Home news refresh reliability when content is published from Admin or partner portals.
+
+---
+
 ## [1.0.9] — 2026-07-21
 
 ### Added

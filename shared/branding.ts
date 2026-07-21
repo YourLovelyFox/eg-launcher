@@ -3,62 +3,12 @@ export const APP_NAME = 'EG'
 export const APP_TAGLINE = 'Launcher'
 export const APP_FULL_NAME = 'EG Launcher'
 /** Display version — keep in sync with package.json for UI; runtime uses app.getVersion(). */
-export const APP_VERSION = '1.0.9'
+export const APP_VERSION = '2.0.0'
 
-/**
- * News / partner content — CMS lives in private `eg-launcher-content`.
- * Live clients read public mirrors under `eg-launcher/news/`.
- * @see shared/contentRepo.ts
- */
-export {
-  CONTENT_OWNER as NEWS_GITHUB_OWNER,
-  PUBLIC_REPO as NEWS_GITHUB_REPO,
-  FEED_LAUNCHER_PUBLIC as NEWS_GITHUB_PATH,
-  githubContentsApiUrl,
-  rawGithubUrl,
-  PUBLIC_OWNER,
-  PUBLIC_BRANCH,
-  FEED_LAUNCHER_PUBLIC,
-  FEED_PARTNERS_PUBLIC,
-} from './contentRepo'
+import { resolveCmsApiBase } from './cmsApi'
 
-import {
-  githubContentsApiUrl,
-  rawGithubUrl,
-  PUBLIC_OWNER,
-  PUBLIC_REPO,
-  PUBLIC_BRANCH,
-  FEED_LAUNCHER_PUBLIC,
-  FEED_PARTNERS_PUBLIC,
-} from './contentRepo'
-
-/** Home news — public mirror (always readable without secrets). */
-export const NEWS_GITHUB_API_URL = githubContentsApiUrl(
-  PUBLIC_OWNER,
-  PUBLIC_REPO,
-  FEED_LAUNCHER_PUBLIC,
-  PUBLIC_BRANCH,
-)
-export const DEFAULT_NEWS_FEED_URL = rawGithubUrl(
-  PUBLIC_OWNER,
-  PUBLIC_REPO,
-  FEED_LAUNCHER_PUBLIC,
-  PUBLIC_BRANCH,
-)
-
-/** Partner news feed (public mirror). */
-export const PARTNER_NEWS_API_URL = githubContentsApiUrl(
-  PUBLIC_OWNER,
-  PUBLIC_REPO,
-  FEED_PARTNERS_PUBLIC,
-  PUBLIC_BRANCH,
-)
-export const PARTNER_NEWS_RAW_URL = rawGithubUrl(
-  PUBLIC_OWNER,
-  PUBLIC_REPO,
-  FEED_PARTNERS_PUBLIC,
-  PUBLIC_BRANCH,
-)
+/** Home news via HTTPS CMS API (MariaDB on server). */
+export const DEFAULT_NEWS_FEED_URL = `${resolveCmsApiBase()}/news.php?kind=launcher`
 
 /** Permanent featured modpack (Modrinth slug). Not auto-installed. */
 export const FEATURED_PACK = {
