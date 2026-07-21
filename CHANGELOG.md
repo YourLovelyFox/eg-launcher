@@ -14,6 +14,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 - Partner login verifies credentials on the server (password hashes are not shipped in public repo auth files).
 - Offline unlock and offline user management via CMS (Admin only for creating users).
 - Dev Admin **CMS API key** setting for publishing news, partners, and offline auth from the Admin panel.
+- **Windows uninstaller**: Start Menu “Uninstall EG Launcher” shortcut after install, plus downloadable `EG-Launcher-*-win-x64-uninstall.exe` on the GitHub release.
 
 ### Changed
 - News, partners, and auth no longer depend on public repository JSON mirrors for Live operation.

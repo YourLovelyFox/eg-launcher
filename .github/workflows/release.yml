@@ -161,6 +161,19 @@ jobs:
             npx electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never
           fi
 
+      - name: Build standalone Windows uninstaller
+        shell: bash
+        env:
+          CI: 'true'
+        run: |
+          set -euo pipefail
+          if [[ -f certs/eg-launcher-codesign.pfx && -f certs/csc-password.txt ]]; then
+            export CSC_LINK="${GITHUB_WORKSPACE}/certs/eg-launcher-codesign.pfx"
+            export CSC_KEY_PASSWORD="$(cat certs/csc-password.txt)"
+          fi
+          node scripts/build-win-uninstaller.mjs --version "${{ needs.resolve-version.outputs.version }}"
+          ls -la release/*uninstall* || true
+
       - name: List artifacts + SHA-256 (freeze this hash)
         shell: bash
         run: |

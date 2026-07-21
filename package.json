@@ -19,11 +19,12 @@
     "start": "electron .",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "cert:generate": "powershell -ExecutionPolicy Bypass -File scripts/generate-self-signed-cert.ps1",
-    "dist": "npm run build && node scripts/run-with-csc.mjs -- npx electron-builder --win nsis --x64 --publish never",
-    "dist:admin": "npm run build:admin && node scripts/run-with-csc.mjs -- npx electron-builder --win nsis --x64 --publish never",
+    "dist": "npm run build && node scripts/run-with-csc.mjs -- npx electron-builder --win nsis --x64 --publish never && node scripts/build-win-uninstaller.mjs",
+    "dist:admin": "npm run build:admin && node scripts/run-with-csc.mjs -- npx electron-builder --win nsis --x64 --publish never && node scripts/build-win-uninstaller.mjs",
     "dist:dir": "npm run build && node scripts/run-with-csc.mjs -- npx electron-builder --win --dir --x64 --publish never",
     "dist:linux": "npm run build && electron-builder --linux AppImage --x64 --publish never",
-    "dist:unsigned": "npm run build && node scripts/run-with-env.mjs CSC_IDENTITY_AUTO_DISCOVERY=false -- npx electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never"
+    "dist:uninstaller": "node scripts/build-win-uninstaller.mjs",
+    "dist:unsigned": "npm run build && node scripts/run-with-env.mjs CSC_IDENTITY_AUTO_DISCOVERY=false -- npx electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never && node scripts/build-win-uninstaller.mjs"
   },
   "build": {
     "appId": "com.eg.launcher",
@@ -83,6 +84,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "EG Launcher",
+      "uninstallDisplayName": "EG Launcher",
+      "include": "build/installer.nsh",
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": false,
       "unicode": true,
