@@ -4,13 +4,18 @@ Options -Indexes
   Require all granted
 </IfModule>
 
-# Block raw config if server mis-serves php
+# Block non-endpoint PHP / secrets (require() still works server-side)
 <Files "config.php">
   <IfModule mod_authz_core.c>
     Require all denied
   </IfModule>
 </Files>
 <Files "config.sample.php">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+</Files>
+<Files "bootstrap.php">
   <IfModule mod_authz_core.c>
     Require all denied
   </IfModule>

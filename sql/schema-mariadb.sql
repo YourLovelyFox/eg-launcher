@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS partner_config (
 CREATE TABLE IF NOT EXISTS partner_auth (
   id VARCHAR(64) NOT NULL PRIMARY KEY,
   username VARCHAR(128) NOT NULL,
-  password_hash CHAR(64) NOT NULL,
+  -- bcrypt / argon2id (legacy SHA-256 hex upgraded on next login)
+  password_hash VARCHAR(255) NOT NULL,
   news_tag VARCHAR(128) NOT NULL,
   display_name VARCHAR(256) NOT NULL,
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
@@ -55,19 +56,27 @@ CREATE TABLE IF NOT EXISTS partner_auth (
 
 CREATE TABLE IF NOT EXISTS offline_settings (
   id TINYINT NOT NULL PRIMARY KEY DEFAULT 1,
-  unlock_password_hash CHAR(64) NULL,
+  unlock_password_hash VARCHAR(255) NULL,
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS offline_users (
   id VARCHAR(64) NOT NULL PRIMARY KEY,
   username VARCHAR(32) NOT NULL,
-  password_hash CHAR(64) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
   uuid CHAR(36) NOT NULL,
   display_name VARCHAR(64) NOT NULL,
   created_at DATETIME(3) NOT NULL,
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_offline_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Brute-force protection (IP + action buckets)
+CREATE TABLE IF NOT EXISTS cms_rate_limits (
+  bucket_key CHAR(64) NOT NULL PRIMARY KEY,
+  hits INT NOT NULL DEFAULT 0,
+  window_start INT NOT NULL,
+  KEY idx_rl_window (window_start)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO offline_settings (id, unlock_password_hash) VALUES (1, NULL);

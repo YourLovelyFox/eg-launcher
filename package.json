@@ -18,10 +18,12 @@
     "preview": "vite preview",
     "start": "electron .",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
-    "dist": "npm run build && electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never",
-    "dist:admin": "npm run build:admin && electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never",
-    "dist:dir": "npm run build && electron-builder --win --dir --x64 --config.win.signAndEditExecutable=false --publish never",
-    "dist:linux": "npm run build && electron-builder --linux AppImage --x64 --publish never"
+    "cert:generate": "powershell -ExecutionPolicy Bypass -File scripts/generate-self-signed-cert.ps1",
+    "dist": "npm run build && node scripts/run-with-csc.mjs -- npx electron-builder --win nsis --x64 --publish never",
+    "dist:admin": "npm run build:admin && node scripts/run-with-csc.mjs -- npx electron-builder --win nsis --x64 --publish never",
+    "dist:dir": "npm run build && node scripts/run-with-csc.mjs -- npx electron-builder --win --dir --x64 --publish never",
+    "dist:linux": "npm run build && electron-builder --linux AppImage --x64 --publish never",
+    "dist:unsigned": "npm run build && node scripts/run-with-env.mjs CSC_IDENTITY_AUTO_DISCOVERY=false -- npx electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never"
   },
   "build": {
     "appId": "com.eg.launcher",
@@ -56,9 +58,12 @@
     },
     "win": {
       "icon": "build/icon.ico",
-      "signAndEditExecutable": false,
+      "signAndEditExecutable": true,
       "signDlls": false,
-      "verifyUpdateCodeSignature": false,
+      "signingHashAlgorithms": ["sha256"],
+      "rfc3161TimeStampServer": "http://timestamp.digicert.com",
+      "publisherName": ["EG Launcher"],
+      "verifyUpdateCodeSignature": true,
       "requestedExecutionLevel": "asInvoker",
       "target": [
         {

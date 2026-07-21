@@ -4,7 +4,7 @@
  * MariaDB stays localhost-only — the Electron app never sees these credentials.
  */
 return [
-    // Local MariaDB on Vipy (same machine as PHP)
+    // Local MariaDB on Vipy (same machine as PHP) — never use a public hostname here
     'db_host' => '127.0.0.1',
     'db_port' => 3306,
     'db_name' => 'client116_launcher',
@@ -13,6 +13,7 @@ return [
     'db_pass' => 'YOUR_MARIADB_PASSWORD',
 
     // Long random hex for Dev Admin only (same value in admin.local.json → cmsApiKey)
+    // Generate: openssl rand -hex 32  (must be ≥ 32 chars)
     'admin_api_key' => 'GENERATE_WITH_openssl_rand_hex_32',
 
     // CORS: Electron file:// / app origin — allow all for launcher clients
@@ -20,4 +21,8 @@ return [
 
     // Partner / admin session lifetime (seconds)
     'session_ttl' => 8 * 60 * 60,
+
+    // Login / unlock rate limit (per IP + action)
+    'rate_limit_max' => 12,
+    'rate_limit_window' => 300,
 ];

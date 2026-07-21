@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/lib/bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -46,7 +46,7 @@ try {
         if ($action === 'delete') {
             $id = trim((string) ($body['id'] ?? ''));
             if ($id === '') {
-                json_out(['ok' => false, 'error' => 'id required'], 400);
+                json_fail('id required', 400);
             }
             $row = $pdo->prepare('SELECT news_tag FROM partner_config WHERE id = ?');
             $row->execute([$id]);
@@ -65,7 +65,10 @@ try {
         $id = trim((string) ($p['id'] ?? ''));
         $title = trim((string) ($p['title'] ?? ''));
         if ($id === '' || $title === '') {
-            json_out(['ok' => false, 'error' => 'id and title required'], 400);
+            json_fail('id and title required', 400);
+        }
+        if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id)) {
+            json_fail('id must be 1–64 letters, numbers, _ or -', 400);
         }
         $newsUsername = trim((string) ($p['newsUsername'] ?? ''));
         $plain = trim((string) ($body['newsPassword'] ?? $p['newsPassword'] ?? ''));
@@ -109,16 +112,19 @@ try {
 
         $hash = null;
         if ($plain !== '') {
-            $hash = hash_partner_password($newsUsername, $plain);
+            if (strlen($plain) < 8) {
+                json_fail('newsPassword must be at least 8 characters', 400);
+            }
+            $hash = hash_password_secure($plain);
         } else {
             $ex = $pdo->prepare('SELECT password_hash, username FROM partner_auth WHERE id = ?');
             $ex->execute([$id]);
             $prevAuth = $ex->fetch();
             if (!$prevAuth) {
-                json_out(['ok' => false, 'error' => 'newsPassword required for new partner'], 400);
+                json_fail('newsPassword required for new partner', 400);
             }
             if ($prevAuth['username'] !== $newsUsername) {
-                json_out(['ok' => false, 'error' => 'Username changed — provide newsPassword'], 400);
+                json_fail('Username changed — provide newsPassword', 400);
             }
             $hash = $prevAuth['password_hash'];
         }
@@ -139,7 +145,7 @@ try {
         json_out(['ok' => true, 'partner' => ['id' => $id, 'title' => $title]]);
     }
 
-    json_out(['ok' => false, 'error' => 'Method not allowed'], 405);
+    json_fail('Method not allowed', 405);
 } catch (Throwable $e) {
-    json_out(['ok' => false, 'error' => $e->getMessage()], 500);
+    json_fail('Server error', 500, $e);
 }

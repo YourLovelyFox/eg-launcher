@@ -1,18 +1,25 @@
 <?php
 /** Partner publishes only their tagged posts (session required). */
-require __DIR__ . '/lib/bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    json_out(['ok' => false, 'error' => 'POST required'], 405);
+    json_fail('POST required', 405);
 }
 
 try {
+    rate_limit_or_fail('partner_publish', 30, 300);
     $session = require_partner_session();
     $tag = (string) $session['news_tag'];
+    if ($tag === '') {
+        json_fail('Partner has no news tag', 400);
+    }
     $body = json_body();
     $items = $body['items'] ?? [];
     if (!is_array($items)) {
-        json_out(['ok' => false, 'error' => 'items array required'], 400);
+        json_fail('items array required', 400);
+    }
+    if (count($items) > 100) {
+        json_fail('Too many items (max 100)', 400);
     }
 
     $pdo = db();
@@ -36,10 +43,18 @@ try {
             continue;
         }
         $id = trim((string) ($item['id'] ?? ''));
-        if ($id === '') {
+        if ($id === '' || strlen($id) > 128) {
             continue;
         }
         $dt = date('Y-m-d H:i:s', strtotime((string) ($item['date'] ?? 'now')) ?: time());
+        $url = $item['url'] ?? null;
+        if (is_string($url) && $url !== '') {
+            if (!preg_match('#^https?://#i', $url)) {
+                $url = null;
+            }
+        } else {
+            $url = null;
+        }
         $ins->execute([
             $id,
             'partners',
@@ -47,8 +62,8 @@ try {
             $item['summary'] ?? null,
             $item['body'] ?? ($item['summary'] ?? null),
             $dt,
-            $tag,
-            $item['url'] ?? null,
+            $tag, // force partner tag — cannot impersonate another partner
+            $url,
             $dt,
         ]);
     }
@@ -77,5 +92,5 @@ try {
     if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    json_out(['ok' => false, 'error' => $e->getMessage()], 500);
+    json_fail('Server error', 500, $e);
 }

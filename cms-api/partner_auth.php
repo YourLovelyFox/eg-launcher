@@ -2,7 +2,7 @@
 /**
  * Partner login — password verified on server. Hashes never sent to the client.
  */
-require __DIR__ . '/lib/bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? ($method === 'GET' ? 'status' : 'login');
@@ -11,11 +11,13 @@ try {
     $pdo = db();
 
     if ($action === 'login' && $method === 'POST') {
+        rate_limit_or_fail('partner_login', 12, 300);
+
         $body = json_body();
         $u = trim((string) ($body['username'] ?? ''));
         $p = (string) ($body['password'] ?? '');
         if ($u === '' || $p === '') {
-            json_out(['ok' => false, 'error' => 'Enter username and password'], 400);
+            json_fail('Enter username and password', 400);
         }
 
         $stmt = $pdo->prepare(
@@ -25,14 +27,23 @@ try {
         $stmt->execute([$u]);
         $rec = $stmt->fetch();
         if (!$rec) {
-            // generic error
-            usleep(200000);
-            json_out(['ok' => false, 'error' => 'Invalid credentials'], 401);
+            usleep(250000);
+            json_fail('Invalid credentials', 401);
         }
-        $attempt = hash_partner_password($rec['username'], $p);
-        if (!hash_equals(strtolower($rec['password_hash']), strtolower($attempt))) {
-            usleep(200000);
-            json_out(['ok' => false, 'error' => 'Invalid credentials'], 401);
+
+        $ok = verify_password_flexible(
+            $p,
+            (string) $rec['password_hash'],
+            legacy_partner_sha256($rec['username'], $p),
+            function (string $newHash) use ($pdo, $rec): void {
+                $pdo->prepare('UPDATE partner_auth SET password_hash = ? WHERE id = ?')
+                    ->execute([$newHash, $rec['id']]);
+            }
+        );
+
+        if (!$ok) {
+            usleep(250000);
+            json_fail('Invalid credentials', 401);
         }
 
         $token = create_session('partner', [
@@ -84,7 +95,7 @@ try {
         json_out(['ok' => true]);
     }
 
-    json_out(['ok' => false, 'error' => 'Unknown action'], 400);
+    json_fail('Unknown action', 400);
 } catch (Throwable $e) {
-    json_out(['ok' => false, 'error' => $e->getMessage()], 500);
+    json_fail('Server error', 500, $e);
 }

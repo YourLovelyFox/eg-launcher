@@ -119,14 +119,47 @@ jobs:
       - name: Build app (Vite + Electron compile)
         run: npm run build
 
-      - name: Package Windows NSIS (electron-builder)
+      - name: Prepare self-signed code signing cert (optional secrets)
+        id: csc
+        shell: bash
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          EG_CSC_PFX_BASE64: ${{ secrets.EG_CSC_PFX_BASE64 }}
+          EG_CSC_PASSWORD: ${{ secrets.EG_CSC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${EG_CSC_PFX_BASE64:-}" && -n "${EG_CSC_PASSWORD:-}" ]]; then
+            mkdir -p certs
+            echo "${EG_CSC_PFX_BASE64}" | base64 --decode > certs/eg-launcher-codesign.pfx
+            echo "${EG_CSC_PASSWORD}" > certs/csc-password.txt
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "Self-signed PFX restored from GitHub secrets (A1)."
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::EG_CSC_PFX_BASE64 / EG_CSC_PASSWORD not set — Windows build will be UNSIGNED. Run npm run cert:generate locally and add those secrets."
+          fi
+
+      - name: Package Windows NSIS (electron-builder)
+        shell: bash
+        env:
           CI: 'true'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # One NSIS setup per version + latest.yml for electron-updater
-        run: npx electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never
+        # Signs with self-signed PFX when secrets were restored; else unsigned.
+        run: |
+          set -euo pipefail
+          if [[ -f certs/eg-launcher-codesign.pfx && -f certs/csc-password.txt ]]; then
+            export CSC_LINK="${GITHUB_WORKSPACE}/certs/eg-launcher-codesign.pfx"
+            export WIN_CSC_LINK="${CSC_LINK}"
+            export CSC_KEY_PASSWORD="$(cat certs/csc-password.txt)"
+            export WIN_CSC_KEY_PASSWORD="${CSC_KEY_PASSWORD}"
+            export CSC_IDENTITY_AUTO_DISCOVERY=true
+            echo "Signing Windows build with self-signed cert (CN=EG Launcher)"
+            npx electron-builder --win nsis --x64 --publish never
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "Building UNSIGNED Windows installer (no EG_CSC_* secrets)"
+            npx electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never
+          fi
 
       - name: List artifacts + SHA-256 (freeze this hash)
         shell: bash

@@ -17,6 +17,11 @@ admin.local.json
 **/eg-launcher-github-token.txt
 **/eg-launcher-admin-password.txt
 
+# Self-signed code signing (A1) — private key never in git
+certs/
+*.pfx
+*.p12
+
 # Server-side CMS secrets (upload to host only — never in the launcher)
 cms-api/config.php
 
@@ -25,4 +30,8 @@ sql/**/*.md
 cms-api/**/*.md
 scripts/init-cms-db.mjs
 scripts/_ftp-upload-cms.mjs
+scripts/_ftp-upload-root.mjs
+scripts/_ftp-list-root.mjs
+scripts/_probe-db.mjs
 scripts/_verify-cms.mjs
+scripts/_verify-cms-security.mjs

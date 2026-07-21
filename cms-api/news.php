@@ -1,10 +1,10 @@
 <?php
-require __DIR__ . '/lib/bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $kind = $_GET['kind'] ?? 'launcher';
 if ($kind !== 'launcher' && $kind !== 'partners') {
-    json_out(['ok' => false, 'error' => 'Invalid kind'], 400);
+    json_fail('Invalid kind', 400);
 }
 
 try {
@@ -55,13 +55,15 @@ try {
     }
 
     if ($method === 'POST' || $method === 'PUT') {
-        // Full feed replace — Admin only (or partner uses partner_news.php)
         require_admin();
         $body = json_body();
         $title = trim((string) ($body['title'] ?? ($kind === 'launcher' ? 'EG Launcher News' : 'EG Partner News')));
         $items = $body['items'] ?? [];
         if (!is_array($items)) {
-            json_out(['ok' => false, 'error' => 'items must be array'], 400);
+            json_fail('items must be array', 400);
+        }
+        if (count($items) > 200) {
+            json_fail('Too many items (max 200)', 400);
         }
 
         $pdo->beginTransaction();
@@ -75,10 +77,18 @@ try {
                 continue;
             }
             $id = trim((string) ($item['id'] ?? ''));
-            if ($id === '') {
+            if ($id === '' || strlen($id) > 128) {
                 continue;
             }
             $dt = date('Y-m-d H:i:s', strtotime((string) ($item['date'] ?? 'now')) ?: time());
+            $url = $item['url'] ?? null;
+            if (is_string($url) && $url !== '') {
+                if (!preg_match('#^https?://#i', $url)) {
+                    $url = null;
+                }
+            } else {
+                $url = null;
+            }
             $ins->execute([
                 $id,
                 $kind,
@@ -87,7 +97,7 @@ try {
                 $item['body'] ?? ($item['summary'] ?? null),
                 $dt,
                 mb_substr((string) ($item['tag'] ?? 'info'), 0, 128),
-                $item['url'] ?? null,
+                $url,
                 $dt,
             ]);
         }
@@ -99,10 +109,10 @@ try {
         json_out(['ok' => true, 'message' => 'Feed published', 'count' => count($items)]);
     }
 
-    json_out(['ok' => false, 'error' => 'Method not allowed'], 405);
+    json_fail('Method not allowed', 405);
 } catch (Throwable $e) {
     if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    json_out(['ok' => false, 'error' => $e->getMessage()], 500);
+    json_fail('Server error', 500, $e);
 }

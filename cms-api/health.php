@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/lib/bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 
 try {
     $pdo = db();
@@ -11,5 +11,5 @@ try {
         'time' => gmdate('c'),
     ]);
 } catch (Throwable $e) {
-    json_out(['ok' => false, 'error' => 'DB unavailable', 'detail' => $e->getMessage()], 500);
+    json_fail('DB unavailable', 500, $e);
 }
