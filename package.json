@@ -1,6 +1,6 @@
 {
   "name": "eg-launcher",
-  "version": "2.0.5",
+  "version": "2.0.7",
   "description": "EG Launcher — Minecraft mods via Modrinth, with permanent Bee's SMP pack support.",
   "main": "dist-electron/main.js",
   "author": "EG Launcher",

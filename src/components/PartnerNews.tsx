@@ -66,6 +66,16 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
   const [draft, setDraft] = useState<NewsItem | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [publishing, setPublishing] = useState(false)
+  /** Last server editor snapshot — used so other logins' deletes refresh this editor */
+  const editorFpRef = useRef('')
+  const sessionRef = useRef(session)
+  const publishingRef = useRef(publishing)
+  const selectedIdRef = useRef(selectedId)
+  const draftRef = useRef(draft)
+  sessionRef.current = session
+  publishingRef.current = publishing
+  selectedIdRef.current = selectedId
+  draftRef.current = draft
 
   const applyPublicFeed = useCallback(
     (data: NewsFeedResult, always = false) => {
@@ -78,6 +88,51 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
     },
     [newsTag],
   )
+
+  /**
+   * Reload partner editor items from CMS so a second logged-in account sees deletes/edits.
+   * Preserves an in-progress draft when that post still exists and differs from server.
+   */
+  const refreshEditorFromServer = useCallback(async () => {
+    const tok = sessionRef.current
+    if (!tok || publishingRef.current) return
+    try {
+      const news = await window.hive.partnerAuth.loadNews(tok)
+      if (!news.ok) return
+      const fp = feedFingerprint(news.feed)
+      if (fp && fp === editorFpRef.current) return
+      editorFpRef.current = fp
+      const serverItems = news.feed.items || []
+      const sel = selectedIdRef.current
+      const d = draftRef.current
+      const found = sel ? serverItems.find((i) => i.id === sel) : undefined
+
+      // Another session deleted the post this editor was viewing
+      if (sel && !found) {
+        setItems(serverItems)
+        const first = serverItems[0]
+        setSelectedId(first?.id ?? null)
+        setDraft(first ? { ...first } : null)
+        return
+      }
+
+      setItems(serverItems)
+      if (found) {
+        if (d && d.id === found.id) {
+          const dirty =
+            d.title !== found.title ||
+            (d.summary || '') !== (found.summary || '') ||
+            (d.body || '') !== (found.body || '') ||
+            String(d.url || '') !== String(found.url || '')
+          if (!dirty) setDraft({ ...found })
+        } else {
+          setDraft({ ...found })
+        }
+      }
+    } catch {
+      /* ignore poll errors */
+    }
+  }, [])
 
   const loadPublic = useCallback(
     async (force: boolean, silent: boolean, opts?: { alwaysSet?: boolean }) => {
@@ -112,14 +167,24 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
     let cancelled = false
     void loadPublic(true, false)
     const interval = window.setInterval(() => {
-      if (!cancelled) void loadPublic(true, true)
+      if (!cancelled) {
+        void loadPublic(true, true)
+        // Keep every open partner editor in sync with CMS (deletes from other logins)
+        if (sessionRef.current) void refreshEditorFromServer()
+      }
     }, POLL_MS)
 
     const onFocus = () => {
-      if (!cancelled) void loadPublic(true, true)
+      if (!cancelled) {
+        void loadPublic(true, true)
+        if (sessionRef.current) void refreshEditorFromServer()
+      }
     }
     const onVisible = () => {
-      if (!cancelled && document.visibilityState === 'visible') void loadPublic(true, true)
+      if (!cancelled && document.visibilityState === 'visible') {
+        void loadPublic(true, true)
+        if (sessionRef.current) void refreshEditorFromServer()
+      }
     }
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisible)
@@ -128,6 +193,7 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
       if (payload.kind !== 'partners') return
       applyPublicFeed(payload.feed, true)
       setLoading(false)
+      if (sessionRef.current) void refreshEditorFromServer()
     })
 
     return () => {
@@ -137,7 +203,7 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
       document.removeEventListener('visibilitychange', onVisible)
       offUpdated()
     }
-  }, [loadPublic, applyPublicFeed])
+  }, [loadPublic, applyPublicFeed, refreshEditorFromServer])
 
   async function login(e: React.FormEvent) {
     e.preventDefault()
@@ -159,6 +225,7 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
       setEditorOpen(true)
       const news = await window.hive.partnerAuth.loadNews(res.sessionToken)
       if (news.ok) {
+        editorFpRef.current = feedFingerprint(news.feed)
         setItems(news.feed.items)
         setSelectedId(news.feed.items[0]?.id ?? null)
         setDraft(news.feed.items[0] ? { ...news.feed.items[0] } : null)
@@ -228,10 +295,12 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
       }
       showToast('success', 'Post deleted on CMS')
       fingerprintRef.current = ''
+      editorFpRef.current = ''
       await loadPublic(true, false, { alwaysSet: true })
       // Also refresh editor from server snapshot
       const news = await window.hive.partnerAuth.loadNews(session)
       if (news.ok) {
+        editorFpRef.current = feedFingerprint(news.feed)
         setItems(news.feed.items)
         const first = news.feed.items[0]
         setSelectedId(first?.id ?? null)
@@ -271,6 +340,14 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
       }
       showToast('success', res.message)
       setItems(cleaned)
+      editorFpRef.current = feedFingerprint({
+        title: 'EG Partner News',
+        updated: new Date().toISOString(),
+        sourceUrl: 'local-publish',
+        sourceType: 'json',
+        items: cleaned,
+        fromCache: false,
+      })
       // Immediately show published posts in the public list (don't wait for poll)
       fingerprintRef.current = ''
       setFeed({
@@ -282,6 +359,9 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
         fromCache: false,
       })
       await loadPublic(true, true, { alwaysSet: true })
+      // Re-sync editor from CMS so multi-login sessions converge
+      editorFpRef.current = ''
+      await refreshEditorFromServer()
     } finally {
       setPublishing(false)
     }

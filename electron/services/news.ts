@@ -9,8 +9,12 @@ import { fetchNewsFromDb } from './db/newsRepo'
 
 /** Soft memory cache — near-live CMS poll */
 const CACHE_TTL_MS = 3_000
-/** After Admin/partner publish, prefer local snapshot so UI is instant */
-const LOCAL_PIN_MS = 120_000
+/**
+ * After Admin/partner publish, briefly prefer local snapshot so the publisher UI is instant.
+ * Kept short so other sessions / partners on the same PC still pick up remote deletes quickly.
+ * `force: true` always bypasses the pin and hits the CMS.
+ */
+const LOCAL_PIN_MS = 8_000
 /** Back off when CMS API is unreachable */
 const RATE_LIMIT_BACKOFF_MS = 30_000
 
@@ -136,19 +140,24 @@ function remember(
   result: NewsFeedResult,
   contentHash: string,
   sourceUrl: string,
-  opts?: { pinMs?: number },
+  opts?: { pinMs?: number; /** When true (default for CMS network), drop any local publish pin */ clearPin?: boolean },
 ): void {
   const prev = memory.get(kind)
+  let pinUntil = 0
+  if (opts?.pinMs && opts.pinMs > 0) {
+    pinUntil = Date.now() + opts.pinMs
+  } else if (opts?.clearPin) {
+    pinUntil = 0
+  } else if (prev?.pinUntil && prev.pinUntil > Date.now()) {
+    // Preserve pin only when neither pinning nor clearing (e.g. disk hydrate paths)
+    pinUntil = prev.pinUntil
+  }
   memory.set(kind, {
     fetchedAt: Date.now(),
     contentHash,
     sourceUrl,
     result: { ...result, fromCache: false },
-    pinUntil: opts?.pinMs
-      ? Date.now() + opts.pinMs
-      : prev?.pinUntil && prev.pinUntil > Date.now()
-        ? prev.pinUntil
-        : 0,
+    pinUntil,
     networkBlockedUntil: 0,
   })
   saveDiskCache(kind, sourceUrl, result, contentHash)
@@ -207,7 +216,9 @@ export async function fetchNews(options?: {
   const mem = hydrateMemoryFromDisk(kind)
   const now = Date.now()
 
-  if (mem && mem.pinUntil > now) {
+  // Local publish pin is for instant publisher UI only. force=true (polls / other sessions)
+  // must always revalidate against CMS so deletes on another login show up.
+  if (!force && mem && mem.pinUntil > now) {
     return filterByTag(
       {
         ...mem.result,
@@ -251,7 +262,8 @@ export async function fetchNews(options?: {
       mem.networkBlockedUntil = 0
       return filterByTag({ ...mem.result, fromCache: true, sourceType: 'cache' }, tag)
     }
-    remember(kind, full, hash, resolveCmsApiBase())
+    // Successful CMS read clears any stale local-publish pin so other sessions see deletes
+    remember(kind, full, hash, resolveCmsApiBase(), { clearPin: true })
     const out = filterByTag(full, tag)
     emitNewsUpdate(kind, out)
     return out

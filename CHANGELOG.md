@@ -6,6 +6,19 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.0.7] — 2026-07-21
+
+### Fixed
+- **Partner news multi-login sync**: when one partner account deletes or publishes a post, other logged-in sessions for the same partner refresh the public list and the editor within a few seconds (no logout required).
+- News `force` refresh always revalidates against the CMS (local publish pin no longer blocks other sessions for up to 2 minutes).
+- Successful CMS fetches clear any stale local publish pin; pin window shortened so other partners/sessions converge faster.
+
+### Downloads
+- Windows: `EG-Launcher-2.0.7-win-x64-setup.exe` and `EG-Launcher-2.0.7-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.0.7-linux-x86_64.AppImage`
+
+---
+
 ## [2.0.5] — 2026-07-21
 
 Live update from **2.0.0** — signed installers, optional data wipe on uninstall, hardened CMS auth, and working auto-update with the self-signed certificate.
