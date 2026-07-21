@@ -118,7 +118,9 @@ export function initAutoUpdater(win: BrowserWindow | null) {
     // Self-signed code signing (A1): Windows reports "root not trusted", so chain-based
     // verifyUpdateCodeSignature fails even when CN=EG Launcher matches. Installers remain
     // Authenticode-signed; re-enable when using a commercial OV/EV cert.
-    autoUpdater.verifyUpdateCodeSignature = false
+    // Property exists at runtime on Windows AppUpdater; typings omit it in some versions.
+    ;(autoUpdater as unknown as { verifyUpdateCodeSignature?: boolean }).verifyUpdateCodeSignature =
+      false
     // Avoid long SSL/DNS stalls blocking forever
     autoUpdater.requestHeaders = {
       'Cache-Control': 'no-cache',
