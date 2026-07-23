@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { UpdateStatus } from '../../shared/types'
+import { useAppStore } from '../store'
 
 function formatBytes(n: number): string {
   if (!n || n < 0) return '—'
@@ -108,14 +109,29 @@ function notesToSafeHtml(text: string | null | undefined): string {
  * "What's new" renders sanitized HTML (GitHub notes + our CHANGELOG body).
  */
 export function UpdateModal() {
+  const showToast = useAppStore((s) => s.showToast)
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' })
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const lastToastVersion = useRef<string | null>(null)
 
   useEffect(() => {
     window.hive.updater.getStatus().then(setStatus).catch(() => undefined)
-    return window.hive.updater.onStatus(setStatus)
-  }, [])
+    return window.hive.updater.onStatus((next) => {
+      setStatus(next)
+      if (next.state === 'available') {
+        // Background 5‑min checks re-show the dialog after "Later"
+        setDismissedVersion((prev) => (prev === next.version ? null : prev))
+        if (lastToastVersion.current !== next.version) {
+          lastToastVersion.current = next.version
+          showToast(
+            'success',
+            `Update ${next.version} is available — review and install when ready`,
+          )
+        }
+      }
+    })
+  }, [showToast])
 
   const notesHtml = useMemo(() => {
     if (status.state !== 'available' && status.state !== 'ready') return ''

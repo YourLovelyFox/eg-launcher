@@ -6,6 +6,26 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.3.0] — 2026-07-23
+
+### Added
+- **Automatic update checks every 5 minutes** (packaged builds). When a new version is found, the launcher shows the update dialog, a toast, and a system notification. Download still requires your confirmation.
+
+### Changed
+- **Offline login always available** on Account → Offline login (no Settings unlock password, no hidden offline mode).
+- Only Admins can create offline users (Admin → Offline); players cannot register accounts themselves.
+
+### Also includes (from 2.0.9)
+- **Account submenu**: Microsoft login and Offline login tabs.
+- **CMS partner icons**: images stored in MariaDB and served via PHP (`partners.php?img=…`).
+- Admin partner **Save** stays on the edit form.
+
+### Downloads
+- Windows: `EG-Launcher-2.3.0-win-x64-setup.exe` and `EG-Launcher-2.3.0-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.3.0-linux-x86_64.AppImage`
+
+---
+
 ## [2.0.9] — 2026-07-23
 
 ### Changed

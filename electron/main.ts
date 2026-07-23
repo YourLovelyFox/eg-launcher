@@ -75,6 +75,8 @@ import {
   initAutoUpdater,
   installUpdate,
   setUpdaterWindow,
+  startPeriodicUpdateChecks,
+  stopPeriodicUpdateChecks,
 } from './services/updater'
 import { fetchNews, getDefaultNewsFeedUrl, setNewsUpdateListener } from './services/news'
 import {
@@ -221,9 +223,14 @@ function createWindow() {
     } catch (err) {
       console.warn('[updater] init on load failed', err)
     }
-    // Delayed background check — never blocks startup
+    // Delayed first check — never blocks startup
     setTimeout(() => {
-      checkForUpdates(false).catch((err) => console.warn('[updater] startup check', err))
+      checkForUpdates(false)
+        .catch((err) => console.warn('[updater] startup check', err))
+        .finally(() => {
+          // Then re-check every 5 minutes and notify when an update appears
+          startPeriodicUpdateChecks()
+        })
     }, 12_000)
   })
 }
@@ -684,6 +691,10 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('before-quit', () => {
+  stopPeriodicUpdateChecks()
 })
 
 app.on('window-all-closed', () => {
