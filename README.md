@@ -1,3 +1,8 @@
+If you wish to help me, please only do "Pull Requests" <3
+
+Support Discord server: Soon
+
+
 # EG Launcher
 
 Modern **Minecraft: Java Edition** launcher for browsing and installing mods via [Modrinth](https://modrinth.com/), managing instances, and launching the game.
