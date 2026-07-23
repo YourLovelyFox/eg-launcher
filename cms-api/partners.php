@@ -43,6 +43,71 @@ try {
         $body = json_body();
         $action = $body['action'] ?? 'upsert';
 
+        // Admin image upload (partner icons) — same endpoint so one-file deploy works
+        if ($action === 'upload_image' || $action === 'upload') {
+            rate_limit_or_fail('admin_upload', 40, 300);
+            $filename = basename(trim((string) ($body['filename'] ?? '')));
+            $mime = strtolower(trim((string) ($body['mime'] ?? '')));
+            $b64 = (string) ($body['data'] ?? '');
+            if (str_starts_with($b64, 'data:')) {
+                if (preg_match('#^data:([^;]+);base64,(.+)$#s', $b64, $m)) {
+                    if ($mime === '') {
+                        $mime = strtolower($m[1]);
+                    }
+                    $b64 = $m[2];
+                }
+            }
+            $b64 = preg_replace('/\s+/', '', $b64) ?? '';
+            if ($filename === '' || $b64 === '') {
+                json_fail('filename and data (base64) required', 400);
+            }
+            $allowed = [
+                'image/png' => 'png',
+                'image/jpeg' => 'jpg',
+                'image/jpg' => 'jpg',
+                'image/webp' => 'webp',
+                'image/gif' => 'gif',
+            ];
+            $extFromName = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            $extMap = ['png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'webp' => 'image/webp', 'gif' => 'image/gif'];
+            if ($mime === '' && isset($extMap[$extFromName])) {
+                $mime = $extMap[$extFromName];
+            }
+            if (!isset($allowed[$mime])) {
+                json_fail('Only PNG, JPEG, WebP, or GIF images are allowed', 400);
+            }
+            $ext = $allowed[$mime];
+            $raw = base64_decode($b64, true);
+            if ($raw === false || $raw === '') {
+                json_fail('Invalid base64 image data', 400);
+            }
+            if (strlen($raw) > 2 * 1024 * 1024) {
+                json_fail('Image too large (max 2 MB)', 400);
+            }
+            $dir = __DIR__ . '/uploads';
+            if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+                json_fail('Could not create uploads directory on server', 500);
+            }
+            $safeName = 'eg-' . bin2hex(random_bytes(12)) . '.' . $ext;
+            if (file_put_contents($dir . '/' . $safeName, $raw) === false) {
+                json_fail('Failed to write upload', 500);
+            }
+            $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || (isset($_SERVER['SERVER_PORT']) && (string) $_SERVER['SERVER_PORT'] === '443')
+                || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+            $scheme = $https ? 'https' : 'http';
+            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            $publicUrl = $scheme . '://' . $host . '/uploads/' . $safeName;
+            json_out([
+                'ok' => true,
+                'url' => $publicUrl,
+                'path' => 'uploads/' . $safeName,
+                'mime' => $mime,
+                'size' => strlen($raw),
+                'message' => 'Image uploaded',
+            ]);
+        }
+
         if ($action === 'delete') {
             $id = trim((string) ($body['id'] ?? ''));
             if ($id === '') {

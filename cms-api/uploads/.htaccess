@@ -1,0 +1,20 @@
+# Public image assets only — no PHP execution
+Options -Indexes
+<IfModule mod_authz_core.c>
+  Require all granted
+</IfModule>
+
+# Block script execution in uploads
+<FilesMatch "\.(?i:php|phtml|php3|php4|php5|phar|cgi|pl|py|asp|aspx|js)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+</FilesMatch>
+
+# Prefer correct image types
+<IfModule mod_mime.c>
+  AddType image/png .png
+  AddType image/jpeg .jpg .jpeg
+  AddType image/webp .webp
+  AddType image/gif .gif
+</IfModule>

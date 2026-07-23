@@ -134,7 +134,7 @@ function requestOnce(
         path: url.pathname + url.search,
         method,
         headers,
-        timeout: 20_000,
+        timeout: 60_000,
         rejectUnauthorized: true,
       },
       (res) => {

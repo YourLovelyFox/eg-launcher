@@ -67,6 +67,7 @@ export function AdminPartnersPanel({ session }: Props) {
   const [partners, setPartners] = useState<PartnerConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploadingIcon, setUploadingIcon] = useState(false)
   const [form, setForm] = useState<FormState>(emptyForm())
   const [mode, setMode] = useState<'list' | 'edit'>('list')
 
@@ -163,6 +164,54 @@ export function AdminPartnersPanel({ session }: Props) {
       showToast('error', (err as Error).message || 'Delete failed')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function uploadIconFile(file: File) {
+    setUploadingIcon(true)
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = String(reader.result || '')
+          const comma = result.indexOf(',')
+          resolve(comma >= 0 ? result.slice(comma + 1) : result)
+        }
+        reader.onerror = () => reject(new Error('Could not read image file'))
+        reader.readAsDataURL(file)
+      })
+      const res = await window.hive.admin.uploadImage(session, {
+        name: file.name,
+        mime: file.type || undefined,
+        base64,
+      })
+      if (!res.ok) {
+        showToast('error', res.error)
+        return
+      }
+      setForm((f) => ({ ...f, iconUrl: res.url }))
+      showToast('success', 'Icon uploaded — save the partner to keep it')
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setUploadingIcon(false)
+    }
+  }
+
+  async function pickIconFile() {
+    setUploadingIcon(true)
+    try {
+      const res = await window.hive.admin.uploadImage(session)
+      if (!res.ok) {
+        if (res.error !== 'No file selected') showToast('error', res.error)
+        return
+      }
+      setForm((f) => ({ ...f, iconUrl: res.url }))
+      showToast('success', 'Icon uploaded — save the partner to keep it')
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setUploadingIcon(false)
     }
   }
 
@@ -389,14 +438,69 @@ export function AdminPartnersPanel({ session }: Props) {
           )}
 
           <div className="form-row">
-            <label>Partner icon URL (optional)</label>
-            <input
-              className="input"
-              type="url"
-              placeholder="https://…/icon.png (leave empty for none)"
-              value={form.iconUrl}
-              onChange={(e) => setForm((f) => ({ ...f, iconUrl: e.target.value }))}
-            />
+            <label>Partner icon (optional)</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={uploadingIcon || saving}
+                  onClick={() => void pickIconFile()}
+                >
+                  {uploadingIcon ? 'Uploading…' : 'Upload image…'}
+                </button>
+                <label className="btn btn-ghost" style={{ cursor: 'pointer', margin: 0 }}>
+                  Choose file
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif"
+                    style={{ display: 'none' }}
+                    disabled={uploadingIcon || saving}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      e.target.value = ''
+                      if (file) void uploadIconFile(file)
+                    }}
+                  />
+                </label>
+                {form.iconUrl ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => setForm((f) => ({ ...f, iconUrl: '' }))}
+                  >
+                    Clear icon
+                  </button>
+                ) : null}
+              </div>
+              <input
+                className="input"
+                type="url"
+                placeholder="Or paste an image URL (https://…/icon.png)"
+                value={form.iconUrl}
+                onChange={(e) => setForm((f) => ({ ...f, iconUrl: e.target.value }))}
+              />
+              <span className="muted" style={{ fontSize: 12 }}>
+                PNG / JPEG / WebP / GIF · max 2 MB · stored on the CMS and used in the sidebar
+              </span>
+              {form.iconUrl ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <img
+                    src={form.iconUrl}
+                    alt="Partner icon preview"
+                    width={48}
+                    height={48}
+                    style={{ borderRadius: 10, objectFit: 'cover', background: 'var(--bg-3)' }}
+                    onError={(e) => {
+                      ;(e.target as HTMLImageElement).style.opacity = '0.3'
+                    }}
+                  />
+                  <span className="mono" style={{ fontSize: 11, wordBreak: 'break-all' }}>
+                    {form.iconUrl}
+                  </span>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

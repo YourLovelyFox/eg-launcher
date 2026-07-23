@@ -73,6 +73,7 @@ import {
   setCmsApiKeyForAdmin,
   verifyAdminPassword,
 } from './services/admin'
+import { uploadAdminImage } from './services/adminUpload'
 import {
   getPartnerSessionInfo,
   loadPartnerNewsForEditor,
@@ -529,6 +530,17 @@ function registerIpc() {
         if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
         return setOfflineUnlockPassword(password)
       },
+    )
+    ipcMain.handle(
+      'admin:uploadImage',
+      async (
+        _e,
+        sessionToken: string,
+        input?:
+          | { filePath: string }
+          | { name: string; mime?: string; base64: string }
+          | null,
+      ) => uploadAdminImage(sessionToken, input),
     )
     ipcMain.handle('admin:publishOfflineAuth', async (_e, sessionToken: string) => {
       if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }

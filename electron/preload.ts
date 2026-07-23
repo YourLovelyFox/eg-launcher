@@ -363,6 +363,20 @@ const api = {
       if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:deletePartner', sessionToken, partnerId)
     },
+    /**
+     * Upload an image to the CMS (partner icons, etc.).
+     * Pass base64 from a file input, or omit input to open a native file picker.
+     */
+    uploadImage: (
+      sessionToken: string,
+      input?:
+        | { filePath: string }
+        | { name: string; mime?: string; base64: string }
+        | null,
+    ): Promise<{ ok: true; url: string; message?: string } | { ok: false; error: string }> => {
+      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
+      return ipcRenderer.invoke('admin:uploadImage', sessionToken, input ?? null)
+    },
     listOfflineUsers: (
       sessionToken: string,
     ): Promise<
