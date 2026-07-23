@@ -31,6 +31,7 @@ function toDefinition(p: PartnerConfig): PartnerDefinition {
     newsUsername: p.newsUsername,
     modrinthPackSlug: p.modrinthPackSlug,
     iconUrl: p.iconUrl,
+    discordUrl: p.discordUrl ?? null,
   }
 }
 
@@ -126,6 +127,24 @@ function ensurePartnerServer(instanceId: string, partner: PartnerDefinition): vo
     })
   } catch (err) {
     console.warn('[partners] failed to write servers.dat', err)
+  }
+}
+
+/** Re-write servers.dat so the partner IP is always first / present before join. */
+export async function preparePartnerJoin(id: string): Promise<{
+  instanceId: string
+  serverAddress: string
+  serverName: string
+}> {
+  const status = await getPartnerStatus(id)
+  if (!status.local.installed || !status.local.instanceId) {
+    throw new Error('Install the partner pack first')
+  }
+  ensurePartnerServer(status.local.instanceId, status.partner)
+  return {
+    instanceId: status.local.instanceId,
+    serverAddress: status.partner.serverAddress,
+    serverName: status.partner.serverName,
   }
 }
 

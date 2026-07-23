@@ -941,11 +941,23 @@ function findInstalledVersionId(instance: GameInstance, preferred: string): stri
   return guess || preferred
 }
 
+export type LaunchInstanceOptions = {
+  /** Minecraft 1.20+ direct multiplayer connect (e.g. partner server). */
+  quickPlayServer?: string
+  versionIdOverride?: string
+}
+
 export async function launchInstance(
   instance: GameInstance,
   account: MinecraftAccount | null,
-  versionIdOverride?: string,
+  versionIdOverrideOrOptions?: string | LaunchInstanceOptions,
 ): Promise<LaunchResult> {
+  const launchOpts: LaunchInstanceOptions =
+    typeof versionIdOverrideOrOptions === 'string'
+      ? { versionIdOverride: versionIdOverrideOrOptions }
+      : versionIdOverrideOrOptions || {}
+  const versionIdOverride = launchOpts.versionIdOverride
+  const quickPlayServer = (launchOpts.quickPlayServer || '').trim()
   if (!account?.accessToken || !account.username || !account.uuid) {
     return {
       success: false,
@@ -1145,6 +1157,20 @@ export async function launchInstance(
     )
   }
 
+  // Direct multiplayer join (1.20+). Also keep legacy --server/--port for older clients.
+  if (quickPlayServer) {
+    const { host, port } = parseHostPort(quickPlayServer)
+    // Remove any pre-existing quickPlay / server flags from the profile args
+    stripGameArg(gameArgs, '--quickPlayMultiplayer')
+    stripGameArg(gameArgs, '--quickPlaySingleplayer')
+    stripGameArg(gameArgs, '--quickPlayRealms')
+    stripGameArg(gameArgs, '--server')
+    stripGameArg(gameArgs, '--port')
+    gameArgs.push('--quickPlayMultiplayer', quickPlayServer)
+    gameArgs.push('--server', host)
+    gameArgs.push('--port', String(port))
+  }
+
   // Build full JVM arg list: jvm + main + game
   const fullArgs = [...jvmArgs, mainClass, ...gameArgs]
 
@@ -1256,6 +1282,42 @@ export async function launchInstance(
 }
 
 const CLIENT_ID_FOR_LAUNCH = 'c36a9fb6-4f2a-41ff-90bd-ae7cc92031eb'
+
+/** Remove a game arg and its following value (if present). */
+function stripGameArg(args: string[], flag: string): void {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === flag) {
+      args.splice(i, args[i + 1] && !args[i + 1]!.startsWith('--') ? 2 : 1)
+      i--
+    } else if (args[i]!.startsWith(`${flag}=`)) {
+      args.splice(i, 1)
+      i--
+    }
+  }
+}
+
+function parseHostPort(address: string): { host: string; port: number } {
+  const trimmed = address.trim()
+  if (trimmed.startsWith('[')) {
+    const end = trimmed.indexOf(']')
+    if (end > 0) {
+      const host = trimmed.slice(1, end)
+      const rest = trimmed.slice(end + 1)
+      if (rest.startsWith(':')) {
+        const p = parseInt(rest.slice(1), 10)
+        return { host, port: Number.isFinite(p) && p > 0 ? p : 25565 }
+      }
+      return { host, port: 25565 }
+    }
+  }
+  const lastColon = trimmed.lastIndexOf(':')
+  if (lastColon > 0 && trimmed.indexOf(':') === lastColon) {
+    const host = trimmed.slice(0, lastColon)
+    const p = parseInt(trimmed.slice(lastColon + 1), 10)
+    if (host && Number.isFinite(p) && p > 0) return { host, port: p }
+  }
+  return { host: trimmed || 'localhost', port: 25565 }
+}
 
 function toArgFileLine(arg: string): string {
   // https://docs.oracle.com/en/java/javase/17/docs/specs/man/java.html#java-command-line-argument-files

@@ -6,6 +6,13 @@ $method = $_SERVER['REQUEST_METHOD'];
 try {
     $pdo = db();
 
+    // Soft schema migrate: Discord invite URL (ignore if already present)
+    try {
+        $pdo->exec('ALTER TABLE partner_config ADD COLUMN discord_url VARCHAR(1024) NULL');
+    } catch (Throwable $e) {
+        // column exists
+    }
+
     if ($method === 'GET') {
         $stmt = $pdo->query('SELECT * FROM partner_config WHERE enabled = 1 ORDER BY title');
         $partners = [];
@@ -32,6 +39,7 @@ try {
                 'defaultMods' => array_values($mods),
                 'modrinthPackSlug' => $r['modrinth_pack_slug'],
                 'iconUrl' => $r['icon_url'],
+                'discordUrl' => $r['discord_url'] ?? null,
                 'enabled' => (bool) $r['enabled'],
             ];
         }
@@ -143,12 +151,17 @@ try {
             $mods = [];
         }
 
+        $discordUrl = trim((string) ($p['discordUrl'] ?? ''));
+        if ($discordUrl !== '' && !preg_match('#^https?://#i', $discordUrl)) {
+            json_fail('discordUrl must start with http:// or https://', 400);
+        }
+
         $pdo->prepare(
             'INSERT INTO partner_config (
               id, title, menu_label, description, game_version, loader,
               server_address, server_name, instance_name, news_tag, news_username,
-              default_mods_json, modrinth_pack_slug, icon_url, enabled
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+              default_mods_json, modrinth_pack_slug, icon_url, discord_url, enabled
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON DUPLICATE KEY UPDATE
               title=VALUES(title), menu_label=VALUES(menu_label), description=VALUES(description),
               game_version=VALUES(game_version), loader=VALUES(loader),
@@ -156,7 +169,7 @@ try {
               instance_name=VALUES(instance_name), news_tag=VALUES(news_tag),
               news_username=VALUES(news_username), default_mods_json=VALUES(default_mods_json),
               modrinth_pack_slug=VALUES(modrinth_pack_slug), icon_url=VALUES(icon_url),
-              enabled=VALUES(enabled)'
+              discord_url=VALUES(discord_url), enabled=VALUES(enabled)'
         )->execute([
             $id,
             $title,
@@ -172,6 +185,7 @@ try {
             json_encode(array_values($mods)),
             $p['modrinthPackSlug'] ?? null,
             $p['iconUrl'] ?? null,
+            $discordUrl !== '' ? $discordUrl : null,
             !empty($p['enabled']) || !isset($p['enabled']) ? 1 : 0,
         ]);
 

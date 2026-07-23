@@ -6,6 +6,21 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.0.8] — 2026-07-23
+
+### Added
+- **Join server**: partner pages can launch Minecraft and auto-connect to the partner address (`--quickPlayMultiplayer`), and keep `servers.dat` in sync.
+- **Mod updates**: instance list shows how many mods need updates; instance detail still supports Check / Update / Update all.
+- **Instance backup & restore**: snapshot mods, configs, and optional worlds; restore with an automatic pre-restore safety snapshot.
+- **Partner live status**: Server List Ping shows Online/Offline, player counts, latency, and MOTD on partner pages.
+- **Discord link**: optional Discord invite URL per partner (Admin + CMS), with a Discord button on the partner page.
+
+### Downloads
+- Windows: `EG-Launcher-2.0.8-win-x64-setup.exe` and `EG-Launcher-2.0.8-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.0.8-linux-x86_64.AppImage`
+
+---
+
 ## [2.0.7] — 2026-07-21
 
 ### Fixed

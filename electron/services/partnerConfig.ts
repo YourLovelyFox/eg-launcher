@@ -30,6 +30,7 @@ function builtinPartners(): PartnerConfig[] {
     defaultMods: [...p.defaultMods],
     modrinthPackSlug: p.modrinthPackSlug ?? null,
     iconUrl: p.iconUrl ?? null,
+    discordUrl: p.discordUrl ?? null,
     enabled: true,
   }))
 }
@@ -99,6 +100,7 @@ export type PartnerUpsertInput = {
   defaultMods?: string[]
   modrinthPackSlug?: string | null
   iconUrl?: string | null
+  discordUrl?: string | null
   enabled?: boolean
 }
 
@@ -147,6 +149,7 @@ export async function upsertPartnerConfig(
     defaultMods: (input.defaultMods || []).map((m) => m.trim()).filter(Boolean),
     modrinthPackSlug: input.modrinthPackSlug?.trim() || null,
     iconUrl: input.iconUrl?.trim() || null,
+    discordUrl: input.discordUrl?.trim() || null,
     enabled: input.enabled !== false,
   }
 

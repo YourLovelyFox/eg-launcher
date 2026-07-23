@@ -12,12 +12,14 @@ function adminUnlockedSync(): boolean {
 import type {
   DeviceCodeResponse,
   GameInstance,
+  InstanceBackupInfo,
   LauncherSettings,
   SystemMemoryInfo,
   LaunchResult,
   LoaderType,
   LoaderVersionInfo,
   MinecraftAccount,
+  MinecraftServerStatus,
   MinecraftVersionInfo,
   ModrinthProject,
   ModrinthSearchResult,
@@ -104,6 +106,29 @@ const api = {
       ipcRenderer.invoke('instances:toggleMod', instanceId, projectId, enabled),
     removeMod: (instanceId: string, projectId: string): Promise<GameInstance> =>
       ipcRenderer.invoke('instances:removeMod', instanceId, projectId),
+    listBackups: (instanceId: string): Promise<InstanceBackupInfo[]> =>
+      ipcRenderer.invoke('instances:listBackups', instanceId),
+    createBackup: (
+      instanceId: string,
+      opts?: { includeSaves?: boolean; label?: string },
+    ): Promise<InstanceBackupInfo> =>
+      ipcRenderer.invoke('instances:createBackup', instanceId, opts || {}),
+    restoreBackup: (
+      instanceId: string,
+      backupId: string,
+    ): Promise<{ ok: true; message: string }> =>
+      ipcRenderer.invoke('instances:restoreBackup', instanceId, backupId),
+    deleteBackup: (instanceId: string, backupId: string): Promise<boolean> =>
+      ipcRenderer.invoke('instances:deleteBackup', instanceId, backupId),
+    openBackupsFolder: (instanceId?: string): Promise<string> =>
+      ipcRenderer.invoke('instances:openBackupsFolder', instanceId),
+    onBackupProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
+      const listener = (_: unknown, event: ProgressEvent) => cb(event)
+      ipcRenderer.on('instances:backupProgress', listener)
+      return () => {
+        ipcRenderer.removeListener('instances:backupProgress', listener)
+      }
+    },
   },
   mc: {
     listVersions: (): Promise<{
@@ -116,7 +141,7 @@ const api = {
       ipcRenderer.invoke('mc:install', instanceId),
     launch: (
       instanceId: string,
-      options?: { acknowledgeLowMemory?: boolean },
+      options?: { acknowledgeLowMemory?: boolean; quickPlayServer?: string },
     ): Promise<LaunchResult> => ipcRenderer.invoke('mc:launch', instanceId, options),
     stop: (): Promise<RunningGameInfo> => ipcRenderer.invoke('mc:forceStop'),
     running: (): Promise<RunningGameInfo> => ipcRenderer.invoke('mc:running'),
@@ -127,6 +152,10 @@ const api = {
         ipcRenderer.removeListener('mc:installProgress', listener)
       }
     },
+  },
+  server: {
+    status: (address: string): Promise<MinecraftServerStatus> =>
+      ipcRenderer.invoke('server:status', address),
   },
   modrinth: {
     search: (opts: {
@@ -191,6 +220,10 @@ const api = {
       ipcRenderer.invoke('partners:listConfig', force),
     getStatus: (id: string) => ipcRenderer.invoke('partners:status', id),
     install: (id: string) => ipcRenderer.invoke('partners:install', id),
+    prepareJoin: (
+      id: string,
+    ): Promise<{ instanceId: string; serverAddress: string; serverName: string }> =>
+      ipcRenderer.invoke('partners:prepareJoin', id),
     onInstallProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
       const listener = (_: unknown, event: ProgressEvent) => cb(event)
       ipcRenderer.on('partners:installProgress', listener)

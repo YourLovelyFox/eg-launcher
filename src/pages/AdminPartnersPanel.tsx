@@ -19,6 +19,7 @@ type FormState = {
   modrinthPackSlug: string
   defaultModsText: string
   iconUrl: string
+  discordUrl: string
 }
 
 const emptyForm = (): FormState => ({
@@ -37,6 +38,7 @@ const emptyForm = (): FormState => ({
   modrinthPackSlug: '',
   defaultModsText: '',
   iconUrl: '',
+  discordUrl: '',
 })
 
 function fromConfig(p: PartnerConfig): FormState {
@@ -57,6 +59,7 @@ function fromConfig(p: PartnerConfig): FormState {
     modrinthPackSlug: p.modrinthPackSlug || '',
     defaultModsText: (p.defaultMods || []).join(', '),
     iconUrl: p.iconUrl || '',
+    discordUrl: p.discordUrl || '',
   }
 }
 
@@ -124,6 +127,7 @@ export function AdminPartnersPanel({ session }: Props) {
         defaultMods: form.useModrinthProject ? mods : mods,
         modrinthPackSlug: form.useModrinthProject ? form.modrinthPackSlug.trim() || null : null,
         iconUrl: form.iconUrl.trim() || null,
+        discordUrl: form.discordUrl.trim() || null,
         enabled: true,
       })
       if (!res.ok) {
@@ -354,6 +358,16 @@ export function AdminPartnersPanel({ session }: Props) {
               type="text"
               value={form.serverName}
               onChange={(e) => setForm((f) => ({ ...f, serverName: e.target.value }))}
+            />
+          </div>
+          <div className="form-row">
+            <label>Discord invite URL (optional)</label>
+            <input
+              className="input"
+              type="url"
+              placeholder="https://discord.gg/…"
+              value={form.discordUrl}
+              onChange={(e) => setForm((f) => ({ ...f, discordUrl: e.target.value }))}
             />
           </div>
           <div className="form-row">

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CreateInstanceModal } from '../components/CreateInstanceModal'
 import { IconPlay, IconPlus, IconStop, IconTrash } from '../components/Icons'
+import { checkModsUpdates } from '../modUpdates'
 import { loaderLabel, useAppStore } from '../store'
 
 export function InstancesPage() {
@@ -18,7 +19,46 @@ export function InstancesPage() {
   } = useAppStore()
   const [createOpen, setCreateOpen] = useState(false)
   const [launchingId, setLaunchingId] = useState<string | null>(null)
+  const [updateCounts, setUpdateCounts] = useState<Record<string, number>>({})
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
   const loggedIn = accounts.some((a) => a.id === activeAccountId)
+
+  useEffect(() => {
+    let cancelled = false
+    async function scan() {
+      if (instances.length === 0) {
+        setUpdateCounts({})
+        return
+      }
+      setCheckingUpdates(true)
+      const next: Record<string, number> = {}
+      try {
+        // Sequential per instance to avoid hammering Modrinth
+        for (const inst of instances) {
+          if (cancelled) return
+          if (!inst.mods.length) {
+            next[inst.id] = 0
+            continue
+          }
+          try {
+            const map = await checkModsUpdates(inst.mods, inst.gameVersion, inst.loader)
+            next[inst.id] = Object.values(map).filter((u) => u.hasUpdate).length
+          } catch {
+            next[inst.id] = 0
+          }
+        }
+        if (!cancelled) setUpdateCounts(next)
+      } finally {
+        if (!cancelled) setCheckingUpdates(false)
+      }
+    }
+    void scan()
+    return () => {
+      cancelled = true
+    }
+  }, [instances])
+
+  const totalUpdates = Object.values(updateCounts).reduce((a, b) => a + b, 0)
 
   async function launch(id: string, acknowledgeLowMemory = false) {
     if (!loggedIn) {
@@ -102,6 +142,20 @@ export function InstancesPage() {
         </div>
       )}
 
+      {totalUpdates > 0 && (
+        <div className="panel" style={{ marginBottom: 16 }}>
+          <div className="list-item" style={{ border: 'none', background: 'transparent', padding: 0 }}>
+            <span className="badge badge-orange">Updates</span>
+            <div className="grow">
+              <div className="title">
+                {totalUpdates} mod update{totalUpdates === 1 ? '' : 's'} available
+              </div>
+              <div className="sub">Open an instance to update mods one-by-one or all at once.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {instances.length === 0 ? (
         <div className="empty">
           <h3>Nothing here yet</h3>
@@ -115,6 +169,7 @@ export function InstancesPage() {
         <div className="grid grid-instances">
           {instances.map((inst) => {
             const isLive = running.running && running.instanceId === inst.id
+            const updates = updateCounts[inst.id] ?? 0
             return (
               <div
                 key={inst.id}
@@ -134,6 +189,14 @@ export function InstancesPage() {
                     <div className="badge-row" style={{ marginTop: 8 }}>
                       <span className="badge badge-green">{loaderLabel(inst.loader)}</span>
                       <span className="badge">{inst.mods.length} mods</span>
+                      {updates > 0 && (
+                        <span className="badge badge-orange">
+                          {updates} update{updates === 1 ? '' : 's'}
+                        </span>
+                      )}
+                      {checkingUpdates && inst.mods.length > 0 && updates === 0 && (
+                        <span className="badge">Checking…</span>
+                      )}
                       {isLive && <span className="badge badge-running">Running</span>}
                       {inst.lastPlayed && !isLive && (
                         <span className="badge">

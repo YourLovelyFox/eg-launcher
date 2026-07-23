@@ -1,9 +1,21 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { GameInstance } from '../../shared/types'
+import type { GameInstance, InstanceBackupInfo } from '../../shared/types'
 import { IconDownload, IconFolder, IconPlay, IconStop, IconTrash } from '../components/Icons'
 import { checkModsUpdates, type ModUpdateInfo } from '../modUpdates'
 import { loaderLabel, useAppStore } from '../store'
+
+function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let v = n
+  let i = 0
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024
+    i++
+  }
+  return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${units[i]}`
+}
 
 export function InstanceDetailPage() {
   const { id } = useParams()
@@ -22,11 +34,16 @@ export function InstanceDetailPage() {
     activeAccountId,
   } = useAppStore()
   const [instance, setInstance] = useState<GameInstance | null>(null)
-  const [busy, setBusy] = useState<'install' | 'launch' | null>(null)
+  const [busy, setBusy] = useState<'install' | 'launch' | 'backup' | 'restore' | null>(null)
   const [updateMap, setUpdateMap] = useState<Record<string, ModUpdateInfo>>({})
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [updatingAll, setUpdatingAll] = useState(false)
+  const [backups, setBackups] = useState<InstanceBackupInfo[]>([])
+  const [includeSaves, setIncludeSaves] = useState(true)
+  const [backupProgress, setBackupProgress] = useState<{ message: string; progress: number } | null>(
+    null,
+  )
 
   const isLive = !!(instance && running.running && running.instanceId === instance.id)
   const loggedIn = accounts.some((a) => a.id === activeAccountId)
@@ -37,6 +54,16 @@ export function InstanceDetailPage() {
     const data = await window.hive.instances.get(id)
     setInstance(data)
     return data
+  }
+
+  async function reloadBackups() {
+    if (!id) return
+    try {
+      const list = await window.hive.instances.listBackups(id)
+      setBackups(list)
+    } catch {
+      setBackups([])
+    }
   }
 
   async function refreshUpdateChecks(target?: GameInstance | null) {
@@ -58,7 +85,10 @@ export function InstanceDetailPage() {
 
   useEffect(() => {
     reload()
-      .then((data) => refreshUpdateChecks(data))
+      .then((data) => {
+        void refreshUpdateChecks(data)
+        void reloadBackups()
+      })
       .catch((err) => showToast('error', (err as Error).message))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
@@ -66,9 +96,13 @@ export function InstanceDetailPage() {
   useEffect(() => {
     const offInstall = window.hive.mc.onInstallProgress((p) => setInstallProgress(p))
     const offDl = window.hive.modrinth.onDownloadProgress((p) => setDownloadProgress(p))
+    const offBackup = window.hive.instances.onBackupProgress((p) =>
+      setBackupProgress({ message: p.message, progress: p.progress }),
+    )
     return () => {
       offInstall()
       offDl()
+      offBackup()
     }
   }, [setInstallProgress, setDownloadProgress])
 
@@ -218,6 +252,75 @@ export function InstanceDetailPage() {
       setUpdatingId(null)
       setUpdatingAll(false)
       setTimeout(() => setDownloadProgress(null), 1200)
+    }
+  }
+
+  async function createBackup() {
+    if (!instance) return
+    if (isLive) {
+      showToast('error', 'Stop the game before creating a backup')
+      return
+    }
+    setBusy('backup')
+    setBackupProgress({ message: 'Starting backup…', progress: 0 })
+    try {
+      const info = await window.hive.instances.createBackup(instance.id, {
+        includeSaves,
+        label: `${instance.name} · ${new Date().toLocaleString()}`,
+      })
+      await reloadBackups()
+      showToast(
+        'success',
+        `Backup saved (${formatBytes(info.sizeBytes)}${info.includeSaves ? ', with worlds' : ''})`,
+      )
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setBusy(null)
+      setTimeout(() => setBackupProgress(null), 1200)
+    }
+  }
+
+  async function restoreBackup(backup: InstanceBackupInfo) {
+    if (!instance) return
+    if (isLive) {
+      showToast('error', 'Stop the game before restoring a backup')
+      return
+    }
+    if (
+      !confirm(
+        `Restore “${backup.label}”?\n\nThis overwrites mods/config${
+          backup.includeSaves ? '/saves' : ''
+        } in this instance. A safety snapshot is created first.`,
+      )
+    ) {
+      return
+    }
+    setBusy('restore')
+    setBackupProgress({ message: 'Restoring…', progress: 0 })
+    try {
+      const res = await window.hive.instances.restoreBackup(instance.id, backup.id)
+      await reload()
+      await reloadBackups()
+      await refreshAll()
+      showToast('success', res.message)
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setBusy(null)
+      setTimeout(() => setBackupProgress(null), 1200)
+    }
+  }
+
+  async function removeBackup(backup: InstanceBackupInfo) {
+    if (!instance) return
+    if (!confirm(`Delete backup “${backup.label}”?`)) return
+    try {
+      await window.hive.instances.deleteBackup(instance.id, backup.id)
+      await reloadBackups()
+      showToast('success', 'Backup deleted')
+    } catch (err) {
+      showToast('error', (err as Error).message)
     }
   }
 
@@ -469,6 +572,85 @@ export function InstanceDetailPage() {
           </p>
         </section>
       </div>
+
+      <section className="panel" style={{ marginTop: 16 }}>
+        <div className="page-header" style={{ marginBottom: 12 }}>
+          <div>
+            <h2>Backups</h2>
+            <p className="hint" style={{ marginBottom: 0 }}>
+              Snapshot mods, configs, and optional worlds. Stored under your EG Launcher data folder.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <label className="checkbox-row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={includeSaves}
+                onChange={(e) => setIncludeSaves(e.target.checked)}
+                disabled={busy === 'backup' || busy === 'restore'}
+              />
+              Include worlds (saves)
+            </label>
+            <button
+              className="btn btn-primary"
+              onClick={() => void createBackup()}
+              disabled={busy === 'backup' || busy === 'restore' || isLive}
+            >
+              {busy === 'backup' ? 'Backing up…' : 'Create backup'}
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => void window.hive.instances.openBackupsFolder(instance.id)}
+            >
+              <IconFolder />
+              Open folder
+            </button>
+          </div>
+        </div>
+
+        {backupProgress && (
+          <div style={{ marginBottom: 12 }}>
+            <div className="progress-meta">
+              <span>{backupProgress.message}</span>
+              <span>{Math.round(backupProgress.progress * 100)}%</span>
+            </div>
+            <div className="progress-bar">
+              <div style={{ width: `${Math.round(backupProgress.progress * 100)}%` }} />
+            </div>
+          </div>
+        )}
+
+        {backups.length === 0 ? (
+          <div className="empty" style={{ padding: 20 }}>
+            <p>No backups yet. Create one before big mod updates.</p>
+          </div>
+        ) : (
+          <div className="list">
+            {backups.map((b) => (
+              <div key={b.id} className="list-item">
+                <div className="grow">
+                  <div className="title">{b.label}</div>
+                  <div className="sub">
+                    {new Date(b.createdAt).toLocaleString()} · {formatBytes(b.sizeBytes)} ·{' '}
+                    {b.modCount} mods
+                    {b.includeSaves ? ' · includes worlds' : ''}
+                  </div>
+                </div>
+                <button
+                  className="btn btn-secondary"
+                  disabled={busy === 'backup' || busy === 'restore' || isLive}
+                  onClick={() => void restoreBackup(b)}
+                >
+                  {busy === 'restore' ? '…' : 'Restore'}
+                </button>
+                <button className="btn btn-ghost" onClick={() => void removeBackup(b)} title="Delete">
+                  <IconTrash />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }

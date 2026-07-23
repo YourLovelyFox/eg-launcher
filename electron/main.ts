@@ -35,11 +35,24 @@ import {
   listMinecraftVersions,
 } from './services/minecraft'
 import {
+  createInstanceBackup,
+  deleteInstanceBackup,
+  listInstanceBackups,
+  openBackupsFolder,
+  restoreInstanceBackup,
+} from './services/instanceBackup'
+import { queryMinecraftServer } from './services/serverStatus'
+import {
   checkFeaturedPackPlay,
   getFeaturedPackStatus,
   installFeaturedPack,
 } from './services/featuredPack'
-import { getPartnerStatus, installPartner, listPartnerDefinitions } from './services/partners'
+import {
+  getPartnerStatus,
+  installPartner,
+  listPartnerDefinitions,
+  preparePartnerJoin,
+} from './services/partners'
 import {
   deletePartnerConfig,
   fetchPartnerConfigs,
@@ -304,7 +317,11 @@ function registerIpc() {
 
   ipcMain.handle(
     'mc:launch',
-    async (_e, instanceId: string, options?: { acknowledgeLowMemory?: boolean }) => {
+    async (
+      _e,
+      instanceId: string,
+      options?: { acknowledgeLowMemory?: boolean; quickPlayServer?: string },
+    ) => {
       const instance = getInstance(instanceId)
       if (!instance) throw new Error('Instance not found')
 
@@ -322,7 +339,9 @@ function registerIpc() {
       }
 
       const account = getActiveAccountSecret()
-      const result = await launchInstance(instance, account)
+      const result = await launchInstance(instance, account, {
+        quickPlayServer: options?.quickPlayServer,
+      })
       if (result.success) {
         updateInstance(instanceId, { lastPlayed: new Date().toISOString() })
         // Soft warning for offline / cracked accounts (official servers won't work)
@@ -339,6 +358,38 @@ function registerIpc() {
       return result
     },
   )
+
+  // Instance backups
+  ipcMain.handle('instances:listBackups', (_e, instanceId: string) =>
+    listInstanceBackups(instanceId),
+  )
+  ipcMain.handle(
+    'instances:createBackup',
+    async (_e, instanceId: string, opts?: { includeSaves?: boolean; label?: string }) => {
+      return createInstanceBackup(instanceId, opts || {}, (progress) => {
+        sendProgress('instances:backupProgress', progress)
+      })
+    },
+  )
+  ipcMain.handle(
+    'instances:restoreBackup',
+    async (_e, instanceId: string, backupId: string) => {
+      return restoreInstanceBackup(instanceId, backupId, (progress) => {
+        sendProgress('instances:backupProgress', progress)
+      })
+    },
+  )
+  ipcMain.handle('instances:deleteBackup', (_e, instanceId: string, backupId: string) =>
+    deleteInstanceBackup(instanceId, backupId),
+  )
+  ipcMain.handle('instances:openBackupsFolder', async (_e, instanceId?: string) => {
+    const dir = openBackupsFolder(instanceId)
+    await shell.openPath(dir)
+    return dir
+  })
+
+  // Minecraft server status (Server List Ping)
+  ipcMain.handle('server:status', async (_e, address: string) => queryMinecraftServer(address))
 
   ipcMain.handle('mc:forceStop', () => forceClearRunningGame())
   ipcMain.handle('mc:running', () => getRunningGameInfo())
@@ -404,7 +455,41 @@ function registerIpc() {
   )
 
   ipcMain.handle('shell:openExternal', async (_e, url: string) => {
-    await shell.openExternal(url)
+    const raw = String(url || '').trim()
+    let parsed: URL
+    try {
+      parsed = new URL(raw)
+    } catch {
+      throw new Error('Invalid URL')
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      throw new Error('Only http(s) links are allowed')
+    }
+    const host = parsed.hostname.toLowerCase()
+    const allowed =
+      host === 'discord.gg' ||
+      host === 'discord.com' ||
+      host.endsWith('.discord.com') ||
+      host === 'modrinth.com' ||
+      host.endsWith('.modrinth.com') ||
+      host === 'github.com' ||
+      host.endsWith('.github.com') ||
+      host.endsWith('.githubusercontent.com') ||
+      host === 'microsoft.com' ||
+      host.endsWith('.microsoft.com') ||
+      host === 'live.com' ||
+      host.endsWith('.live.com') ||
+      host === 'xboxlive.com' ||
+      host.endsWith('.xboxlive.com') ||
+      host === 'minecraft.net' ||
+      host.endsWith('.minecraft.net') ||
+      host === 'mojang.com' ||
+      host.endsWith('.mojang.com') ||
+      host === 'client116.ddns.net'
+    if (!allowed) {
+      throw new Error(`Opening external host is not allowed: ${host}`)
+    }
+    await shell.openExternal(parsed.toString())
   })
 
   ipcMain.handle('shell:openInstanceFolder', async (_e, instanceId: string) => {
@@ -430,6 +515,7 @@ function registerIpc() {
   ipcMain.handle('partners:listConfig', async (_e, force?: boolean) =>
     fetchPartnerConfigs(Boolean(force)),
   )
+  ipcMain.handle('partners:prepareJoin', async (_e, id: string) => preparePartnerJoin(id))
   ipcMain.handle('partners:status', async (_e, id: string) => getPartnerStatus(id))
   ipcMain.handle('partners:install', async (_e, id: string) => {
     return installPartner(id, (progress) => {

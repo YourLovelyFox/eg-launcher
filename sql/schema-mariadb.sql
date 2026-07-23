@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS partner_config (
   default_mods_json JSON NOT NULL,
   modrinth_pack_slug VARCHAR(256) NULL,
   icon_url VARCHAR(1024) NULL,
+  discord_url VARCHAR(1024) NULL,
   enabled TINYINT(1) NOT NULL DEFAULT 1,
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

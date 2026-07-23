@@ -21,7 +21,37 @@ export type PartnerConfig = {
   modrinthPackSlug?: string | null
   /** Optional icon URL (https) */
   iconUrl?: string | null
+  /** Optional Discord invite / server URL */
+  discordUrl?: string | null
   enabled?: boolean
+}
+
+/** Result of a Minecraft Server List Ping (or offline failure). */
+export type MinecraftServerStatus = {
+  online: boolean
+  address: string
+  host: string
+  port: number
+  latencyMs?: number
+  version?: string | null
+  playersOnline?: number | null
+  playersMax?: number | null
+  motd?: string | null
+  error?: string
+}
+
+/** Local instance backup snapshot (folder under eg-data/backups). */
+export type InstanceBackupInfo = {
+  id: string
+  instanceId: string
+  instanceName: string
+  createdAt: string
+  label: string
+  includeSaves: boolean
+  sizeBytes: number
+  gameVersion: string
+  loader: LoaderType
+  modCount: number
 }
 
 export type ProgressEvent = {
