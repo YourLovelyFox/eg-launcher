@@ -199,19 +199,6 @@ git push origin v1.0.5
 
 Once a version’s installers are published, CI **freezes** them by default so the SHA does not change on re-runs.
 
-### Changelog for each release
-
-Before publishing, add notes at the top of `CHANGELOG.md`:
-
-```markdown
-## [1.0.5] — YYYY-MM-DD
-
-### Added
-- Your feature
-
-### Fixed
-- Your fix
-```
 
 CI runs `scripts/extract-changelog.mjs` and uses that section as the GitHub Release description (shown in the in-app **What's new** update dialog).
 
