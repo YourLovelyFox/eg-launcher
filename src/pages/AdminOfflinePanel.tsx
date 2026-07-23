@@ -12,15 +12,12 @@ type OfflineUserRow = {
 export function AdminOfflinePanel({ session }: { session: string }) {
   const { showToast } = useAppStore()
   const [users, setUsers] = useState<OfflineUserRow[]>([])
-  const [unlockConfigured, setUnlockConfigured] = useState(false)
   const [remoteSynced, setRemoteSynced] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
 
   const [newUser, setNewUser] = useState('')
   const [newPass, setNewPass] = useState('')
-  const [unlockPass, setUnlockPass] = useState('')
-  const [unlockPass2, setUnlockPass2] = useState('')
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -31,7 +28,6 @@ export function AdminOfflinePanel({ session }: { session: string }) {
         return
       }
       setUsers(res.users)
-      setUnlockConfigured(res.unlockPasswordConfigured)
       setRemoteSynced(res.remoteSynced)
     } catch (err) {
       showToast('error', (err as Error).message)
@@ -81,81 +77,16 @@ export function AdminOfflinePanel({ session }: { session: string }) {
     }
   }
 
-  async function saveUnlockPassword() {
-    if (unlockPass !== unlockPass2) {
-      showToast('error', 'Passwords do not match')
-      return
-    }
-    setBusy(true)
-    try {
-      const res = await window.hive.admin.setOfflineUnlockPassword(session, unlockPass)
-      if (!res.ok) {
-        showToast('error', res.error)
-        return
-      }
-      showToast('success', res.message)
-      setUnlockPass('')
-      setUnlockPass2('')
-      await refresh()
-    } catch (err) {
-      showToast('error', (err as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <div>
       <div className="panel" style={{ marginBottom: 16 }}>
-        <h2>Offline mode unlock password</h2>
-        <p className="hint">
-          Users must enter this password in Settings (hidden) before they can log in with offline
-          accounts. Stored as a hash in the private CMS database only.
-        </p>
-        <p className="muted" style={{ marginBottom: 12 }}>
-          Status:{' '}
-          {unlockConfigured ? (
-            <span className="badge badge-green">Configured</span>
-          ) : (
-            <span className="badge badge-orange">Not set</span>
-          )}{' '}
-          · CMS: {remoteSynced ? 'connected' : 'unreachable'}
-        </p>
-        <div className="form-grid">
-          <div className="form-row">
-            <label>New unlock password</label>
-            <input
-              className="input"
-              type="password"
-              value={unlockPass}
-              onChange={(e) => setUnlockPass(e.target.value)}
-              placeholder="Min 4 characters"
-              autoComplete="new-password"
-            />
-          </div>
-          <div className="form-row">
-            <label>Confirm</label>
-            <input
-              className="input"
-              type="password"
-              value={unlockPass2}
-              onChange={(e) => setUnlockPass2(e.target.value)}
-              autoComplete="new-password"
-            />
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" disabled={busy || !unlockPass} onClick={saveUnlockPassword}>
-            Set unlock password
-          </button>
-        </div>
-      </div>
-
-      <div className="panel" style={{ marginBottom: 16 }}>
         <h2>Create offline user</h2>
         <p className="hint">
-          Username + password accounts for cracked / non-premium play. Only Admins can create
-          accounts — users can only log in after offline mode is unlocked in Settings.
+          Username + password for offline (non-premium) play. Only Admins can create accounts —
+          users log in under <strong>Account → Offline login</strong>. No Settings unlock password.
+        </p>
+        <p className="muted" style={{ marginBottom: 12 }}>
+          CMS: {remoteSynced ? 'connected' : 'unreachable'}
         </p>
         <div className="form-grid">
           <div className="form-row">
@@ -199,7 +130,7 @@ export function AdminOfflinePanel({ session }: { session: string }) {
         {users.length === 0 ? (
           <div className="empty" style={{ padding: 24, marginTop: 12 }}>
             <h3>No offline users yet</h3>
-            <p>Create offline users here. Users can only log in with accounts you create.</p>
+            <p>Create offline users here. Players can only log in with accounts you create.</p>
           </div>
         ) : (
           <div className="list" style={{ marginTop: 12 }}>
@@ -208,9 +139,7 @@ export function AdminOfflinePanel({ session }: { session: string }) {
                 <div className="grow">
                   <div className="title">{u.username}</div>
                   <div className="sub mono">{u.uuid}</div>
-                  <div className="sub">
-                    Created {new Date(u.createdAt).toLocaleString()}
-                  </div>
+                  <div className="sub">Created {new Date(u.createdAt).toLocaleString()}</div>
                 </div>
                 <button
                   className="btn btn-danger"

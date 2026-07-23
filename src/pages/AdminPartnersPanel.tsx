@@ -135,8 +135,16 @@ export function AdminPartnersPanel({ session }: Props) {
         return
       }
       showToast('success', form.id ? 'Partner updated' : 'Partner created — it appears under Partners')
-      setMode('list')
-      setForm(emptyForm())
+      // Stay on the edit form so Save does not kick back to the list.
+      // After create, keep the new id so further saves update the same partner.
+      if (res.partner) {
+        setForm(fromConfig(res.partner))
+      } else if (!form.id) {
+        const inferredId = form.title.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase()
+        setForm((f) => ({ ...f, id: inferredId, newsPassword: '' }))
+      } else {
+        setForm((f) => ({ ...f, newsPassword: '' }))
+      }
       await load()
     } catch (err) {
       const msg = (err as Error).message || String(err)

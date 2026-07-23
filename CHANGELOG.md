@@ -6,6 +6,23 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.0.9] — 2026-07-23
+
+### Changed
+- **Offline login always available** on Account → Offline login (no Settings unlock password, no hidden offline mode).
+- Only Admins can create offline users (Admin → Offline); players cannot register accounts themselves.
+
+### Added
+- **Account submenu**: Microsoft login and Offline login tabs.
+- **CMS partner icons**: images stored in MariaDB and served via PHP (`partners.php?img=…`) when static file hosting is unavailable.
+- Admin partner **Save** stays on the edit form instead of returning to the partners list.
+
+### Downloads
+- Windows: `EG-Launcher-2.0.9-win-x64-setup.exe` and `EG-Launcher-2.0.9-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.0.9-linux-x86_64.AppImage`
+
+---
+
 ## [2.0.8] — 2026-07-23
 
 ### Added

@@ -9,6 +9,7 @@ try {
         'service' => 'eg-launcher-cms',
         'db' => true,
         'time' => gmdate('c'),
+        'images' => 'mariadb',
     ]);
 } catch (Throwable $e) {
     json_fail('DB unavailable', 500, $e);

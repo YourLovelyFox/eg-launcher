@@ -82,8 +82,8 @@ export type LauncherSettings = {
   closeOnLaunch: boolean
   resolveDependencies: boolean
   /**
-   * Hidden: offline (cracked) login unlocked after correct password in Settings.
-   * Does not enable multiplayer on official/premium servers.
+   * Legacy flag — offline login is always available on the Account page.
+   * Kept for settings file compatibility; ignored by the app.
    */
   offlineModeEnabled?: boolean
 }

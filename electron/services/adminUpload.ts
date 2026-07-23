@@ -73,35 +73,27 @@ export async function uploadAdminImage(
       base64 = fs.readFileSync(filePath).toString('base64')
     }
 
-    // Prefer dedicated upload.php; fall back to partners.php (same file hosters already deploy)
+    // Images live in MariaDB (cms_images); partners.php stores, icon.php streams bytes.
+    // (Host blocks static files and often upload.php by name.)
     let r: { ok?: boolean; url?: string; message?: string; error?: string }
     try {
       r = await cmsRequest({
-        path: 'upload.php',
+        path: 'partners.php',
         method: 'POST',
         admin: true,
-        body: { filename: name, mime, data: base64 },
+        body: {
+          action: 'upload_image',
+          filename: name,
+          mime,
+          data: base64,
+        },
       })
-    } catch (first) {
-      try {
-        r = await cmsRequest({
-          path: 'partners.php',
-          method: 'POST',
-          admin: true,
-          body: {
-            action: 'upload_image',
-            filename: name,
-            mime,
-            data: base64,
-          },
-        })
-      } catch {
-        return {
-          ok: false,
-          error:
-            (first as Error).message +
-            ' — deploy cms-api/upload.php (or updated partners.php) + uploads/ to the web root next to health.php',
-        }
+    } catch (err) {
+      return {
+        ok: false,
+        error:
+          (err as Error).message +
+          ' — deploy partners.php + icon.php + bootstrap.php to CMS web root; set Admin CMS API key',
       }
     }
 

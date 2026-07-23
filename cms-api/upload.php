@@ -1,8 +1,10 @@
 <?php
 /**
- * Admin image upload for partner icons etc.
+ * Admin image upload for partner icons etc. (DB-backed).
  * POST JSON: { "filename": "icon.png", "mime": "image/png", "data": "<base64>" }
  * Header: X-EG-Admin-Key
+ *
+ * Note: some hosts block the filename upload.php — prefer partners.php? action=upload_image.
  */
 require __DIR__ . '/bootstrap.php';
 
@@ -19,7 +21,6 @@ try {
     $mime = strtolower(trim((string) ($body['mime'] ?? '')));
     $b64 = (string) ($body['data'] ?? '');
 
-    // data:image/png;base64,... support
     if (str_starts_with($b64, 'data:')) {
         if (preg_match('#^data:([^;]+);base64,(.+)$#s', $b64, $m)) {
             if ($mime === '') {
@@ -51,26 +52,21 @@ try {
     if (!isset($allowed[$mime])) {
         json_fail('Only PNG, JPEG, WebP, or GIF images are allowed', 400);
     }
-    $ext = $allowed[$mime];
 
     $raw = base64_decode($b64, true);
     if ($raw === false || $raw === '') {
         json_fail('Invalid base64 image data', 400);
     }
-
-    $maxBytes = 2 * 1024 * 1024; // 2 MB
-    if (strlen($raw) > $maxBytes) {
+    if (strlen($raw) > 2 * 1024 * 1024) {
         json_fail('Image too large (max 2 MB)', 400);
     }
 
-    // Basic sniff — reject non-images
     if (function_exists('finfo_open')) {
         $fi = finfo_open(FILEINFO_MIME_TYPE);
         if ($fi) {
             $detected = finfo_buffer($fi, $raw) ?: '';
             finfo_close($fi);
             if ($detected !== '' && !isset($allowed[strtolower($detected)]) && $detected !== 'image/jpg') {
-                // allow jpeg alias
                 if (!str_starts_with(strtolower($detected), 'image/')) {
                     json_fail('File does not look like an image', 400);
                 }
@@ -78,32 +74,15 @@ try {
         }
     }
 
-    $dir = __DIR__ . '/uploads';
-    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
-        json_fail('Could not create uploads directory on server', 500);
-    }
-
-    $safeName = 'eg-' . bin2hex(random_bytes(12)) . '.' . $ext;
-    $path = $dir . '/' . $safeName;
-    if (file_put_contents($path, $raw) === false) {
-        json_fail('Failed to write upload', 500);
-    }
-
-    // Public URL (site document root)
-    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || (isset($_SERVER['SERVER_PORT']) && (string) $_SERVER['SERVER_PORT'] === '443')
-        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-    $scheme = $https ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $publicUrl = $scheme . '://' . $host . '/uploads/' . $safeName;
-
+    $pdo = db();
+    $stored = store_cms_image($pdo, $raw, $mime, $filename !== '' ? $filename : null);
     json_out([
         'ok' => true,
-        'url' => $publicUrl,
-        'path' => 'uploads/' . $safeName,
-        'mime' => $mime,
-        'size' => strlen($raw),
-        'message' => 'Image uploaded',
+        'url' => $stored['url'],
+        'id' => $stored['id'],
+        'mime' => $stored['mime'],
+        'size' => $stored['size'],
+        'message' => 'Image uploaded to database',
     ]);
 } catch (Throwable $e) {
     json_fail('Server error', 500, $e);

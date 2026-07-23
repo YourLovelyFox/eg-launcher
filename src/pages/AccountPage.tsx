@@ -3,8 +3,12 @@ import type { DeviceCodeResponse } from '../../shared/types'
 import { PlayerHeadWithFallback } from '../components/PlayerHead'
 import { useAppStore } from '../store'
 
+type AccountTab = 'microsoft' | 'offline'
+
 export function AccountPage() {
-  const { accounts, activeAccountId, setAccounts, showToast, settings } = useAppStore()
+  const { accounts, activeAccountId, setAccounts, showToast } = useAppStore()
+  const [tab, setTab] = useState<AccountTab>('microsoft')
+
   const [device, setDevice] = useState<DeviceCodeResponse | null>(null)
   const [status, setStatus] = useState<string>('')
   const [busy, setBusy] = useState(false)
@@ -12,9 +16,6 @@ export function AccountPage() {
   const cancelledRef = useRef(false)
   const attemptsRef = useRef(0)
 
-  const [offlineEnabled, setOfflineEnabled] = useState(
-    Boolean(settings?.offlineModeEnabled),
-  )
   const [offlineUser, setOfflineUser] = useState('')
   const [offlinePass, setOfflinePass] = useState('')
   const [offlineBusy, setOfflineBusy] = useState(false)
@@ -26,14 +27,6 @@ export function AccountPage() {
   )
 
   useEffect(() => {
-    setOfflineEnabled(Boolean(settings?.offlineModeEnabled))
-  }, [settings?.offlineModeEnabled])
-
-  useEffect(() => {
-    window.hive.offline
-      .status()
-      .then((s) => setOfflineEnabled(s.offlineModeEnabled))
-      .catch(() => undefined)
     window.hive.offline
       .warning()
       .then(setOfflineWarning)
@@ -119,30 +112,23 @@ export function AccountPage() {
         if (result.status === 'completed') {
           const auth = await window.hive.auth.getAccounts()
           setAccounts(auth.accounts, auth.activeAccountId)
-          showToast('success', `Signed in as ${result.account.username}`)
           setDevice(null)
-          setStatus('')
           setBusy(false)
+          setStatus('')
+          showToast('success', `Signed in as ${result.account.username}`)
+          return
         }
       } catch (err) {
         if (cancelledRef.current) return
-        const message = (err as Error).message || 'Login failed'
-
-        const transient =
-          /empty response|timed out|ECONNRESET|ETIMEDOUT|ENOTFOUND|socket|network|pending/i.test(
-            message,
-          )
-
-        if (transient && attemptsRef.current < 40) {
-          setStatus('Connection hiccup — retrying…')
-          poll(deviceCode, Math.max(intervalSec, 5))
+        if (attemptsRef.current < 3) {
+          setStatus('Network hiccup — retrying…')
+          poll(deviceCode, intervalSec)
           return
         }
-
-        showToast('error', message)
+        showToast('error', (err as Error).message)
+        setStatus('Login failed. Try again.')
         setBusy(false)
         setDevice(null)
-        setStatus('')
       }
     }, intervalSec * 1000)
   }
@@ -195,19 +181,9 @@ export function AccountPage() {
         <div>
           <h1>Accounts</h1>
           <p>
-            Microsoft (paid) login, or offline login if unlocked in Settings (accounts are
-            Admin-created only).
+            Sign in with Microsoft, or use an offline account created by an Admin (Account → Offline
+            login).
           </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {busy && (
-            <button className="btn btn-secondary" onClick={cancelLogin}>
-              Cancel
-            </button>
-          )}
-          <button className="btn btn-primary" onClick={startLogin} disabled={busy}>
-            {busy ? 'Waiting…' : 'Sign in with Microsoft'}
-          </button>
         </div>
       </div>
 
@@ -228,33 +204,87 @@ export function AccountPage() {
         </div>
       )}
 
-      {device && (
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          className={`btn ${tab === 'microsoft' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setTab('microsoft')}
+        >
+          Microsoft login
+        </button>
+        <button
+          type="button"
+          className={`btn ${tab === 'offline' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setTab('offline')}
+        >
+          Offline login
+        </button>
+      </div>
+
+      {tab === 'microsoft' && (
         <div className="panel" style={{ marginBottom: 16 }}>
-          <h2>Approve login</h2>
-          <p className="hint">
-            1. Open{' '}
-            <button
-              className="btn btn-ghost"
-              style={{ display: 'inline', padding: 0, color: 'var(--green)' }}
-              onClick={() => window.hive.shell.openExternal(device.verificationUri)}
-            >
-              {device.verificationUri}
-            </button>
-            <br />
-            2. Enter this code and approve access:
-          </p>
-          <div className="device-code">{device.userCode}</div>
-          <p className="muted">{status || device.message}</p>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 12,
+              flexWrap: 'wrap',
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <h2 style={{ margin: 0 }}>Microsoft</h2>
+              <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
+                Paid Minecraft account. Required for official servers, Realms, and Bee&apos;s SMP.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {busy && (
+                <button className="btn btn-secondary" type="button" onClick={cancelLogin}>
+                  Cancel
+                </button>
+              )}
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={startLogin}
+                disabled={busy}
+              >
+                {busy ? 'Waiting…' : 'Sign in with Microsoft'}
+              </button>
+            </div>
+          </div>
+
+          {device && (
+            <>
+              <h3 style={{ fontSize: 14, marginTop: 8 }}>Approve login</h3>
+              <p className="hint">
+                1. Open{' '}
+                <button
+                  className="btn btn-ghost"
+                  type="button"
+                  style={{ display: 'inline', padding: 0, color: 'var(--green)' }}
+                  onClick={() => window.hive.shell.openExternal(device.verificationUri)}
+                >
+                  {device.verificationUri}
+                </button>
+                <br />
+                2. Enter this code and approve access:
+              </p>
+              <div className="device-code">{device.userCode}</div>
+              <p className="muted">{status || device.message}</p>
+            </>
+          )}
         </div>
       )}
 
-      {offlineEnabled && (
+      {tab === 'offline' && (
         <div className="panel" style={{ marginBottom: 16 }}>
           <h2>Offline login</h2>
           <p className="hint">
-            Log in with an offline username and password created by an Admin. You cannot create
-            accounts here. Offline mode must stay unlocked in Settings. Non-premium / cracked play
-            only — no official servers, no Bee&apos;s SMP.
+            Log in with a username and password created by an Admin. You cannot register accounts
+            here. Offline (non-premium) play only — no official servers, no Bee&apos;s SMP.
           </p>
           <div className="form-grid">
             <div className="form-row">
@@ -304,10 +334,7 @@ export function AccountPage() {
         {accounts.length === 0 ? (
           <div className="empty" style={{ padding: 28 }}>
             <h3>No accounts</h3>
-            <p>
-              Sign in with Microsoft
-              {offlineEnabled ? ', or log in with an Admin-created offline account above' : ''}.
-            </p>
+            <p>Sign in with Microsoft, or open Offline login for an Admin-created account.</p>
           </div>
         ) : (
           <div className="list">

@@ -118,6 +118,70 @@ function ensure_security_schema(PDO $pdo): void
             // ignore if already wide / no permission / table missing
         }
     }
+
+    ensure_cms_images_table($pdo);
+}
+
+/**
+ * Partner icons / CMS images as MEDIUMBLOB (host cannot serve static /uploads/*).
+ */
+function ensure_cms_images_table(PDO $pdo): void
+{
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS cms_images (
+              id VARCHAR(64) NOT NULL PRIMARY KEY,
+              mime VARCHAR(64) NOT NULL,
+              bytes MEDIUMBLOB NOT NULL,
+              size INT UNSIGNED NOT NULL,
+              original_name VARCHAR(255) NULL,
+              created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable $e) {
+        error_log('[eg-cms] cms_images table: ' . $e->getMessage());
+    }
+}
+
+/** Public HTTPS/HTTP base for this request. */
+function cms_public_base(): string
+{
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (isset($_SERVER['SERVER_PORT']) && (string) $_SERVER['SERVER_PORT'] === '443')
+        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+    $scheme = $https ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    return $scheme . '://' . $host;
+}
+
+/**
+ * Store raw image bytes in MariaDB. Returns public URL via icon.php?id=…
+ *
+ * @return array{id:string,url:string,mime:string,size:int}
+ */
+function store_cms_image(PDO $pdo, string $raw, string $mime, ?string $originalName = null): array
+{
+    ensure_cms_images_table($pdo);
+    $id = 'eg-' . bin2hex(random_bytes(12));
+    $stmt = $pdo->prepare(
+        'INSERT INTO cms_images (id, mime, bytes, size, original_name) VALUES (?, ?, ?, ?, ?)'
+    );
+    $stmt->bindValue(1, $id);
+    $stmt->bindValue(2, $mime);
+    $stmt->bindValue(3, $raw, PDO::PARAM_LOB);
+    $stmt->bindValue(4, strlen($raw), PDO::PARAM_INT);
+    $stmt->bindValue(5, $originalName);
+    $stmt->execute();
+
+    // Use partners.php?img= (known-good endpoint on restrictive hosts).
+    // icon.php?id= also works when that file is deployed.
+    $url = cms_public_base() . '/partners.php?img=' . rawurlencode($id);
+    return [
+        'id' => $id,
+        'url' => $url,
+        'mime' => $mime,
+        'size' => strlen($raw),
+    ];
 }
 
 /**

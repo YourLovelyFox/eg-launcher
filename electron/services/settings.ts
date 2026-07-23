@@ -11,7 +11,8 @@ const DEFAULT_SETTINGS: LauncherSettings = {
   gameDirectory: '',
   closeOnLaunch: false,
   resolveDependencies: true,
-  offlineModeEnabled: false,
+  /** Always on — offline login is on Account page (Admin-created users only). */
+  offlineModeEnabled: true,
 }
 
 export function getDefaultSettings(): LauncherSettings {

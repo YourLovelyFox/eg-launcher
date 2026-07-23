@@ -1,4 +1,15 @@
 <?php
+// Stream MariaDB images before bootstrap sets JSON Content-Type headers.
+// GET partners.php?img=eg-<24hex>
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+    $imgId = trim((string) ($_GET['img'] ?? $_GET['image'] ?? ''));
+    if ($imgId !== '') {
+        $_GET['id'] = $imgId;
+        require __DIR__ . '/icon.php';
+        exit;
+    }
+}
+
 require __DIR__ . '/bootstrap.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -43,15 +54,20 @@ try {
                 'enabled' => (bool) $r['enabled'],
             ];
         }
-        json_out(['ok' => true, 'partners' => $partners]);
+        json_out([
+            'ok' => true,
+            'partners' => $partners,
+            'cms' => 'mariadb-images-v1',
+        ]);
     }
 
     if ($method === 'POST') {
         require_admin();
         $body = json_body();
-        $action = $body['action'] ?? 'upsert';
+        // Accept action from JSON body or query string (some hosts strip JSON oddly)
+        $action = $body['action'] ?? ($_GET['action'] ?? 'upsert');
 
-        // Admin image upload (partner icons) — same endpoint so one-file deploy works
+        // Admin image upload (partner icons) — stored in MariaDB cms_images
         if ($action === 'upload_image' || $action === 'upload') {
             rate_limit_or_fail('admin_upload', 40, 300);
             $filename = basename(trim((string) ($body['filename'] ?? '')));
@@ -84,7 +100,6 @@ try {
             if (!isset($allowed[$mime])) {
                 json_fail('Only PNG, JPEG, WebP, or GIF images are allowed', 400);
             }
-            $ext = $allowed[$mime];
             $raw = base64_decode($b64, true);
             if ($raw === false || $raw === '') {
                 json_fail('Invalid base64 image data', 400);
@@ -92,27 +107,15 @@ try {
             if (strlen($raw) > 2 * 1024 * 1024) {
                 json_fail('Image too large (max 2 MB)', 400);
             }
-            $dir = __DIR__ . '/uploads';
-            if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
-                json_fail('Could not create uploads directory on server', 500);
-            }
-            $safeName = 'eg-' . bin2hex(random_bytes(12)) . '.' . $ext;
-            if (file_put_contents($dir . '/' . $safeName, $raw) === false) {
-                json_fail('Failed to write upload', 500);
-            }
-            $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-                || (isset($_SERVER['SERVER_PORT']) && (string) $_SERVER['SERVER_PORT'] === '443')
-                || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-            $scheme = $https ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-            $publicUrl = $scheme . '://' . $host . '/uploads/' . $safeName;
+            // Host cannot serve static files — store MEDIUMBLOB in MariaDB, serve via icon.php
+            $stored = store_cms_image($pdo, $raw, $mime, $filename !== '' ? $filename : null);
             json_out([
                 'ok' => true,
-                'url' => $publicUrl,
-                'path' => 'uploads/' . $safeName,
-                'mime' => $mime,
-                'size' => strlen($raw),
-                'message' => 'Image uploaded',
+                'url' => $stored['url'],
+                'id' => $stored['id'],
+                'mime' => $stored['mime'],
+                'size' => $stored['size'],
+                'message' => 'Image uploaded to database',
             ]);
         }
 

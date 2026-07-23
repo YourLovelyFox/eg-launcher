@@ -1,5 +1,4 @@
 import crypto from 'crypto'
-import fs from 'fs'
 import path from 'path'
 import type { MinecraftAccount, OfflineAuthFile, OfflineAuthUser } from '../../shared/types'
 import { getDataRoot, readJsonFile, writeJsonFile } from '../paths'
@@ -8,8 +7,6 @@ import {
   cmsDeleteOfflineUser,
   cmsListOfflineUsersAdmin,
   cmsOfflineLogin,
-  cmsOfflineUnlock,
-  cmsSetOfflineUnlock,
   loadOfflineAuthFromDb,
 } from './db/authRepo'
 import { loadSettings, saveSettings } from './settings'
@@ -67,104 +64,48 @@ export async function publishOfflineAuthFile(
   return { ok: true, message: 'Offline auth managed via secure CMS API' }
 }
 
+/** Offline login is always available (no Settings unlock / hidden mode). */
 export function isOfflineModeEnabled(): boolean {
-  return Boolean(loadSettings().offlineModeEnabled)
+  return true
 }
 
 export function getOfflineModeStatus(): {
   enabled: boolean
   hasUnlockPasswordConfigured: boolean
 } {
-  const local = loadLocalFile()
   return {
-    enabled: isOfflineModeEnabled(),
-    hasUnlockPasswordConfigured: Boolean(local.unlockPasswordHash),
+    enabled: true,
+    hasUnlockPasswordConfigured: false,
   }
 }
 
+/** @deprecated Unlock password removed — always succeeds. */
 export async function unlockOfflineMode(
-  password: string,
+  _password: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const p = (password || '').trim()
-  if (!p) return { ok: false, error: 'Enter the offline unlock password' }
-
-  const remote = await cmsOfflineUnlock(p)
-  if (!remote.ok) {
-    const bootstrap = loadBootstrapUnlockPassword()
-    if (bootstrap && bootstrap === p) {
-      saveSettings({ ...loadSettings(), offlineModeEnabled: true })
-      saveLocalFile({ version: 1, unlockPasswordHash: 'local-bootstrap', users: [] })
-      return { ok: true }
-    }
-    return remote
-  }
-
   saveSettings({ ...loadSettings(), offlineModeEnabled: true })
-  saveLocalFile({
-    version: 1,
-    unlockPasswordHash: 'configured',
-    users: loadLocalFile().users,
-  })
   return { ok: true }
 }
 
+/** @deprecated Lock removed — offline stays available. */
 export function lockOfflineMode(): void {
-  saveSettings({ ...loadSettings(), offlineModeEnabled: false })
+  saveSettings({ ...loadSettings(), offlineModeEnabled: true })
 }
 
-function loadBootstrapUnlockPassword(): string | null {
-  try {
-    for (const p of [
-      path.join(process.cwd(), 'admin.local.json'),
-      path.join(appPathNearby(), 'admin.local.json'),
-    ]) {
-      try {
-        if (!fs.existsSync(p)) continue
-        const raw = JSON.parse(fs.readFileSync(p, 'utf-8')) as { offlineUnlockPassword?: string }
-        if (raw.offlineUnlockPassword?.trim()) return raw.offlineUnlockPassword.trim()
-      } catch {
-        /* next */
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return process.env.EG_OFFLINE_UNLOCK_PASSWORD || null
-}
-
-function appPathNearby(): string {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const electron = require('electron') as typeof import('electron')
-    return electron.app?.getAppPath?.() || process.cwd()
-  } catch {
-    return process.cwd()
-  }
-}
-
+/** @deprecated Unlock password removed. */
 export async function setOfflineUnlockPassword(
-  newPassword: string,
+  _newPassword: string,
 ): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
-  return cmsSetOfflineUnlock(newPassword)
-}
-
-function assertOfflineUnlocked(): { ok: true } | { ok: false; error: string } {
-  if (!isOfflineModeEnabled()) {
-    return {
-      ok: false,
-      error: 'Offline mode is locked. Unlock it in Settings (hidden) with the password first.',
-    }
+  return {
+    ok: true,
+    message: 'Offline unlock password is no longer used — offline login is always available',
   }
-  return { ok: true }
 }
 
 export async function loginOfflineAccount(
   username: string,
   password: string,
 ): Promise<{ ok: true; account: MinecraftAccount } | { ok: false; error: string }> {
-  const gate = assertOfflineUnlocked()
-  if (!gate.ok) return gate
-
   const u = (username || '').trim()
   const p = (password || '').trim()
   if (!u || !p) return { ok: false, error: 'Enter username and password' }
@@ -243,13 +184,11 @@ export function offlineMultiplayerWarning(): string {
 }
 
 export function getOfflinePublicStatus() {
-  const settings = loadSettings()
-  const local = loadLocalFile()
   const accounts = getAccounts()
   const active = accounts.accounts.find((a) => a.id === accounts.activeAccountId) || null
   return {
-    offlineModeEnabled: Boolean(settings.offlineModeEnabled),
-    unlockConfigured: Boolean(local.unlockPasswordHash) || Boolean(loadBootstrapUnlockPassword()),
+    offlineModeEnabled: true,
+    unlockConfigured: false,
     activeIsOffline: isOfflineAccount(active),
     activeUsername: active?.username || null,
   }

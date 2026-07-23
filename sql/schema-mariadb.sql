@@ -80,6 +80,16 @@ CREATE TABLE IF NOT EXISTS cms_rate_limits (
   KEY idx_rl_window (window_start)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Partner / CMS images (MEDIUMBLOB). Served by icon.php?id=… (static /uploads blocked on host).
+CREATE TABLE IF NOT EXISTS cms_images (
+  id VARCHAR(64) NOT NULL PRIMARY KEY,
+  mime VARCHAR(64) NOT NULL,
+  bytes MEDIUMBLOB NOT NULL,
+  size INT UNSIGNED NOT NULL,
+  original_name VARCHAR(255) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT IGNORE INTO offline_settings (id, unlock_password_hash) VALUES (1, NULL);
 INSERT IGNORE INTO feed_meta (feed_kind, title) VALUES
   ('launcher', 'EG Launcher News'),
