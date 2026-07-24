@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS partner_config (
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Staff sessions: login time, last activity, IP drive idle TTL on the server
+CREATE TABLE IF NOT EXISTS staff_sessions (
+  token CHAR(64) NOT NULL PRIMARY KEY,
+  staff_id VARCHAR(64) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  login_at DATETIME(3) NULL,
+  last_seen_at DATETIME(3) NULL,
+  ip VARCHAR(64) NULL,
+  KEY idx_staff_sess (staff_id),
+  KEY idx_staff_sess_exp (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS partner_auth (
   id VARCHAR(64) NOT NULL PRIMARY KEY,
   username VARCHAR(128) NOT NULL,

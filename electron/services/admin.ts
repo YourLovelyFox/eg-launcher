@@ -112,15 +112,29 @@ export async function touchAdminSessionRemote(
 export function requireAdmin(sessionToken: string | undefined | null): boolean {
   if (!sessionToken) return false
   purgeExpiredSessions()
-  const s = sessions.get(sessionToken)
-  if (!s) return false
+  let s = sessions.get(sessionToken)
+  const staffTok = getStaffSessionToken()
+  // After main-process restart the in-memory Map is empty but sessionStorage
+  // still has the UI token and staff-session.json may still be valid.
+  if (!s) {
+    if (!staffTok) return false
+    const staffExp = getStaffSessionExpiresAt()
+    if (staffExp && staffExp <= Date.now()) {
+      clearStaffSession()
+      return false
+    }
+    const expiresAt =
+      staffExp && staffExp > Date.now() ? staffExp : Date.now() + SESSION_TTL_MS
+    sessions.set(sessionToken, { token: sessionToken, expiresAt })
+    s = sessions.get(sessionToken)!
+  }
   if (s.expiresAt <= Date.now()) {
     sessions.delete(sessionToken)
     clearStaffSession()
     return false
   }
   // Staff CMS token must still be valid
-  if (!getStaffSessionToken()) {
+  if (!staffTok && !getStaffSessionToken()) {
     sessions.delete(sessionToken)
     return false
   }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CreateInstanceModal } from '../components/CreateInstanceModal'
-import { AdsBanner } from '../components/AdsBanner'
+
 import { HomeNews } from '../components/HomeNews'
 import { IconPlay, IconPlus, IconStop } from '../components/Icons'
 import { PlayerHeadWithFallback } from '../components/PlayerHead'
@@ -125,8 +125,6 @@ export function HomePage() {
           </button>
         </div>
       </div>
-
-      <AdsBanner />
 
       {running.running && (
         <div className="panel" style={{ marginBottom: 18 }}>

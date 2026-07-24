@@ -12,8 +12,8 @@ export type StaffInfo = {
   offlineUsed: number
 }
 
-/** Idle timeout: 5 minutes without activity, then re-login. */
-export const STAFF_SESSION_TTL_MS = 5 * 60 * 1000
+/** Idle timeout: 30 minutes without activity, then re-login. */
+export const STAFF_SESSION_TTL_MS = 30 * 60 * 1000
 
 type Stored = {
   staffSessionToken: string | null

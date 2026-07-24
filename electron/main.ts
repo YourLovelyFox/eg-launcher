@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { migrateToHiveLauncher } from './migrate'
@@ -43,6 +43,13 @@ import {
   openBackupsFolder,
   restoreInstanceBackup,
 } from './services/instanceBackup'
+import {
+  defaultExportFileName,
+  exportInstanceAsEgpack,
+  importPackFile,
+  listExportableContents,
+  suggestedDownloadsDir,
+} from './services/egpack'
 import { queryMinecraftServer } from './services/serverStatus'
 import {
   checkFeaturedPackPlay,
@@ -100,12 +107,15 @@ import {
   saveFeaturedPack,
 } from './services/featuredPacksRemote'
 import {
+  fetchAdInventory,
+  fetchAdNetworkConfig,
   getDeviceId,
   getLocalAdFree,
   getPaypalCheckoutUrl,
   redeemAdCode,
   submitAdClaim,
   syncAdsStatus,
+  trackAdEvent,
 } from './services/adsService'
 import { cmsRequest } from './services/cms/httpClient'
 import { getStaffSessionToken } from './services/staffSession'
@@ -147,10 +157,23 @@ import { getAdminUnlockInfo, isAdminAvailable } from './services/adminUnlock'
 import type { NewsItem } from '../shared/types'
 import { getInstanceDir, getInstanceModsDir } from './paths'
 
-// Reduce GPU / compositor freezes on some Windows setups after install
+/**
+ * GPU / WebGL (Windows)
+ * - Prefer hardware GPU (default). Avoids Chromium’s deprecated software-WebGL warning.
+ * - Some broken drivers freeze the compositor; set EG_DISABLE_GPU=1 to force software.
+ * - When software is forced, opt into SwiftShader so WebGL still works (ads, UI).
+ */
 if (process.platform === 'win32') {
-  app.disableHardwareAcceleration()
   app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+  const forceSoftware =
+    process.env.EG_DISABLE_GPU === '1' ||
+    process.env.EG_DISABLE_GPU === 'true' ||
+    process.env.EG_FORCE_SOFTWARE_GL === '1'
+  if (forceSoftware) {
+    app.disableHardwareAcceleration()
+    // Chromium 2024+: software WebGL requires explicit opt-in
+    app.commandLine.appendSwitch('enable-unsafe-swiftshader')
+  }
 }
 
 // Only one instance — second launch focuses the first (avoids installer/double-start freezes)
@@ -428,6 +451,82 @@ function registerIpc() {
     return dir
   })
 
+  // Pack export (.egpack only) / import (.egpack + .mrpack)
+  ipcMain.handle('instances:listExportContents', (_e, instanceId: string) =>
+    listExportableContents(instanceId),
+  )
+  ipcMain.handle(
+    'instances:exportEgpack',
+    async (e, instanceId: string, exportOptions?: Partial<import('../shared/types').EgpackExportOptions>) => {
+      const instance = getInstance(instanceId)
+      if (!instance) throw new Error('Instance not found')
+      const packName =
+        (exportOptions?.packName || '').trim() || instance.name
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const defaultPath = path.join(suggestedDownloadsDir(), defaultExportFileName(packName))
+      const dialogOpts = {
+        title: 'Export instance as .egpack',
+        defaultPath,
+        filters: [{ name: 'EG Launcher Pack', extensions: ['egpack'] }],
+      }
+      const result = win
+        ? await dialog.showSaveDialog(win, dialogOpts)
+        : await dialog.showSaveDialog(dialogOpts)
+      if (result.canceled || !result.filePath) {
+        return { ok: false as const, cancelled: true as const }
+      }
+      let dest = result.filePath
+      if (!dest.toLowerCase().endsWith('.egpack')) dest = `${dest}.egpack`
+      const out = await exportInstanceAsEgpack(
+        instanceId,
+        dest,
+        (progress) => {
+          sendProgress('instances:packProgress', progress)
+        },
+        exportOptions || null,
+      )
+      return { ok: true as const, path: out.path, size: out.size }
+    },
+  )
+
+  ipcMain.handle(
+    'instances:importPack',
+    async (e, opts?: { filePath?: string; name?: string; installRuntime?: boolean }) => {
+      let filePath = opts?.filePath?.trim() || ''
+      if (!filePath) {
+        const win = BrowserWindow.fromWebContents(e.sender)
+        const dialogOpts = {
+          title: 'Import pack (.egpack or .mrpack)',
+          properties: ['openFile' as const],
+          filters: [
+            { name: 'Modpacks', extensions: ['egpack', 'mrpack'] },
+            { name: 'EG Launcher Pack', extensions: ['egpack'] },
+            { name: 'Modrinth Pack', extensions: ['mrpack'] },
+          ],
+        }
+        const result = win
+          ? await dialog.showOpenDialog(win, dialogOpts)
+          : await dialog.showOpenDialog(dialogOpts)
+        if (result.canceled || !result.filePaths?.[0]) {
+          return { ok: false as const, cancelled: true as const }
+        }
+        filePath = result.filePaths[0]
+      }
+      const imported = await importPackFile(
+        filePath,
+        { name: opts?.name, installRuntime: opts?.installRuntime },
+        (progress) => {
+          sendProgress('instances:packProgress', progress)
+        },
+      )
+      return {
+        ok: true as const,
+        instance: imported.instance,
+        format: imported.format,
+      }
+    },
+  )
+
   // Minecraft server status (Server List Ping)
   ipcMain.handle('server:status', async (_e, address: string) => queryMinecraftServer(address))
 
@@ -526,9 +625,29 @@ function registerIpc() {
       host.endsWith('.minecraft.net') ||
       host === 'mojang.com' ||
       host.endsWith('.mojang.com') ||
-      host === 'client116.ddns.net'
+      host === 'client116.ddns.net' ||
+      // PayPal remove-ads checkout
+      host === 'paypal.com' ||
+      host.endsWith('.paypal.com') ||
+      host === 'paypalobjects.com' ||
+      host.endsWith('.paypalobjects.com')
     if (!allowed) {
       throw new Error(`Opening external host is not allowed: ${host}`)
+    }
+    await shell.openExternal(parsed.toString())
+  })
+
+  /** Any HTTPS URL — used for ad clicks / payment (user-initiated only). */
+  ipcMain.handle('shell:openHttps', async (_e, url: string) => {
+    const raw = String(url || '').trim()
+    let parsed: URL
+    try {
+      parsed = new URL(raw)
+    } catch {
+      throw new Error('Invalid URL')
+    }
+    if (parsed.protocol !== 'https:') {
+      throw new Error('Only HTTPS links are allowed')
     }
     await shell.openExternal(parsed.toString())
   })
@@ -599,6 +718,15 @@ function registerIpc() {
     submitAdClaim(input || {}),
   )
   ipcMain.handle('ads:paypalCheckout', async () => getPaypalCheckoutUrl())
+  ipcMain.handle('ads:inventory', async (_e, limit?: number) => fetchAdInventory(limit || 4))
+  ipcMain.handle('ads:network', async () => fetchAdNetworkConfig())
+  ipcMain.handle(
+    'ads:track',
+    async (_e, creativeId: string, event: 'impression' | 'click') => {
+      await trackAdEvent(String(creativeId || ''), event === 'click' ? 'click' : 'impression')
+      return { ok: true }
+    },
+  )
 
   // Featured permanent pack (Bee's SMP / CMS packs)
   ipcMain.handle('featured:status', async (_e, slug?: string) =>
@@ -908,6 +1036,94 @@ function registerIpc() {
           admin: true,
         })
         return { ok: true as const, claims: r.claims || [] }
+      } catch (err) {
+        return { ok: false as const, error: (err as Error).message }
+      }
+    })
+    ipcMain.handle('ads:listCreatives', async (_e, sessionToken: string) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      try {
+        const r = await cmsRequest<{ creatives?: unknown[] }>({
+          path: 'ads.php?action=creatives',
+          admin: true,
+        })
+        return { ok: true as const, creatives: r.creatives || [] }
+      } catch (err) {
+        return { ok: false as const, error: (err as Error).message }
+      }
+    })
+    ipcMain.handle('ads:getNetworkAdmin', async (_e, sessionToken: string) => {
+      if (!requireAdmin(sessionToken)) {
+        return { ok: false as const, error: 'Session expired — sign in again under Settings → Staff' }
+      }
+      try {
+        const r = await cmsRequest<Record<string, unknown>>({
+          path: 'ads.php?action=network',
+          admin: true,
+          sessionToken: getStaffSessionToken(),
+        })
+        return { ok: true as const, network: r }
+      } catch (err) {
+        return { ok: false as const, error: (err as Error).message }
+      }
+    })
+    ipcMain.handle(
+      'ads:saveNetwork',
+      async (
+        _e,
+        sessionToken: string,
+        input: {
+          enabled?: boolean
+          provider?: string
+          adsenseClient?: string
+          adsenseSlot?: string
+          customHtml?: string
+        },
+      ) => {
+        if (!requireAdmin(sessionToken)) {
+          return { ok: false as const, error: 'Session expired — sign in again under Settings → Staff' }
+        }
+        try {
+          const r = await cmsRequest<{ provider?: string; enabled?: boolean }>({
+            path: 'ads.php?action=save_network',
+            method: 'POST',
+            admin: true,
+            sessionToken: getStaffSessionToken(),
+            body: input || {},
+          })
+          return { ok: true as const, provider: r.provider, enabled: r.enabled }
+        } catch (err) {
+          return { ok: false as const, error: (err as Error).message }
+        }
+      },
+    )
+    ipcMain.handle(
+      'ads:saveCreative',
+      async (_e, sessionToken: string, creative: Record<string, unknown>) => {
+        if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+        try {
+          const r = await cmsRequest<{ id?: string }>({
+            path: 'ads.php?action=save_creative',
+            method: 'POST',
+            admin: true,
+            body: creative || {},
+          })
+          return { ok: true as const, id: r.id }
+        } catch (err) {
+          return { ok: false as const, error: (err as Error).message }
+        }
+      },
+    )
+    ipcMain.handle('ads:deleteCreative', async (_e, sessionToken: string, id: string) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      try {
+        await cmsRequest({
+          path: 'ads.php?action=delete_creative',
+          method: 'POST',
+          admin: true,
+          body: { id },
+        })
+        return { ok: true as const }
       } catch (err) {
         return { ok: false as const, error: (err as Error).message }
       }

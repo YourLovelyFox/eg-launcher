@@ -24,6 +24,10 @@ export function InstancesPage() {
   const [updateCounts, setUpdateCounts] = useState<Record<string, number>>({})
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [prefsTick, setPrefsTick] = useState(0)
+  const [importing, setImporting] = useState(false)
+  const [packProgress, setPackProgress] = useState<{ message: string; progress: number } | null>(
+    null,
+  )
   const loggedIn = accounts.some((a) => a.id === activeAccountId)
 
   const sorted = useMemo(() => {
@@ -126,6 +130,40 @@ export function InstancesPage() {
     }
   }
 
+  async function importPack() {
+    if (importing) return
+    setImporting(true)
+    setPackProgress({ message: 'Choose a pack…', progress: 0 })
+    const off = window.hive.instances.onPackProgress((e) => {
+      setPackProgress({ message: e.message, progress: e.progress })
+    })
+    try {
+      const res = await window.hive.instances.importPack()
+      if (!res.ok) {
+        setPackProgress(null)
+        return
+      }
+      await refreshAll()
+      setSelectedInstanceId(res.instance.id)
+      pushRecent({
+        kind: 'played',
+        label: `Imported ${res.instance.name}`,
+        href: `/instances/${encodeURIComponent(res.instance.id)}`,
+      })
+      showToast(
+        'success',
+        `Imported “${res.instance.name}” from .${res.format === 'egpack' ? 'egpack' : 'mrpack'}`,
+      )
+      navigate(`/instances/${encodeURIComponent(res.instance.id)}`)
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      off()
+      setImporting(false)
+      setPackProgress(null)
+    }
+  }
+
   function playLabel(id: string): string {
     if (running.running && running.instanceId === id) return 'Running'
     if (launchingId === id) return 'Launching…'
@@ -137,21 +175,42 @@ export function InstancesPage() {
       <div className="page-header">
         <div>
           <h1>Instances</h1>
-          <p>Double-click a card to play · Star to pin · Last used is remembered.</p>
+          <p>
+            Double-click to play · Import .egpack/.mrpack (same format) · Export as .egpack
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {running.running && (
             <button className="btn btn-danger" onClick={() => stopGame()}>
               <IconStop />
               Stop
             </button>
           )}
+          <button className="btn btn-secondary" onClick={() => void importPack()} disabled={importing}>
+            {importing ? 'Importing…' : 'Import pack'}
+          </button>
           <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
             <IconPlus />
             New instance
           </button>
         </div>
       </div>
+
+      {packProgress && (
+        <div className="panel" style={{ marginBottom: 16 }}>
+          <div className="progress-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>{packProgress.message}</span>
+            <span>{Math.round(packProgress.progress * 100)}%</span>
+          </div>
+          <div className="progress-bar">
+            <div style={{ width: `${Math.round(packProgress.progress * 100)}%` }} />
+          </div>
+          <p className="hint" style={{ marginBottom: 0, marginTop: 8 }}>
+            Same format as Modrinth packs: import <strong>.egpack</strong> or <strong>.mrpack</strong>.
+            Export uses <strong>.egpack</strong> only (identical structure to .mrpack).
+          </p>
+        </div>
+      )}
 
       {running.running && (
         <div className="panel" style={{ marginBottom: 16 }}>

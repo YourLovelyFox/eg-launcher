@@ -1,31 +1,69 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../store'
 
+type NetworkCfg = {
+  adFree: boolean
+  enabled: boolean
+  provider: string
+  unitUrl: string | null
+}
+
 /**
- * Low-key sponsor strip — PayPal checkout auto-grants ad-free via CMS IPN.
+ * Google AdSense only (via hosted ad-unit.php iframe).
+ * No house ads / EG creatives. Remove-ads PayPal still available.
  */
 export function AdsBanner() {
   const { showToast } = useAppStore()
-  const [adFree, setAdFree] = useState(true)
-  const [paidUntil, setPaidUntil] = useState<string | null>(null)
-  const [deviceId, setDeviceId] = useState('')
+  const [adFree, setAdFree] = useState(false)
+  const [network, setNetwork] = useState<NetworkCfg | null>(null)
   const [priceEur, setPriceEur] = useState(5)
+  const [deviceId, setDeviceId] = useState('')
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  async function refresh() {
-    const s = await window.hive.ads.status()
-    setAdFree(Boolean(s.adFree))
-    setPaidUntil(s.paidUntil || null)
-    setDeviceId(s.deviceId || '')
-    if (typeof s.priceEur === 'number') setPriceEur(s.priceEur)
+  async function loadAll() {
+    try {
+      const [net, status] = await Promise.all([
+        window.hive.ads.network().catch(() => null),
+        window.hive.ads.status().catch(() => null),
+      ])
+
+      if (status?.adFree || net?.adFree) {
+        setAdFree(true)
+        setNetwork(null)
+        return
+      }
+      setAdFree(false)
+
+      if (net) {
+        setNetwork({
+          adFree: false,
+          enabled: Boolean(net.enabled),
+          provider: String(net.provider || 'none'),
+          unitUrl: net.unitUrl || null,
+        })
+      }
+
+      if (typeof status?.priceEur === 'number') setPriceEur(status.priceEur)
+      if (status?.deviceId) setDeviceId(status.deviceId)
+    } catch (err) {
+      console.warn('[ads] load failed', err)
+      setAdFree(false)
+    }
   }
 
   useEffect(() => {
-    void refresh()
+    void loadAll()
+    const t = window.setInterval(() => void loadAll(), 60_000)
+    return () => window.clearInterval(t)
   }, [])
 
   if (adFree) return null
+
+  const showAdSense =
+    network?.enabled &&
+    network.provider === 'adsense' &&
+    Boolean(network.unitUrl)
 
   async function payWithPaypal() {
     setBusy(true)
@@ -35,8 +73,9 @@ export function AdsBanner() {
         showToast('error', res.error || 'Could not open PayPal')
         return
       }
-      await window.hive.shell.openExternal(res.checkoutUrl)
-      showToast('success', 'PayPal opened — after payment, click “I paid — refresh”')
+      if (window.hive.shell.openHttps) await window.hive.shell.openHttps(res.checkoutUrl)
+      else await window.hive.shell.openExternal(res.checkoutUrl)
+      showToast('success', 'PayPal opened — complete payment, then click “I paid — refresh”')
     } catch (err) {
       showToast('error', (err as Error).message)
     } finally {
@@ -47,11 +86,10 @@ export function AdsBanner() {
   async function afterPayRefresh() {
     setBusy(true)
     try {
-      await refresh()
+      await loadAll()
       const s = await window.hive.ads.status()
       if (s.adFree) {
         setAdFree(true)
-        setPaidUntil(s.paidUntil || null)
         setOpen(false)
         showToast('success', 'Ads removed — thank you!')
       } else {
@@ -69,37 +107,58 @@ export function AdsBanner() {
 
   return (
     <>
-      <div
-        className="panel"
-        style={{
-          marginBottom: 16,
-          padding: '10px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          flexWrap: 'wrap',
-          borderColor: 'rgba(106, 168, 255, 0.35)',
-          background: 'var(--green-soft)',
-        }}
-      >
-        <div className="grow">
-          <strong style={{ fontSize: 13 }}>Sponsored · EG Launcher</strong>
-          <div className="sub" style={{ marginTop: 2 }}>
-            Support development — remove ads for €{priceEur}/month via PayPal (automatic unlock).
+      <div className="ads-stack" role="complementary" aria-label="Sponsored">
+        {showAdSense && network?.unitUrl ? (
+          <div className="ads-network-frame-wrap">
+            <div className="ads-network-label">
+              <span className="ads-banner-badge">AdSense</span>
+              <span className="ads-unit-source">Google AdSense</span>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>
+                Remove ads · €{priceEur}/mo
+              </button>
+            </div>
+            <iframe
+              className="ads-network-frame"
+              title="Google AdSense"
+              src={network.unitUrl}
+              sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-forms allow-top-navigation-by-user-activation"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allow="attribution-reporting"
+            />
           </div>
-        </div>
-        <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>
-          Remove ads · €{priceEur}/mo
-        </button>
+        ) : (
+          <div className="ads-banner">
+            <div className="ads-banner-body">
+              <span className="ads-banner-badge">AdSense</span>
+              <div className="grow">
+                <strong className="ads-banner-title">Google AdSense</strong>
+                <div className="ads-banner-sub">
+                  {network?.enabled
+                    ? 'Ad unit loading… (site must be approved in AdSense)'
+                    : 'AdSense is not enabled on the server yet.'}
+                </div>
+              </div>
+            </div>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(true)}>
+              Remove ads · €{priceEur}/mo
+            </button>
+          </div>
+        )}
       </div>
 
-      {open && (
-        <div className="update-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setOpen(false)}>
+      {open ? (
+        <div
+          className="update-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setOpen(false)}
+        >
           <div className="update-modal panel" onClick={(e) => e.stopPropagation()}>
             <h2 style={{ marginTop: 0 }}>Remove ads · €{priceEur} / month</h2>
             <p className="hint">
-              Pay with PayPal. Your device is linked automatically — ads unlock when PayPal confirms
-              the payment (usually within a few seconds).
+              Pay with PayPal. Your device is linked automatically — AdSense is hidden when payment
+              confirms.
             </p>
             <p className="muted mono" style={{ fontSize: 12 }}>
               Device: {deviceId || '…'}
@@ -111,7 +170,7 @@ export function AdsBanner() {
                 disabled={busy}
                 onClick={() => void payWithPaypal()}
               >
-                {busy ? '…' : `Pay €${priceEur} with PayPal`}
+                {busy ? 'Opening…' : `Pay €${priceEur} with PayPal`}
               </button>
               <button
                 type="button"
@@ -122,17 +181,17 @@ export function AdsBanner() {
                 I paid — refresh
               </button>
             </div>
-            {paidUntil && (
-              <p className="muted" style={{ marginTop: 12 }}>
-                Current entitlement until {new Date(paidUntil).toLocaleString()}
-              </p>
-            )}
-            <button type="button" className="btn btn-ghost" style={{ marginTop: 12 }} onClick={() => setOpen(false)}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ marginTop: 12 }}
+              onClick={() => setOpen(false)}
+            >
               Close
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </>
   )
 }

@@ -25,13 +25,7 @@ try {
           UNIQUE KEY uq_staff_user (username)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
-    $pdo->exec(
-        "CREATE TABLE IF NOT EXISTS staff_sessions (
-          token CHAR(64) NOT NULL PRIMARY KEY,
-          staff_id VARCHAR(64) NOT NULL,
-          expires_at DATETIME NOT NULL
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
-    );
+    ensure_staff_sessions_columns($pdo);
 
     if ($action === 'list' && $method === 'GET') {
         require_admin();
@@ -170,25 +164,9 @@ function row_approval(array $r): array
 /** @return array{id:string,username:string,role:string,offline_quota:int}|null */
 function try_staff_from_header(PDO $pdo): ?array
 {
-    $tok = header_session();
-    if ($tok === '') {
+    $row = staff_session_validate_and_touch();
+    if ($row === null) {
         return null;
-    }
-    $stmt = $pdo->prepare(
-        'SELECT s.expires_at, u.id, u.username, u.role, u.offline_quota, u.enabled
-         FROM staff_sessions s JOIN staff_users u ON u.id = s.staff_id
-         WHERE s.token = ? LIMIT 1'
-    );
-    $stmt->execute([$tok]);
-    $row = $stmt->fetch();
-    if (!$row || !(int) $row['enabled'] || strtotime((string) $row['expires_at']) < time()) {
-        return null;
-    }
-    // Sliding idle timeout
-    try {
-        $pdo->prepare('UPDATE staff_sessions SET expires_at = ? WHERE token = ?')
-            ->execute([date('Y-m-d H:i:s', time() + 5 * 60), $tok]);
-    } catch (Throwable $e) {
     }
     return [
         'id' => $row['id'],
@@ -202,7 +180,7 @@ function require_staff_from_header(PDO $pdo): array
 {
     $s = try_staff_from_header($pdo);
     if ($s === null) {
-        json_fail('Staff session required (X-EG-Session)', 401);
+        json_fail('Session expired', 401);
     }
     return $s;
 }

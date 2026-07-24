@@ -11,14 +11,28 @@ export function AdminAdsPanel({ session }: { session: string }) {
   const [code, setCode] = useState('')
   const [days, setDays] = useState('30')
   const [busy, setBusy] = useState(false)
+  const [netEnabled, setNetEnabled] = useState(false)
+  const [adsenseClient, setAdsenseClient] = useState('')
+  const [adsenseSlot, setAdsenseSlot] = useState('')
 
   const load = useCallback(async () => {
-    const res = await window.hive.admin.adsListClaims(session)
-    if (!res.ok) {
-      showToast('error', res.error)
-      return
+    const [cRes, nRes] = await Promise.all([
+      window.hive.admin.adsListClaims(session),
+      window.hive.admin.adsGetNetwork(session),
+    ])
+    if (!cRes.ok) showToast('error', cRes.error)
+    else setClaims((cRes.claims || []) as typeof claims)
+    if (nRes.ok && nRes.network) {
+      const n = nRes.network as {
+        enabled?: boolean
+        provider?: string
+        adsenseClient?: string
+        adsenseSlot?: string
+      }
+      setNetEnabled(Boolean(n.enabled) && String(n.provider || '') === 'adsense')
+      setAdsenseClient(String(n.adsenseClient || ''))
+      setAdsenseSlot(String(n.adsenseSlot || ''))
     }
-    setClaims((res.claims || []) as typeof claims)
   }, [session, showToast])
 
   useEffect(() => {
@@ -45,14 +59,80 @@ export function AdminAdsPanel({ session }: { session: string }) {
     }
   }
 
+  async function saveNetwork() {
+    setBusy(true)
+    try {
+      const res = await window.hive.admin.adsSaveNetwork(session, {
+        enabled: netEnabled,
+        provider: netEnabled ? 'adsense' : 'none',
+        adsenseClient: adsenseClient.trim(),
+        adsenseSlot: adsenseSlot.trim(),
+        customHtml: '',
+      })
+      if (!res.ok) {
+        showToast('error', res.error)
+        return
+      }
+      showToast('success', 'AdSense settings saved')
+      await load()
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div>
       <div className="panel" style={{ marginBottom: 16 }}>
+        <h2>Google AdSense</h2>
+        <p className="hint">
+          Only AdSense is shown in the launcher (no house/EG ads). Users can still pay to remove
+          ads via PayPal.
+        </p>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <input
+            type="checkbox"
+            checked={netEnabled}
+            onChange={(e) => setNetEnabled(e.target.checked)}
+          />
+          Enable AdSense in launcher
+        </label>
+        <div className="form-grid" style={{ gap: 10, marginBottom: 12 }}>
+          <div className="form-row">
+            <label>AdSense client (ca-pub-…)</label>
+            <input
+              className="input"
+              value={adsenseClient}
+              onChange={(e) => setAdsenseClient(e.target.value)}
+              placeholder="ca-pub-xxxxxxxxxxxxxxxx"
+            />
+          </div>
+          <div className="form-row">
+            <label>Ad unit slot ID</label>
+            <input
+              className="input"
+              value={adsenseSlot}
+              onChange={(e) => setAdsenseSlot(e.target.value)}
+              placeholder="1234567890"
+            />
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy}
+          onClick={() => void saveNetwork()}
+        >
+          Save AdSense settings
+        </button>
+      </div>
+
+      <div className="panel" style={{ marginBottom: 16 }}>
         <h2>PayPal remove-ads</h2>
         <p className="hint">
-          Users pay <strong>€5 / month</strong> via PayPal <strong>Friends & Family</strong> to{' '}
-          <span className="mono">{PAYPAL}</span>, then redeem a code you generate — or submit a claim
-          for you to grant manually.
+          Users pay <strong>€5 / month</strong> via PayPal to <span className="mono">{PAYPAL}</span>.
+          IPN auto-grants when configured; otherwise use redeem codes / claims below.
         </p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input
@@ -69,11 +149,17 @@ export function AdminAdsPanel({ session }: { session: string }) {
             onChange={(e) => setDays(e.target.value)}
             style={{ maxWidth: 80 }}
           />
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void createCode()}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy}
+            onClick={() => void createCode()}
+          >
             Generate redeem code
           </button>
         </div>
       </div>
+
       <div className="panel">
         <div className="page-header" style={{ marginBottom: 10 }}>
           <h2 style={{ margin: 0 }}>Pending payment claims</h2>

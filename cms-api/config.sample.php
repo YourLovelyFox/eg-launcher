@@ -22,6 +22,12 @@ return [
     // Partner / admin session lifetime (seconds)
     'session_ttl' => 8 * 60 * 60,
 
+    // Staff Menu sessions (DB-backed login_at / last_seen_at / ip)
+    // Idle TTL: no activity for this long → session deleted
+    'staff_idle_ttl' => 30 * 60,
+    // Hard max lifetime from login_at (even with activity)
+    'staff_max_session_ttl' => 8 * 60 * 60,
+
     // Login / unlock rate limit (per IP + action)
     'rate_limit_max' => 12,
     'rate_limit_window' => 300,

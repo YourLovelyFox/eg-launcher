@@ -226,6 +226,42 @@ export type InstalledMod = {
   downloadedAt: string
 }
 
+/** One list row in the export picker (Modrinth App–style content list). */
+export type EgpackExportEntry = {
+  /** Relative path under the instance root, e.g. `mods/sodium.jar` or `config` */
+  path: string
+  name: string
+  kind: 'mod' | 'folder' | 'file'
+  group: 'mods' | 'content' | 'worlds' | 'settings'
+  sizeBytes: number
+  /** Files under a folder (approx). */
+  itemCount?: number
+  /** Selected by default on “Recommended”. */
+  recommended: boolean
+  /** Disabled mod jar (*.jar.disabled). */
+  disabled?: boolean
+  /** Display title for mods when known. */
+  title?: string
+}
+
+/** Options for exporting an instance as .egpack (mrpack-compatible). */
+export type EgpackExportOptions = {
+  /** Display name written into modrinth.index.json / eg.manifest.json */
+  packName: string
+  /** Optional pack summary / description */
+  summary?: string
+  /**
+   * Prefer Modrinth CDN downloads for tracked mods (smaller pack).
+   * When false, all selected mods are embedded in overrides/.
+   */
+  preferModrinthDownloads: boolean
+  /**
+   * Relative paths to include (from listExportableContents).
+   * Examples: `mods/foo.jar`, `config`, `saves`, `options.txt`
+   */
+  selectedPaths: string[]
+}
+
 export type GameInstance = {
   id: string
   name: string

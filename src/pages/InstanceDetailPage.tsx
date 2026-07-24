@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { GameInstance, InstanceBackupInfo, InstanceProfile } from '../../shared/types'
+import type {
+  EgpackExportOptions,
+  GameInstance,
+  InstanceBackupInfo,
+  InstanceProfile,
+} from '../../shared/types'
+import { ExportEgpackModal } from '../components/ExportEgpackModal'
 import { IconDownload, IconFolder, IconPlay, IconStop, IconTrash } from '../components/Icons'
 import { checkModsUpdates, type ModUpdateInfo } from '../modUpdates'
 import { pushRecent } from '../qolPrefs'
@@ -35,7 +41,13 @@ export function InstanceDetailPage() {
     activeAccountId,
   } = useAppStore()
   const [instance, setInstance] = useState<GameInstance | null>(null)
-  const [busy, setBusy] = useState<'install' | 'launch' | 'backup' | 'restore' | null>(null)
+  const [busy, setBusy] = useState<'install' | 'launch' | 'backup' | 'restore' | 'export' | null>(
+    null,
+  )
+  const [packProgress, setPackProgress] = useState<{ message: string; progress: number } | null>(
+    null,
+  )
+  const [exportModalOpen, setExportModalOpen] = useState(false)
   const [updateMap, setUpdateMap] = useState<Record<string, ModUpdateInfo>>({})
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -458,6 +470,46 @@ export function InstanceDetailPage() {
     }
   }
 
+  function openExportModal() {
+    if (!instance) return
+    if (isLive) {
+      showToast('error', 'Stop the game before exporting')
+      return
+    }
+    setExportModalOpen(true)
+  }
+
+  async function runExport(options: EgpackExportOptions) {
+    if (!instance) return
+    if (isLive) {
+      showToast('error', 'Stop the game before exporting')
+      return
+    }
+    setBusy('export')
+    setPackProgress({ message: 'Choose save location…', progress: 0 })
+    const off = window.hive.instances.onPackProgress((e) => {
+      setPackProgress({ message: e.message, progress: e.progress })
+    })
+    try {
+      const res = await window.hive.instances.exportEgpack(instance.id, options)
+      if (!res.ok) {
+        setPackProgress(null)
+        return
+      }
+      setExportModalOpen(false)
+      showToast(
+        'success',
+        `Exported .egpack (${formatBytes(res.size)}) → ${res.path.split(/[/\\]/).pop()}`,
+      )
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      off()
+      setBusy(null)
+      setPackProgress(null)
+    }
+  }
+
   async function removeBackup(backup: InstanceBackupInfo) {
     if (!instance) return
     if (!confirm(`Delete backup “${backup.label}”?`)) return
@@ -493,6 +545,15 @@ export function InstanceDetailPage() {
 
   return (
     <div className="page">
+      <ExportEgpackModal
+        open={exportModalOpen}
+        instance={instance}
+        busy={busy === 'export'}
+        onClose={() => {
+          if (busy !== 'export') setExportModalOpen(false)
+        }}
+        onExport={(options) => void runExport(options)}
+      />
       {renameOpen && (
         <div
           className="update-modal-backdrop"
@@ -577,6 +638,14 @@ export function InstanceDetailPage() {
             Folder
           </button>
           <button
+            className="btn btn-secondary"
+            onClick={() => openExportModal()}
+            disabled={!!busy || isLive}
+            title="Export as .egpack — choose name and what to include"
+          >
+            {busy === 'export' ? 'Exporting…' : 'Export .egpack'}
+          </button>
+          <button
             className="btn btn-ghost"
             onClick={() => window.hive.shell.openInstancePath(instance.id, 'screenshots')}
             title="Screenshots"
@@ -618,6 +687,18 @@ export function InstanceDetailPage() {
           )}
         </div>
       </div>
+
+      {packProgress && (
+        <div className="panel" style={{ marginBottom: 16 }}>
+          <div className="progress-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>{packProgress.message}</span>
+            <span>{Math.round(packProgress.progress * 100)}%</span>
+          </div>
+          <div className="progress-bar">
+            <div style={{ width: `${Math.round(packProgress.progress * 100)}%` }} />
+          </div>
+        </div>
+      )}
 
       {isLive && (
         <div className="panel" style={{ marginBottom: 16 }}>

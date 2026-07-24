@@ -57,7 +57,7 @@ function buildHeaders(options: {
   }
   if (options.admin && !headers['X-EG-Session']) {
     throw new Error(
-      'Session expired or not signed in. Open Settings → Staff and sign in again (sessions last 5 minutes).',
+      'Session expired or not signed in. Open Settings → Staff and sign in again (idle timeout 30 minutes).',
     )
   }
   return headers

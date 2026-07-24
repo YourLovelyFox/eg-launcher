@@ -55,6 +55,37 @@ try {
           created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
+    // Direct-sold / network ad creatives (AdHive-style inventory for the launcher)
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS ad_creatives (
+          id VARCHAR(64) NOT NULL PRIMARY KEY,
+          title VARCHAR(256) NOT NULL,
+          body VARCHAR(512) NULL,
+          image_url VARCHAR(1024) NULL,
+          click_url VARCHAR(1024) NOT NULL,
+          cta_label VARCHAR(128) NULL,
+          sponsor VARCHAR(128) NULL,
+          weight INT NOT NULL DEFAULT 1,
+          active TINYINT(1) NOT NULL DEFAULT 1,
+          impressions BIGINT NOT NULL DEFAULT 0,
+          clicks BIGINT NOT NULL DEFAULT 0,
+          start_at DATETIME(3) NULL,
+          end_at DATETIME(3) NULL,
+          created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+          updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS ad_events (
+          id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+          creative_id VARCHAR(64) NOT NULL,
+          device_id VARCHAR(128) NULL,
+          event_type ENUM('impression','click') NOT NULL,
+          created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+          KEY idx_ad_events_creative (creative_id, event_type),
+          KEY idx_ad_events_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
 
     // PayPal IPN (server-to-server POST from PayPal — not JSON)
     if ($action === 'paypal_ipn') {
@@ -104,6 +135,241 @@ try {
             'days' => $DAYS,
             'paypalEmail' => $PAYPAL_EMAIL,
         ]);
+    }
+
+    // Public: serve weighted active creatives for the launcher ad unit
+    if ($action === 'serve' && $method === 'GET') {
+        $device = trim((string) ($_GET['device_id'] ?? $_GET['deviceId'] ?? ''));
+        $limit = max(1, min(8, (int) ($_GET['limit'] ?? 4)));
+        $until = null;
+        if ($device !== '') {
+            $stmt = $pdo->prepare('SELECT paid_until FROM ad_entitlements WHERE device_id = ?');
+            $stmt->execute([$device]);
+            $row = $stmt->fetch();
+            if ($row && strtotime((string) $row['paid_until']) > time()) {
+                $until = iso_date($row['paid_until']);
+            }
+        }
+        if ($until !== null) {
+            json_out(['ok' => true, 'adFree' => true, 'paidUntil' => $until, 'ads' => []]);
+        }
+        $rows = $pdo->query(
+            "SELECT * FROM ad_creatives
+             WHERE active = 1
+               AND (start_at IS NULL OR start_at <= NOW(3))
+               AND (end_at IS NULL OR end_at >= NOW(3))
+             ORDER BY weight DESC, updated_at DESC
+             LIMIT 40"
+        )->fetchAll();
+        $pool = [];
+        foreach ($rows as $r) {
+            $w = max(1, (int) $r['weight']);
+            for ($i = 0; $i < $w; $i++) {
+                $pool[] = $r;
+            }
+        }
+        shuffle($pool);
+        $picked = [];
+        $seen = [];
+        foreach ($pool as $r) {
+            $id = (string) $r['id'];
+            if (isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+            $picked[] = [
+                'id' => $id,
+                'title' => $r['title'],
+                'body' => $r['body'],
+                'imageUrl' => $r['image_url'],
+                'clickUrl' => $r['click_url'],
+                'ctaLabel' => $r['cta_label'] ?: 'Learn more',
+                'sponsor' => $r['sponsor'],
+                'weight' => (int) $r['weight'],
+            ];
+            if (count($picked) >= $limit) {
+                break;
+            }
+        }
+        json_out([
+            'ok' => true,
+            'adFree' => false,
+            'paidUntil' => null,
+            'ads' => $picked,
+            'network' => 'eg-ads',
+        ]);
+    }
+
+    // Public: track impression / click (monetization metrics)
+    if ($action === 'track' && $method === 'POST') {
+        $body = json_body();
+        $creativeId = trim((string) ($body['creativeId'] ?? $body['creative_id'] ?? ''));
+        $event = strtolower(trim((string) ($body['event'] ?? '')));
+        $device = trim((string) ($body['deviceId'] ?? $body['device_id'] ?? ''));
+        if ($creativeId === '' || ($event !== 'impression' && $event !== 'click')) {
+            json_fail('creativeId and event required', 400);
+        }
+        // House ads (client-side) — ignore missing DB rows
+        $chk = $pdo->prepare('SELECT id FROM ad_creatives WHERE id = ?');
+        $chk->execute([$creativeId]);
+        if ($chk->fetch()) {
+            $col = $event === 'click' ? 'clicks' : 'impressions';
+            $pdo->prepare("UPDATE ad_creatives SET {$col} = {$col} + 1 WHERE id = ?")->execute([$creativeId]);
+            $pdo->prepare(
+                'INSERT INTO ad_events (creative_id, device_id, event_type) VALUES (?,?,?)'
+            )->execute([$creativeId, $device !== '' ? $device : null, $event]);
+        }
+        json_out(['ok' => true]);
+    }
+
+    // Ensure settings table exists for network (AdSense / custom tags)
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS ad_settings (
+          setting_key VARCHAR(64) NOT NULL PRIMARY KEY,
+          setting_value MEDIUMTEXT NULL,
+          updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    // Public + admin: network config for launcher (AdSense / custom HTML)
+    if ($action === 'network' && $method === 'GET') {
+        $cfg = ads_network_settings($pdo);
+        $device = trim((string) ($_GET['device_id'] ?? ''));
+        $adFree = false;
+        if ($device !== '') {
+            $stmt = $pdo->prepare('SELECT paid_until FROM ad_entitlements WHERE device_id = ?');
+            $stmt->execute([$device]);
+            $row = $stmt->fetch();
+            if ($row && strtotime((string) $row['paid_until']) > time()) {
+                $adFree = true;
+            }
+        }
+        $base = ads_public_base();
+        $unitUrl = $base . '/ad-unit.php?placement=banner';
+        if ($device !== '') {
+            $unitUrl .= '&device_id=' . rawurlencode($device);
+        }
+        $isStaff = false;
+        try {
+            // Staff session may be present for admin panel load
+            $hdr = $_SERVER['HTTP_X_EG_SESSION'] ?? '';
+            if ($hdr !== '') {
+                $isStaff = true; // value used only to return customHtml for editing
+            }
+        } catch (Throwable $e) {
+            $isStaff = false;
+        }
+        json_out([
+            'ok' => true,
+            'adFree' => $adFree,
+            'enabled' => $cfg['enabled'] === '1',
+            'provider' => $cfg['provider'],
+            'adsenseClient' => $cfg['adsense_client'],
+            'adsenseSlot' => $cfg['adsense_slot'],
+            'hasCustomHtml' => trim((string) $cfg['custom_html']) !== '',
+            // custom HTML only for staff UI (not needed by public clients)
+            'customHtml' => $isStaff ? (string) $cfg['custom_html'] : null,
+            'unitUrl' => $unitUrl,
+            'unitUrlTemplate' => $base . '/ad-unit.php?placement={placement}&device_id={device}',
+            'note' => 'AdMob is mobile-only. Desktop uses Google AdSense or HTML network tags hosted on ad-unit.php.',
+        ]);
+    }
+
+    if ($action === 'save_network' && $method === 'POST') {
+        require_admin();
+        $body = json_body();
+        $provider = strtolower(trim((string) ($body['provider'] ?? 'none')));
+        if (!in_array($provider, ['none', 'adsense', 'custom', 'eg'], true)) {
+            $provider = 'none';
+        }
+        $enabled = !empty($body['enabled']) ? '1' : '0';
+        $client = preg_replace('/[^a-zA-Z0-9-]/', '', (string) ($body['adsenseClient'] ?? $body['adsense_client'] ?? ''));
+        $slot = preg_replace('/[^0-9]/', '', (string) ($body['adsenseSlot'] ?? $body['adsense_slot'] ?? ''));
+        $custom = (string) ($body['customHtml'] ?? $body['custom_html'] ?? '');
+        // Basic safety: custom HTML cannot include php tags
+        $custom = str_ireplace(['<?', '?>'], '', $custom);
+        ads_set_setting($pdo, 'enabled', $enabled);
+        ads_set_setting($pdo, 'provider', $provider);
+        ads_set_setting($pdo, 'adsense_client', $client);
+        ads_set_setting($pdo, 'adsense_slot', $slot);
+        ads_set_setting($pdo, 'custom_html', $custom);
+        json_out(['ok' => true, 'provider' => $provider, 'enabled' => $enabled === '1']);
+    }
+
+    // Admin: list creatives + stats
+    if ($action === 'creatives' && $method === 'GET') {
+        require_admin();
+        $rows = $pdo->query(
+            'SELECT * FROM ad_creatives ORDER BY active DESC, weight DESC, updated_at DESC LIMIT 200'
+        )->fetchAll();
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'id' => $r['id'],
+                'title' => $r['title'],
+                'body' => $r['body'],
+                'imageUrl' => $r['image_url'],
+                'clickUrl' => $r['click_url'],
+                'ctaLabel' => $r['cta_label'],
+                'sponsor' => $r['sponsor'],
+                'weight' => (int) $r['weight'],
+                'active' => (int) $r['active'] === 1,
+                'impressions' => (int) $r['impressions'],
+                'clicks' => (int) $r['clicks'],
+                'startAt' => $r['start_at'] ? iso_date($r['start_at']) : null,
+                'endAt' => $r['end_at'] ? iso_date($r['end_at']) : null,
+            ];
+        }
+        json_out(['ok' => true, 'creatives' => $out]);
+    }
+
+    // Admin: create/update creative
+    if ($action === 'save_creative' && $method === 'POST') {
+        require_admin();
+        $body = json_body();
+        $id = trim((string) ($body['id'] ?? ''));
+        if ($id === '') {
+            $id = 'ad-' . bin2hex(random_bytes(6));
+        }
+        $title = trim((string) ($body['title'] ?? ''));
+        $click = trim((string) ($body['clickUrl'] ?? $body['click_url'] ?? ''));
+        if ($title === '' || $click === '') {
+            json_fail('title and clickUrl required', 400);
+        }
+        if (!preg_match('#^https://#i', $click)) {
+            json_fail('clickUrl must be https://', 400);
+        }
+        $pdo->prepare(
+            'INSERT INTO ad_creatives
+              (id, title, body, image_url, click_url, cta_label, sponsor, weight, active)
+             VALUES (?,?,?,?,?,?,?,?,?)
+             ON DUPLICATE KEY UPDATE
+              title=VALUES(title), body=VALUES(body), image_url=VALUES(image_url),
+              click_url=VALUES(click_url), cta_label=VALUES(cta_label), sponsor=VALUES(sponsor),
+              weight=VALUES(weight), active=VALUES(active)'
+        )->execute([
+            $id,
+            $title,
+            trim((string) ($body['body'] ?? '')) ?: null,
+            trim((string) ($body['imageUrl'] ?? $body['image_url'] ?? '')) ?: null,
+            $click,
+            trim((string) ($body['ctaLabel'] ?? $body['cta_label'] ?? '')) ?: 'Learn more',
+            trim((string) ($body['sponsor'] ?? '')) ?: null,
+            max(1, (int) ($body['weight'] ?? 1)),
+            !empty($body['active']) || !isset($body['active']) ? 1 : 0,
+        ]);
+        json_out(['ok' => true, 'id' => $id]);
+    }
+
+    if ($action === 'delete_creative' && $method === 'POST') {
+        require_admin();
+        $body = json_body();
+        $id = trim((string) ($body['id'] ?? ''));
+        if ($id === '') {
+            json_fail('id required', 400);
+        }
+        $pdo->prepare('DELETE FROM ad_creatives WHERE id = ?')->execute([$id]);
+        json_out(['ok' => true]);
     }
 
     if ($action === 'status' && $method === 'GET') {
@@ -261,6 +527,34 @@ try {
     json_fail('Unknown action', 400);
 } catch (Throwable $e) {
     json_fail('Server error', 500, $e);
+}
+
+function ads_network_settings(PDO $pdo): array
+{
+    $defaults = [
+        'enabled' => '0',
+        'provider' => 'none',
+        'adsense_client' => '',
+        'adsense_slot' => '',
+        'custom_html' => '',
+    ];
+    try {
+        $stmt = $pdo->query('SELECT setting_key, setting_value FROM ad_settings');
+        foreach ($stmt->fetchAll() as $r) {
+            $defaults[$r['setting_key']] = (string) $r['setting_value'];
+        }
+    } catch (Throwable $e) {
+        /* table may not exist yet */
+    }
+    return $defaults;
+}
+
+function ads_set_setting(PDO $pdo, string $key, string $value): void
+{
+    $pdo->prepare(
+        'INSERT INTO ad_settings (setting_key, setting_value) VALUES (?,?)
+         ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)'
+    )->execute([$key, $value]);
 }
 
 function ads_public_base(): string

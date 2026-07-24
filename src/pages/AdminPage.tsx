@@ -441,7 +441,7 @@ export function AdminPage() {
     setBootError('')
     showToast(
       'success',
-      `Signed in as ${res.staff.username} (${res.staff.role}) · idle timeout 5 min`,
+      `Signed in as ${res.staff.username} (${res.staff.role}) · idle timeout 30 min`,
     )
     await refreshStatus(local.sessionToken)
     await loadNews(local.sessionToken, { keepSelection: false })

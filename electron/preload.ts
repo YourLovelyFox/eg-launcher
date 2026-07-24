@@ -128,6 +128,34 @@ const api = {
         ipcRenderer.removeListener('instances:backupProgress', listener)
       }
     },
+    listExportContents: (
+      instanceId: string,
+    ): Promise<import('../shared/types').EgpackExportEntry[]> =>
+      ipcRenderer.invoke('instances:listExportContents', instanceId),
+    /** Export instance as .egpack only (options → save dialog). */
+    exportEgpack: (
+      instanceId: string,
+      options?: import('../shared/types').EgpackExportOptions,
+    ): Promise<
+      | { ok: true; path: string; size: number }
+      | { ok: false; cancelled: true }
+    > => ipcRenderer.invoke('instances:exportEgpack', instanceId, options),
+    /** Import .egpack or .mrpack (open dialog if no path). */
+    importPack: (opts?: {
+      filePath?: string
+      name?: string
+      installRuntime?: boolean
+    }): Promise<
+      | { ok: true; instance: GameInstance; format: 'egpack' | 'mrpack' }
+      | { ok: false; cancelled: true }
+    > => ipcRenderer.invoke('instances:importPack', opts || {}),
+    onPackProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
+      const listener = (_: unknown, event: ProgressEvent) => cb(event)
+      ipcRenderer.on('instances:packProgress', listener)
+      return () => {
+        ipcRenderer.removeListener('instances:packProgress', listener)
+      }
+    },
   },
   mc: {
     listVersions: (): Promise<{
@@ -199,6 +227,8 @@ const api = {
   },
   shell: {
     openExternal: (url: string): Promise<void> => ipcRenderer.invoke('shell:openExternal', url),
+    /** Any HTTPS (ads / payment) — user-initiated only. */
+    openHttps: (url: string): Promise<void> => ipcRenderer.invoke('shell:openHttps', url),
     openInstanceFolder: (instanceId: string): Promise<void> =>
       ipcRenderer.invoke('shell:openInstanceFolder', instanceId),
     openInstancePath: (
@@ -535,6 +565,24 @@ const api = {
       sessionToken: string,
       input: { deviceId: string; days?: number; claimId?: string; note?: string },
     ) => ipcRenderer.invoke('ads:grant', sessionToken, input),
+    adsListCreatives: (sessionToken: string) =>
+      ipcRenderer.invoke('ads:listCreatives', sessionToken),
+    adsSaveCreative: (sessionToken: string, creative: Record<string, unknown>) =>
+      ipcRenderer.invoke('ads:saveCreative', sessionToken, creative),
+    adsDeleteCreative: (sessionToken: string, id: string) =>
+      ipcRenderer.invoke('ads:deleteCreative', sessionToken, id),
+    adsGetNetwork: (sessionToken: string) =>
+      ipcRenderer.invoke('ads:getNetworkAdmin', sessionToken),
+    adsSaveNetwork: (
+      sessionToken: string,
+      input: {
+        enabled?: boolean
+        provider?: string
+        adsenseClient?: string
+        adsenseSlot?: string
+        customHtml?: string
+      },
+    ) => ipcRenderer.invoke('ads:saveNetwork', sessionToken, input),
   },
   featuredPacks: {
     listPublic: () => ipcRenderer.invoke('featured:listPublic'),
@@ -547,6 +595,10 @@ const api = {
     claim: (input?: { email?: string; message?: string }) =>
       ipcRenderer.invoke('ads:claim', input || {}),
     paypalCheckout: () => ipcRenderer.invoke('ads:paypalCheckout'),
+    inventory: (limit?: number) => ipcRenderer.invoke('ads:inventory', limit),
+    network: () => ipcRenderer.invoke('ads:network'),
+    track: (creativeId: string, event: 'impression' | 'click') =>
+      ipcRenderer.invoke('ads:track', creativeId, event),
   },
 }
 

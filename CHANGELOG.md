@@ -6,6 +6,35 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.5.0] — 2026-07-24
+
+### Added
+- **`.egpack` export/import**: export instances as EG pack files (Modrinth-compatible structure); import **`.egpack`** and **`.mrpack`**.
+- **Export options UI** (Modrinth App–style list): pack name, summary, per-file/folder selection with sizes, Recommended / All / None.
+- **Google AdSense** live unit in the launcher (hosted `ad-unit.php` iframe).
+- Staff **AdSense settings** (client + slot) and PayPal remove-ads.
+- Site verification helpers (`index.php` AdSense snippet + `ads.txt` on CMS host).
+- Staff sessions store **login time, last seen, and IP** in MariaDB; idle TTL slides from `last_seen_at`.
+
+### Changed
+- **Ads: AdSense only** — house ads and EG creative carousel removed from the launcher.
+- Staff idle session **30 minutes** (was 5); local session rehydrates after main-process restart.
+- PayPal checkout allowed via external open (`paypal.com`) + local checkout URL fallback.
+- Modern rounded scrollbar styling app-wide.
+- Windows GPU: hardware acceleration by default (avoids deprecated software WebGL warning); `EG_DISABLE_GPU=1` for software + SwiftShader.
+- Launcher CSP allows framing CMS ad units (`frame-src https:`).
+
+### Fixed
+- “Unknown action” when saving AdSense (CMS `ads.php` deploy with `network` / `save_network`).
+- Ad unit `ERR_BLOCKED_BY_CSP` / iframe blocked (`X-Frame-Options: DENY` from bootstrap; parent CSP).
+- Session expired errors when Staff UI token and main-process memory session diverged.
+
+### Downloads
+- Windows: `EG-Launcher-2.5.0-win-x64-setup.exe` and `EG-Launcher-2.5.0-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.0-linux-x86_64.AppImage`
+
+---
+
 ## [2.4.0] — 2026-07-24
 
 ### Added

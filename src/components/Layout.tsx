@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { AdsBanner } from './AdsBanner'
 import { APP_NAME, APP_TAGLINE, FEATURED_PACK, PARTNER_LIST } from '../../shared/branding'
 import type { PartnerDefinition } from '../../shared/branding'
 import appIcon from '../assets/app-icon.png'
@@ -186,12 +187,38 @@ export function Layout() {
   async function onDropFiles(files: FileList | File[]) {
     const list = Array.from(files)
     const jars = list.filter((f) => f.name.toLowerCase().endsWith('.jar'))
-    const mrpacks = list.filter((f) => f.name.toLowerCase().endsWith('.mrpack'))
-    if (mrpacks.length) {
-      showToast('info', 'Drop .mrpack on Bee’s SMP or create an instance pack install — JAR mods only for now')
+    const packs = list.filter((f) => {
+      const n = f.name.toLowerCase()
+      return n.endsWith('.egpack') || n.endsWith('.mrpack')
+    })
+    if (packs.length) {
+      const pack = packs[0] as File & { path?: string }
+      const filePath = pack.path
+      if (!filePath) {
+        showToast('error', 'Could not read pack path (use Electron drop)')
+      } else {
+        showToast('info', `Importing ${pack.name}…`)
+        try {
+          const off = window.hive.instances.onPackProgress(() => {})
+          const res = await window.hive.instances.importPack({ filePath })
+          off()
+          if (res.ok) {
+            setSelectedInstanceId(res.instance.id)
+            await refreshAll()
+            showToast(
+              'success',
+              `Imported “${res.instance.name}” (.${res.format === 'egpack' ? 'egpack' : 'mrpack'})`,
+            )
+            navigate(`/instances/${encodeURIComponent(res.instance.id)}`)
+          }
+        } catch (err) {
+          showToast('error', (err as Error).message)
+        }
+      }
+      if (!jars.length) return
     }
     if (!jars.length) {
-      if (!mrpacks.length) showToast('error', 'Drop a .jar mod file onto the launcher')
+      showToast('error', 'Drop a .jar mod, .egpack, or .mrpack onto the launcher')
       return
     }
     const instanceId =
@@ -539,7 +566,10 @@ export function Layout() {
           </div>
         )}
         <div className="main-scroll">
-          <Outlet />
+          <div className="main-scroll-inner">
+            <AdsBanner />
+            <Outlet />
+          </div>
         </div>
       </main>
 

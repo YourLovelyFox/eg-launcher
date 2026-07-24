@@ -235,6 +235,177 @@ function rate_limit_or_fail(string $action, int $maxAttempts = 12, int $windowSe
     }
 }
 
+/** Idle TTL (seconds): no activity for this long → session invalid. */
+function staff_idle_ttl_seconds(): int
+{
+    global $CONFIG;
+    $v = (int) ($CONFIG['staff_idle_ttl'] ?? 30 * 60);
+    return $v > 60 ? $v : 30 * 60;
+}
+
+/** Absolute max session lifetime from login_at (seconds). */
+function staff_max_session_seconds(): int
+{
+    global $CONFIG;
+    $v = (int) ($CONFIG['staff_max_session_ttl'] ?? 8 * 60 * 60);
+    return $v > 300 ? $v : 8 * 60 * 60;
+}
+
+/**
+ * Ensure staff_sessions has login_at, last_seen_at, ip for TTL + audit.
+ */
+function ensure_staff_sessions_columns(PDO $pdo): void
+{
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS staff_sessions (
+          token CHAR(64) NOT NULL PRIMARY KEY,
+          staff_id VARCHAR(64) NOT NULL,
+          expires_at DATETIME NOT NULL,
+          login_at DATETIME(3) NULL,
+          last_seen_at DATETIME(3) NULL,
+          ip VARCHAR(64) NULL,
+          KEY idx_staff_sess (staff_id),
+          KEY idx_staff_sess_exp (expires_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+    foreach ([
+        'ALTER TABLE staff_sessions ADD COLUMN login_at DATETIME(3) NULL',
+        'ALTER TABLE staff_sessions ADD COLUMN last_seen_at DATETIME(3) NULL',
+        'ALTER TABLE staff_sessions ADD COLUMN ip VARCHAR(64) NULL',
+    ] as $sql) {
+        try {
+            $pdo->exec($sql);
+        } catch (Throwable $e) {
+            // column exists
+        }
+    }
+}
+
+/**
+ * Create a staff session row with login time + IP. TTL stored as expires_at.
+ *
+ * @return array{token:string,expiresIn:int,expiresAt:string,loginAt:string,ip:string}
+ */
+function staff_session_create(PDO $pdo, string $staffId): array
+{
+    ensure_staff_sessions_columns($pdo);
+    $token = bin2hex(random_bytes(32));
+    $idle = staff_idle_ttl_seconds();
+    $now = time();
+    $loginAt = date('Y-m-d H:i:s', $now);
+    $expiresAt = date('Y-m-d H:i:s', $now + $idle);
+    $ip = client_ip();
+    try {
+        $pdo->prepare(
+            'INSERT INTO staff_sessions (token, staff_id, expires_at, login_at, last_seen_at, ip)
+             VALUES (?,?,?,?,?,?)'
+        )->execute([$token, $staffId, $expiresAt, $loginAt, $loginAt, $ip]);
+    } catch (Throwable $e) {
+        $pdo->prepare(
+            'INSERT INTO staff_sessions (token, staff_id, expires_at) VALUES (?,?,?)'
+        )->execute([$token, $staffId, $expiresAt]);
+    }
+    return [
+        'token' => $token,
+        'expiresIn' => $idle,
+        'expiresAt' => gmdate('c', $now + $idle),
+        'loginAt' => gmdate('c', $now),
+        'ip' => $ip,
+    ];
+}
+
+/**
+ * Validate X-EG-Session from DB (login_at / last_seen_at / expires_at / ip),
+ * slide idle TTL, return staff row or null.
+ *
+ * @return array{id:string,username:string,role:string,offline_quota:int,enabled:int,login_at:?string,last_seen_at:?string,ip:?string,expires_at:string}|null
+ */
+function staff_session_validate_and_touch(?string $token = null): ?array
+{
+    $tok = $token !== null && $token !== '' ? $token : header_session();
+    if ($tok === '' || !preg_match('/^[a-f0-9]{64}$/i', $tok)) {
+        return null;
+    }
+    try {
+        $pdo = db();
+        ensure_staff_sessions_columns($pdo);
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS staff_users (
+              id VARCHAR(64) NOT NULL PRIMARY KEY,
+              username VARCHAR(64) NOT NULL,
+              password_hash VARCHAR(255) NOT NULL,
+              role ENUM('admin','staff') NOT NULL DEFAULT 'staff',
+              offline_quota INT NOT NULL DEFAULT 3,
+              enabled TINYINT(1) NOT NULL DEFAULT 1,
+              created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+              UNIQUE KEY uq_staff_user (username)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $stmt = $pdo->prepare(
+            'SELECT u.id, u.username, u.role, u.offline_quota, u.enabled,
+                    s.expires_at, s.login_at, s.last_seen_at, s.ip
+             FROM staff_sessions s
+             JOIN staff_users u ON u.id = s.staff_id
+             WHERE s.token = ? LIMIT 1'
+        );
+        $stmt->execute([$tok]);
+        $row = $stmt->fetch();
+        if (!$row || !(int) $row['enabled']) {
+            return null;
+        }
+
+        $now = time();
+        $expiresTs = strtotime((string) $row['expires_at']);
+        $loginTs = !empty($row['login_at']) ? strtotime((string) $row['login_at']) : null;
+        $lastSeenTs = !empty($row['last_seen_at']) ? strtotime((string) $row['last_seen_at']) : null;
+        $idle = staff_idle_ttl_seconds();
+
+        // Hard max from login_at
+        if ($loginTs && ($now - $loginTs) > staff_max_session_seconds()) {
+            $pdo->prepare('DELETE FROM staff_sessions WHERE token = ?')->execute([$tok]);
+            return null;
+        }
+        // Idle from last_seen_at
+        if ($lastSeenTs && ($now - $lastSeenTs) > $idle) {
+            $pdo->prepare('DELETE FROM staff_sessions WHERE token = ?')->execute([$tok]);
+            return null;
+        }
+        if ($expiresTs !== false && $expiresTs < $now) {
+            $pdo->prepare('DELETE FROM staff_sessions WHERE token = ?')->execute([$tok]);
+            return null;
+        }
+
+        $newExp = date('Y-m-d H:i:s', $now + $idle);
+        $seen = date('Y-m-d H:i:s', $now);
+        try {
+            $pdo->prepare(
+                'UPDATE staff_sessions SET expires_at = ?, last_seen_at = ? WHERE token = ?'
+            )->execute([$newExp, $seen, $tok]);
+        } catch (Throwable $e) {
+            try {
+                $pdo->prepare('UPDATE staff_sessions SET expires_at = ? WHERE token = ?')
+                    ->execute([$newExp, $tok]);
+            } catch (Throwable $e2) {
+            }
+        }
+
+        return [
+            'id' => (string) $row['id'],
+            'username' => (string) $row['username'],
+            'role' => (string) $row['role'],
+            'offline_quota' => (int) $row['offline_quota'],
+            'enabled' => (int) $row['enabled'],
+            'login_at' => $row['login_at'] ? (string) $row['login_at'] : null,
+            'last_seen_at' => $seen,
+            'ip' => $row['ip'] ? (string) $row['ip'] : null,
+            'expires_at' => $newExp,
+        ];
+    } catch (Throwable $e) {
+        error_log('[eg-cms] staff_session_validate_and_touch: ' . $e->getMessage());
+        return null;
+    }
+}
+
 /**
  * Admin write access: CMS staff session with role=admin.
  * (Optional server-side admin_api_key still accepted for deploy scripts only —
@@ -262,7 +433,7 @@ function require_admin(): void
 
     rate_limit_or_fail('admin_auth', 20, 600);
     usleep(200000);
-    json_fail('Admin login required (Settings → Staff). Sessions expire after 5 minutes.', 401);
+    json_fail('Admin login required (Settings → Staff). Sessions expire after 30 minutes idle.', 401);
 }
 
 /**
@@ -279,70 +450,23 @@ function require_staff_member(): array
     }
     rate_limit_or_fail('staff_auth', 20, 600);
     usleep(200000);
-    json_fail('Staff login required (Settings → Staff). Sessions expire after 5 minutes.', 401);
+    json_fail('Staff login required (Settings → Staff). Sessions expire after 30 minutes idle.', 401);
 }
 
 /** @return array{id:string,username:string,role:string,offline_quota:int,enabled:int}|null */
 function try_staff_session_row(): ?array
 {
-    $tok = header_session();
-    if ($tok === '') {
+    $row = staff_session_validate_and_touch();
+    if ($row === null) {
         return null;
     }
-    try {
-        $pdo = db();
-        $pdo->exec(
-            "CREATE TABLE IF NOT EXISTS staff_users (
-              id VARCHAR(64) NOT NULL PRIMARY KEY,
-              username VARCHAR(64) NOT NULL,
-              password_hash VARCHAR(255) NOT NULL,
-              role ENUM('admin','staff') NOT NULL DEFAULT 'staff',
-              offline_quota INT NOT NULL DEFAULT 3,
-              enabled TINYINT(1) NOT NULL DEFAULT 1,
-              created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-              UNIQUE KEY uq_staff_user (username)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
-        );
-        $pdo->exec(
-            "CREATE TABLE IF NOT EXISTS staff_sessions (
-              token CHAR(64) NOT NULL PRIMARY KEY,
-              staff_id VARCHAR(64) NOT NULL,
-              expires_at DATETIME NOT NULL,
-              KEY idx_staff_sess (staff_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
-        );
-        $stmt = $pdo->prepare(
-            'SELECT u.id, u.username, u.role, u.offline_quota, u.enabled, s.expires_at
-             FROM staff_sessions s JOIN staff_users u ON u.id = s.staff_id
-             WHERE s.token = ? LIMIT 1'
-        );
-        $stmt->execute([$tok]);
-        $row = $stmt->fetch();
-        if (!$row || !(int) $row['enabled']) {
-            return null;
-        }
-        if (strtotime((string) $row['expires_at']) < time()) {
-            $pdo->prepare('DELETE FROM staff_sessions WHERE token = ?')->execute([$tok]);
-            return null;
-        }
-        // Sliding idle timeout: any validated request resets the 5‑minute clock
-        $newExp = date('Y-m-d H:i:s', time() + 5 * 60);
-        try {
-            $pdo->prepare('UPDATE staff_sessions SET expires_at = ? WHERE token = ?')
-                ->execute([$newExp, $tok]);
-        } catch (Throwable $e) {
-            // ignore
-        }
-        return [
-            'id' => (string) $row['id'],
-            'username' => (string) $row['username'],
-            'role' => (string) $row['role'],
-            'offline_quota' => (int) $row['offline_quota'],
-            'enabled' => (int) $row['enabled'],
-        ];
-    } catch (Throwable $e) {
-        return null;
-    }
+    return [
+        'id' => $row['id'],
+        'username' => $row['username'],
+        'role' => $row['role'],
+        'offline_quota' => $row['offline_quota'],
+        'enabled' => $row['enabled'],
+    ];
 }
 
 /** Partner CMS session (partner_auth login). */

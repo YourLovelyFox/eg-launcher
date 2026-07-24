@@ -66,19 +66,15 @@ try {
                     ->execute([$nh, $row['id']]);
             }
         }
-        $token = bin2hex(random_bytes(32));
-        // 5 minute hard timeout after login
-        $ttl = 5 * 60;
-        $exp = time() + $ttl;
-        $pdo->prepare(
-            'INSERT INTO staff_sessions (token, staff_id, expires_at) VALUES (?,?,?)'
-        )->execute([$token, $row['id'], date('Y-m-d H:i:s', $exp)]);
+        $sess = staff_session_create($pdo, (string) $row['id']);
         $offlineUsed = staff_offline_used($pdo, (string) $row['id']);
         json_out([
             'ok' => true,
-            'sessionToken' => $token,
-            'expiresIn' => $ttl,
-            'expiresAt' => gmdate('c', $exp),
+            'sessionToken' => $sess['token'],
+            'expiresIn' => $sess['expiresIn'],
+            'expiresAt' => $sess['expiresAt'],
+            'loginAt' => $sess['loginAt'],
+            'ip' => $sess['ip'],
             'staff' => [
                 'id' => $row['id'],
                 'username' => $row['username'],
@@ -90,17 +86,24 @@ try {
     }
 
     if ($action === 'me' && $method === 'GET') {
-        $staff = require_staff_session($pdo);
-        // Sliding idle timeout is applied inside try_staff_session / require path
-        $offlineUsed = staff_offline_used($pdo, $staff['id']);
+        $full = staff_session_validate_and_touch();
+        if ($full === null) {
+            json_fail('Session expired', 401);
+        }
+        $offlineUsed = staff_offline_used($pdo, $full['id']);
+        $expTs = strtotime((string) $full['expires_at']);
         json_out([
             'ok' => true,
-            'expiresIn' => 5 * 60,
+            'expiresIn' => max(0, $expTs - time()),
+            'expiresAt' => gmdate('c', $expTs),
+            'loginAt' => $full['login_at'] ? gmdate('c', strtotime($full['login_at'])) : null,
+            'lastSeenAt' => $full['last_seen_at'] ? gmdate('c', strtotime($full['last_seen_at'])) : null,
+            'ip' => $full['ip'],
             'staff' => [
-                'id' => $staff['id'],
-                'username' => $staff['username'],
-                'role' => $staff['role'],
-                'offlineQuota' => (int) $staff['offline_quota'],
+                'id' => $full['id'],
+                'username' => $full['username'],
+                'role' => $full['role'],
+                'offlineQuota' => (int) $full['offline_quota'],
                 'offlineUsed' => $offlineUsed,
             ],
         ]);
@@ -232,14 +235,7 @@ function ensure_staff_schema(PDO $pdo): void
           UNIQUE KEY uq_staff_user (username)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
-    $pdo->exec(
-        "CREATE TABLE IF NOT EXISTS staff_sessions (
-          token CHAR(64) NOT NULL PRIMARY KEY,
-          staff_id VARCHAR(64) NOT NULL,
-          expires_at DATETIME NOT NULL,
-          KEY idx_staff_sess (staff_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
-    );
+    ensure_staff_sessions_columns($pdo);
     try {
         $pdo->exec('ALTER TABLE offline_users ADD COLUMN created_by_staff VARCHAR(64) NULL');
     } catch (Throwable $e) {
@@ -261,30 +257,9 @@ function staff_offline_used(PDO $pdo, string $staffId): int
 /** @return array{id:string,username:string,role:string,offline_quota:int}|null */
 function try_staff_session(PDO $pdo): ?array
 {
-    $tok = header_session();
-    if ($tok === '') {
+    $row = staff_session_validate_and_touch();
+    if ($row === null) {
         return null;
-    }
-    $stmt = $pdo->prepare(
-        'SELECT s.token, s.expires_at, u.id, u.username, u.role, u.offline_quota, u.enabled
-         FROM staff_sessions s
-         JOIN staff_users u ON u.id = s.staff_id
-         WHERE s.token = ? LIMIT 1'
-    );
-    $stmt->execute([$tok]);
-    $row = $stmt->fetch();
-    if (!$row || !(int) $row['enabled']) {
-        return null;
-    }
-    if (strtotime((string) $row['expires_at']) < time()) {
-        $pdo->prepare('DELETE FROM staff_sessions WHERE token = ?')->execute([$tok]);
-        return null;
-    }
-    // Sliding idle timeout
-    try {
-        $pdo->prepare('UPDATE staff_sessions SET expires_at = ? WHERE token = ?')
-            ->execute([date('Y-m-d H:i:s', time() + 5 * 60), $tok]);
-    } catch (Throwable $e) {
     }
     return [
         'id' => $row['id'],
@@ -299,7 +274,7 @@ function require_staff_session(PDO $pdo): array
 {
     $s = try_staff_session($pdo);
     if ($s === null) {
-        json_fail('Staff session required', 401);
+        json_fail('Session expired', 401);
     }
     return $s;
 }
