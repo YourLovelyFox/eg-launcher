@@ -43,6 +43,7 @@ export function AdminOfflinePanel({ session }: { session: string }) {
   async function createUser() {
     setBusy(true)
     try {
+      // Staff may create offline accounts live (quota 3); news/partners still need verification.
       const res = await window.hive.admin.createOfflineUser(session, newUser, newPass)
       if (!res.ok) {
         showToast('error', res.error)
@@ -52,6 +53,19 @@ export function AdminOfflinePanel({ session }: { session: string }) {
       setNewUser('')
       setNewPass('')
       await refresh()
+      try {
+        const me = await window.hive.admin.staffMe()
+        if (me?.staff) {
+          // nudge UI consumers via toast if near quota
+          const used = me.staff.offlineUsed ?? 0
+          const quota = me.staff.offlineQuota ?? 3
+          if (me.staff.role === 'staff' && used + 1 >= quota) {
+            showToast('success', res.message + ` · offline quota ${Math.min(used + 1, quota)}/${quota}`)
+          }
+        }
+      } catch {
+        /* ignore */
+      }
     } catch (err) {
       showToast('error', (err as Error).message)
     } finally {
@@ -82,8 +96,9 @@ export function AdminOfflinePanel({ session }: { session: string }) {
       <div className="panel" style={{ marginBottom: 16 }}>
         <h2>Create offline user</h2>
         <p className="hint">
-          Username + password for offline (non-premium) play. Only Admins can create accounts —
-          users log in under <strong>Account → Offline login</strong>. No Settings unlock password.
+          Username + password for offline (non-premium) play. Users log in under{' '}
+          <strong>Account → Offline login</strong>. Staff accounts can create up to{' '}
+          <strong>3 offline users</strong> each (live, no approval). Admins have no limit.
         </p>
         <p className="muted" style={{ marginBottom: 12 }}>
           CMS: {remoteSynced ? 'connected' : 'unreachable'}

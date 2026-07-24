@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { NewsFeedResult, NewsItem } from '../../shared/types'
+import type { NewsFeedResult, NewsItem, PartnerEvent } from '../../shared/types'
+import { markPartnerNewsSeen, partnerNewsFingerprint } from '../qolPrefs'
 import { useAppStore } from '../store'
 
 const POLL_MS = 8_000
@@ -43,12 +44,14 @@ type Props = {
   /** Partner news tag, e.g. HorizonsSMP */
   newsTag: string
   partnerTitle: string
+  /** CMS partner id for unread badge clearing */
+  partnerId?: string
 }
 
 /**
  * Public partner news list + partner login editor (same feed mechanic as Home News).
  */
-export function PartnerNews({ newsTag, partnerTitle }: Props) {
+export function PartnerNews({ newsTag, partnerTitle, partnerId }: Props) {
   const { showToast } = useAppStore()
   const [feed, setFeed] = useState<NewsFeedResult | null>(null)
   const [loading, setLoading] = useState(true)
@@ -66,6 +69,13 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
   const [draft, setDraft] = useState<NewsItem | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [publishing, setPublishing] = useState(false)
+  // Partner events (managed by this partner login only)
+  const [events, setEvents] = useState<PartnerEvent[]>([])
+  const [eventTitle, setEventTitle] = useState('')
+  const [eventStarts, setEventStarts] = useState('')
+  const [eventDesc, setEventDesc] = useState('')
+  const [eventLoc, setEventLoc] = useState('')
+  const [eventBusy, setEventBusy] = useState(false)
   /** Last server editor snapshot — used so other logins' deletes refresh this editor */
   const editorFpRef = useRef('')
   const sessionRef = useRef(session)
@@ -85,8 +95,11 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
         fingerprintRef.current = fp
         setFeed(tagged)
       }
+      if (partnerId) {
+        markPartnerNewsSeen(partnerId, partnerNewsFingerprint(tagged.items || []))
+      }
     },
-    [newsTag],
+    [newsTag, partnerId],
   )
 
   /**
@@ -244,6 +257,71 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
     setEditorOpen(false)
     setItems([])
     setDraft(null)
+    setEvents([])
+  }
+
+  const loadEvents = useCallback(async () => {
+    if (!partnerId) return
+    try {
+      const list = await window.hive.partners.listEvents(partnerId)
+      setEvents(Array.isArray(list) ? list : [])
+    } catch {
+      setEvents([])
+    }
+  }, [partnerId])
+
+  useEffect(() => {
+    if (session && partnerId) void loadEvents()
+  }, [session, partnerId, loadEvents])
+
+  async function savePartnerEvent() {
+    if (!session) return
+    if (!eventTitle.trim() || !eventStarts) {
+      showToast('error', 'Event title and start time required')
+      return
+    }
+    setEventBusy(true)
+    try {
+      const res = await window.hive.partnerAuth.upsertEvent(session, {
+        title: eventTitle.trim(),
+        description: eventDesc.trim(),
+        startsAt: new Date(eventStarts).toISOString(),
+        location: eventLoc.trim() || null,
+      })
+      if (!res.ok) {
+        showToast('error', res.error)
+        return
+      }
+      showToast('success', res.message || 'Event saved')
+      setEventTitle('')
+      setEventStarts('')
+      setEventDesc('')
+      setEventLoc('')
+      await loadEvents()
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setEventBusy(false)
+    }
+  }
+
+  async function deletePartnerEvent(id: string) {
+    if (!session) return
+    if (!window.confirm('Delete this event?')) return
+    setEventBusy(true)
+    try {
+      const res = await window.hive.partnerAuth.deleteEvent(session, id)
+      if (!res.ok) {
+        showToast('error', res.error)
+        return
+      }
+      showToast('success', 'Event deleted')
+      await loadEvents()
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setEventBusy(false)
+    }
   }
 
   function selectPost(id: string) {
@@ -480,6 +558,75 @@ export function PartnerNews({ newsTag, partnerTitle }: Props) {
             {loginBusy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+      )}
+
+      {/* Partner events (per-partner login) */}
+      {session && partnerId && (
+        <div className="panel" style={{ marginTop: 16, marginBottom: 8 }}>
+          <h3 style={{ fontSize: 15, marginTop: 0 }}>Your events</h3>
+          <p className="hint">
+            Events for this partner only. Managed under your partner login — not Staff Menu.
+          </p>
+          <div className="form-grid">
+            <div className="form-row">
+              <label>Title</label>
+              <input className="input" value={eventTitle} onChange={(e) => setEventTitle(e.target.value)} />
+            </div>
+            <div className="form-row">
+              <label>Starts</label>
+              <input
+                className="input"
+                type="datetime-local"
+                value={eventStarts}
+                onChange={(e) => setEventStarts(e.target.value)}
+              />
+            </div>
+            <div className="form-row">
+              <label>Location (optional)</label>
+              <input className="input" value={eventLoc} onChange={(e) => setEventLoc(e.target.value)} />
+            </div>
+            <div className="form-row">
+              <label>Description</label>
+              <textarea
+                className="input admin-textarea"
+                rows={2}
+                value={eventDesc}
+                onChange={(e) => setEventDesc(e.target.value)}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ marginTop: 10 }}
+            disabled={eventBusy || !eventTitle.trim() || !eventStarts}
+            onClick={() => void savePartnerEvent()}
+          >
+            {eventBusy ? '…' : 'Add event'}
+          </button>
+          <div className="list" style={{ marginTop: 12 }}>
+            {events.length === 0 && <p className="hint">No events yet.</p>}
+            {events.map((ev) => (
+              <div key={ev.id} className="list-item">
+                <div className="grow">
+                  <div className="title">{ev.title}</div>
+                  <div className="sub">
+                    {new Date(ev.startsAt).toLocaleString()}
+                    {ev.location ? ` · ${ev.location}` : ''}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={eventBusy}
+                  onClick={() => void deletePartnerEvent(ev.id)}
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Partner editor */}

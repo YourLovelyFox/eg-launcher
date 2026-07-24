@@ -3,8 +3,14 @@ import type { NewsItem } from '../../shared/types'
 import { useAppStore } from '../store'
 import { AdminOfflinePanel } from './AdminOfflinePanel'
 import { AdminPartnersPanel } from './AdminPartnersPanel'
+import { AdminHealthPanel } from './AdminHealthPanel'
+import { AdminFeaturedPanel } from './AdminFeaturedPanel'
+import { AdminApprovalsPanel } from './AdminApprovalsPanel'
+import { AdminStaffUsersPanel } from './AdminStaffUsersPanel'
+import { AdminAdsPanel } from './AdminAdsPanel'
 
 const SESSION_KEY = 'eg-admin-session'
+const SESSION_EXPIRES_KEY = 'eg-admin-session-expires'
 
 function emptyItem(id: string): NewsItem {
   return {
@@ -38,8 +44,6 @@ export function AdminPage() {
   const [bootError, setBootError] = useState('')
   const [booting, setBooting] = useState(!sessionStorage.getItem(SESSION_KEY))
 
-  const [hasCmsApiKey, setHasCmsApiKey] = useState(false)
-  const [cmsApiKeyInput, setCmsApiKeyInput] = useState('')
   const [repo, setRepo] = useState('')
   const [feedPath, setFeedPath] = useState('CMS')
 
@@ -49,21 +53,72 @@ export function AdminPage() {
   const [publishing, setPublishing] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [draft, setDraft] = useState<NewsItem | null>(null)
-  const [tab, setTab] = useState<'news' | 'partners' | 'offline'>('news')
+  const [tab, setTab] = useState<
+    'news' | 'partners' | 'offline' | 'health' | 'featured' | 'approvals' | 'staff' | 'ads'
+  >('news')
   const titleInputRef = useRef<HTMLInputElement>(null)
   const editingRef = useRef(false)
+  const [staffUser, setStaffUser] = useState('')
+  const [staffPass, setStaffPass] = useState('')
+  const [staffInfo, setStaffInfo] = useState<{
+    username: string
+    role: string
+    offlineQuota: number
+    offlineUsed: number
+  } | null>(null)
+  const [mustQueue, setMustQueue] = useState(false)
+  const [sessionEndsAt, setSessionEndsAt] = useState<number | null>(() => {
+    const raw = sessionStorage.getItem(SESSION_EXPIRES_KEY)
+    const n = raw ? Number(raw) : NaN
+    return Number.isFinite(n) ? n : null
+  })
+  const [remainLabel, setRemainLabel] = useState('')
+
+  const forceLogout = useCallback(
+    async (reason?: string) => {
+      const tok = sessionStorage.getItem(SESSION_KEY) || session
+      if (tok) {
+        try {
+          await window.hive.admin.logout(tok)
+        } catch {
+          /* ignore */
+        }
+      }
+      try {
+        await window.hive.admin.staffLogout()
+      } catch {
+        /* ignore */
+      }
+      sessionStorage.removeItem(SESSION_KEY)
+      sessionStorage.removeItem(SESSION_EXPIRES_KEY)
+      setSession('')
+      setStaffInfo(null)
+      setMustQueue(false)
+      setSessionEndsAt(null)
+      setItems([])
+      setDraft(null)
+      if (reason) showToast('error', reason)
+    },
+    [session, showToast],
+  )
 
   const refreshStatus = useCallback(async (token: string) => {
     if (!token) return
     const st = await window.hive.admin.status(token)
     if (!st.authenticated) {
       sessionStorage.removeItem(SESSION_KEY)
+      sessionStorage.removeItem(SESSION_EXPIRES_KEY)
       setSession('')
+      setStaffInfo(null)
+      setSessionEndsAt(null)
       return
     }
-    setHasCmsApiKey(Boolean(st.hasCmsApiKey))
     setRepo(st.repo)
     setFeedPath(st.feedPath)
+    if (st.expiresAt && typeof st.expiresAt === 'number') {
+      setSessionEndsAt(st.expiresAt)
+      sessionStorage.setItem(SESSION_EXPIRES_KEY, String(st.expiresAt))
+    }
   }, [])
 
   const loadNews = useCallback(
@@ -100,38 +155,54 @@ export function AdminPage() {
     [showToast],
   )
 
-  // Auto-unlock on open (Dev only — Live build has no Admin route)
+  // CMS staff account required (no local unlock files)
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      if (!window.hive.admin.isEnabled()) {
-        setBootError(
-          'Admin is locked on this PC. Create admin.local.json with "enableAdmin": true, or Desktop\\New folder\\eg-launcher-admin-unlock',
-        )
-        setBooting(false)
-        return
+      setBootError('')
+      // Absolute 5‑minute timeout stored at login
+      const expRaw = sessionStorage.getItem(SESSION_EXPIRES_KEY)
+      const exp = expRaw ? Number(expRaw) : 0
+      if (exp && Date.now() >= exp) {
+        sessionStorage.removeItem(SESSION_KEY)
+        sessionStorage.removeItem(SESSION_EXPIRES_KEY)
       }
       let token = sessionStorage.getItem(SESSION_KEY) || ''
       if (token) {
         const st = await window.hive.admin.status(token)
-        if (!st.authenticated) token = ''
-      }
-      if (!token) {
-        const res = await window.hive.admin.login('')
-        if (!res.ok) {
-          if (!cancelled) {
-            setBootError(res.error)
-            setBooting(false)
-          }
-          return
+        if (!st.authenticated) {
+          token = ''
+          sessionStorage.removeItem(SESSION_KEY)
+          sessionStorage.removeItem(SESSION_EXPIRES_KEY)
         }
-        token = res.sessionToken
-        sessionStorage.setItem(SESSION_KEY, token)
       }
       if (cancelled) return
+      if (!token) {
+        setSession('')
+        setBooting(false)
+        setStaffInfo(null)
+        setMustQueue(false)
+        setSessionEndsAt(null)
+        return
+      }
       setSession(token)
       setBooting(false)
       await refreshStatus(token)
+      try {
+        const me = await window.hive.admin.staffMe()
+        if (!me?.staff) {
+          sessionStorage.removeItem(SESSION_KEY)
+          sessionStorage.removeItem(SESSION_EXPIRES_KEY)
+          setSession('')
+          setStaffInfo(null)
+          return
+        }
+        setStaffInfo(me.staff)
+        setMustQueue(Boolean(me.mustQueue))
+      } catch {
+        setStaffInfo(null)
+        setMustQueue(false)
+      }
       await loadNews(token, { keepSelection: false })
     })().catch((err) => {
       if (!cancelled) {
@@ -143,6 +214,64 @@ export function AdminPage() {
       cancelled = true
     }
   }, [refreshStatus, loadNews])
+
+  // Idle countdown + auto sign-out after 5 minutes without activity
+  useEffect(() => {
+    if (!session || !sessionEndsAt) {
+      setRemainLabel('')
+      return
+    }
+    const tick = () => {
+      const left = sessionEndsAt - Date.now()
+      if (left <= 0) {
+        setRemainLabel('0:00')
+        void forceLogout('Signed out after 5 minutes idle. Please sign in again.')
+        return
+      }
+      const m = Math.floor(left / 60000)
+      const s = Math.floor((left % 60000) / 1000)
+      setRemainLabel(`${m}:${String(s).padStart(2, '0')}`)
+    }
+    tick()
+    const id = window.setInterval(tick, 1000)
+    return () => window.clearInterval(id)
+  }, [session, sessionEndsAt, forceLogout])
+
+  // Clicks, typing, scrolling, tab switches → reset idle timer to 5 minutes
+  useEffect(() => {
+    if (!session) return
+    let lastLocal = 0
+    const onActivity = () => {
+      const now = Date.now()
+      if (now - lastLocal < 1000) return
+      lastLocal = now
+      void window.hive.admin.touchSession(session).then((res) => {
+        if (!res.ok) {
+          if (res.error?.toLowerCase().includes('expired')) {
+            void forceLogout('Signed out after 5 minutes idle. Please sign in again.')
+          }
+          return
+        }
+        setSessionEndsAt(res.expiresAt)
+        sessionStorage.setItem(SESSION_EXPIRES_KEY, String(res.expiresAt))
+      })
+    }
+    const opts: AddEventListenerOptions = { capture: true, passive: true }
+    window.addEventListener('pointerdown', onActivity, opts)
+    window.addEventListener('keydown', onActivity, opts)
+    window.addEventListener('input', onActivity, opts)
+    window.addEventListener('scroll', onActivity, opts)
+    window.addEventListener('wheel', onActivity, opts)
+    window.addEventListener('focus', onActivity, opts)
+    return () => {
+      window.removeEventListener('pointerdown', onActivity, opts)
+      window.removeEventListener('keydown', onActivity, opts)
+      window.removeEventListener('input', onActivity, opts)
+      window.removeEventListener('scroll', onActivity, opts)
+      window.removeEventListener('wheel', onActivity, opts)
+      window.removeEventListener('focus', onActivity, opts)
+    }
+  }, [session, forceLogout])
 
   function selectPost(id: string) {
     editingRef.current = false
@@ -165,38 +294,10 @@ export function AdminPage() {
   }
 
   async function logout() {
-    if (session) await window.hive.admin.logout(session)
-    sessionStorage.removeItem(SESSION_KEY)
-    setSession('')
-    setItems([])
-    setDraft(null)
+    await forceLogout()
     setSelectedId(null)
     editingRef.current = false
-    // Immediately re-open (still Dev)
-    setBooting(true)
-    const res = await window.hive.admin.login('')
-    if (res.ok) {
-      sessionStorage.setItem(SESSION_KEY, res.sessionToken)
-      setSession(res.sessionToken)
-      setBooting(false)
-      await refreshStatus(res.sessionToken)
-      await loadNews(res.sessionToken, { keepSelection: false })
-    } else {
-      setBootError(res.error)
-      setBooting(false)
-    }
-  }
-
-  async function saveCmsApiKey() {
-    if (!session) return
-    const res = await window.hive.admin.setCmsApiKey(session, cmsApiKeyInput)
-    if (!res.ok) {
-      showToast('error', res.error || 'Failed to save CMS API key')
-      return
-    }
-    setCmsApiKeyInput('')
-    await refreshStatus(session)
-    showToast('success', 'CMS API key saved on this PC')
+    setBooting(false)
   }
 
   async function addItem() {
@@ -241,6 +342,20 @@ export function AdminPage() {
     setPublishing(true)
     editingRef.current = false
     try {
+      const me = await window.hive.admin.staffMe()
+      if (me?.mustQueue) {
+        const sub = await window.hive.admin.submitApproval(session, {
+          type: 'news_launcher',
+          summary: `Home news update (${cleaned.length} posts)`,
+          payload: { title: title.trim() || 'EG Launcher News', items: cleaned },
+        })
+        if (!sub.ok) {
+          showToast('error', sub.error)
+          return false
+        }
+        showToast('success', sub.message || 'Submitted for admin verification')
+        return true
+      }
       const res = await window.hive.admin.publishNews(
         session,
         cleaned,
@@ -299,22 +414,93 @@ export function AdminPage() {
     await publishList(list, { allowEmpty: false })
   }
 
+  async function doStaffLogin() {
+    const res = await window.hive.admin.staffLogin(staffUser, staffPass)
+    if (!res.ok) {
+      showToast('error', res.error)
+      return
+    }
+    const local = await window.hive.admin.login('')
+    if (!local.ok) {
+      showToast('error', local.error)
+      return
+    }
+    const expiresAt =
+      typeof local.expiresAt === 'number'
+        ? local.expiresAt
+        : typeof res.expiresAt === 'number'
+          ? res.expiresAt
+          : Date.now() + 5 * 60 * 1000
+    sessionStorage.setItem(SESSION_KEY, local.sessionToken)
+    sessionStorage.setItem(SESSION_EXPIRES_KEY, String(expiresAt))
+    setSessionEndsAt(expiresAt)
+    setSession(local.sessionToken)
+    setStaffInfo(res.staff)
+    setMustQueue(res.staff.role === 'staff')
+    setStaffPass('')
+    setBootError('')
+    showToast(
+      'success',
+      `Signed in as ${res.staff.username} (${res.staff.role}) · idle timeout 5 min`,
+    )
+    await refreshStatus(local.sessionToken)
+    await loadNews(local.sessionToken, { keepSelection: false })
+  }
+
   if (booting) {
     return (
       <div className="page">
         <div className="empty" style={{ padding: 40 }}>
-          <h3>Opening Admin…</h3>
+          <h3>Opening Staff Menu…</h3>
         </div>
       </div>
     )
   }
 
-  if (bootError || !session) {
+  if (!session || !staffInfo) {
     return (
       <div className="page">
-        <div className="empty" style={{ padding: 40 }}>
-          <h3>Admin unavailable</h3>
-          <p>{bootError || 'Could not open Admin session.'}</p>
+        <div className="page-header">
+          <div>
+            <div className="kicker">CMS accounts</div>
+            <h1>Staff Menu</h1>
+            <p>Sign in with a Staff or Admin account. Multiple admins are supported.</p>
+          </div>
+        </div>
+        <div className="panel" style={{ maxWidth: 420 }}>
+          <h2 style={{ fontSize: 15 }}>Staff / Admin login</h2>
+          {bootError && <p className="hint" style={{ color: 'var(--danger, #f66)' }}>{bootError}</p>}
+          <div className="form-row">
+            <label>Username</label>
+            <input
+              className="input"
+              value={staffUser}
+              onChange={(e) => setStaffUser(e.target.value)}
+              autoComplete="username"
+            />
+          </div>
+          <div className="form-row">
+            <label>Password</label>
+            <input
+              className="input"
+              type="password"
+              value={staffPass}
+              onChange={(e) => setStaffPass(e.target.value)}
+              autoComplete="current-password"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void doStaffLogin()
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ marginTop: 12 }}
+            disabled={!staffUser.trim() || !staffPass}
+            onClick={() => void doStaffLogin()}
+          >
+            Sign in
+          </button>
         </div>
       </div>
     )
@@ -324,11 +510,18 @@ export function AdminPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <div className="kicker">Dev only · unlock file required</div>
-          <h1>Admin</h1>
+          <div className="kicker">CMS · account based</div>
+          <h1>Staff Menu</h1>
           <p>
-            CMS: private <span className="mono">eg-launcher-content</span> + public mirrors. Token from{' '}
-            <span className="mono">admin.local.json</span> / Desktop token file.
+            Signed in as <strong>{staffInfo.username}</strong> · role{' '}
+            <strong>{staffInfo.role}</strong>
+            {mustQueue ? ' · changes require Admin verification' : ' · full admin access'}
+            {remainLabel ? (
+              <>
+                {' '}
+                · session ends in <strong className="mono">{remainLabel}</strong>
+              </>
+            ) : null}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -346,14 +539,17 @@ export function AdminPage() {
                 {loading ? 'Loading…' : 'Reload news'}
               </button>
               <button type="button" className="btn btn-primary" onClick={() => void publish()} disabled={publishing}>
-                {publishing ? 'Publishing…' : 'Publish news'}
+                {publishing ? '…' : mustQueue ? 'Submit for review' : 'Publish news'}
               </button>
             </>
           )}
+          <button type="button" className="btn btn-ghost" onClick={() => void logout()}>
+            Sign out
+          </button>
         </div>
       </div>
 
-      <div className="admin-tabs" style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <div className="admin-tabs" style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <button
           type="button"
           className={`btn ${tab === 'news' ? 'btn-primary' : 'btn-secondary'}`}
@@ -374,43 +570,65 @@ export function AdminPage() {
           onClick={() => setTab('offline')}
         >
           Offline accounts
+          {staffInfo?.role === 'staff'
+            ? ` (${staffInfo.offlineUsed ?? 0}/${staffInfo.offlineQuota ?? 3})`
+            : ''}
+        </button>
+        <button
+          type="button"
+          className={`btn ${tab === 'featured' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setTab('featured')}
+        >
+          Featured packs
+        </button>
+        {/* Admin-only: review queue, staff accounts, ads monetization */}
+        {(!staffInfo || staffInfo.role === 'admin') && (
+          <>
+            <button
+              type="button"
+              className={`btn ${tab === 'approvals' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setTab('approvals')}
+            >
+              Approvals
+            </button>
+            <button
+              type="button"
+              className={`btn ${tab === 'staff' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setTab('staff')}
+            >
+              Staff users
+            </button>
+            <button
+              type="button"
+              className={`btn ${tab === 'ads' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setTab('ads')}
+            >
+              Ads / PayPal
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          className={`btn ${tab === 'health' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setTab('health')}
+        >
+          Health
         </button>
       </div>
 
-      <div className="panel" style={{ marginBottom: 16 }}>
-        <h2 style={{ fontSize: 16 }}>CMS API key (this PC only)</h2>
-        <p className="hint">
-          Required for Admin publish / partners / offline user management. Same value as server{' '}
-          <span className="mono">config.php → admin_api_key</span>. Also works in{' '}
-          <span className="mono">admin.local.json</span> as <span className="mono">cmsApiKey</span>.
-          Partner login for Horizons does <strong>not</strong> need this key.
-        </p>
-        <div className="badge-row" style={{ marginBottom: 10 }}>
-          <span className={`badge${hasCmsApiKey ? ' badge-green' : ' badge-orange'}`}>
-            {hasCmsApiKey ? 'CMS API key loaded' : 'CMS API key missing — save below'}
-          </span>
-          <span className="badge">{feedPath}</span>
-          <span className="badge">{repo}</span>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          <input
-            className="input"
-            style={{ flex: 1, minWidth: 220 }}
-            type="password"
-            name="cms-api-key"
-            autoComplete="off"
-            placeholder={hasCmsApiKey ? 'Paste new key to replace' : 'Paste admin_api_key from server'}
-            value={cmsApiKeyInput}
-            onChange={(e) => setCmsApiKeyInput(e.target.value)}
-          />
-          <button type="button" className="btn btn-primary" onClick={() => void saveCmsApiKey()}>
-            Save CMS key
-          </button>
-        </div>
+      <div className="badge-row" style={{ marginBottom: 12 }}>
+        <span className="badge badge-green">CMS session active</span>
+        <span className="badge">{feedPath}</span>
+        <span className="badge">{repo}</span>
       </div>
 
       {tab === 'partners' && <AdminPartnersPanel session={session} />}
       {tab === 'offline' && <AdminOfflinePanel session={session} />}
+      {tab === 'health' && <AdminHealthPanel session={session} />}
+      {tab === 'featured' && <AdminFeaturedPanel session={session} />}
+      {tab === 'approvals' && <AdminApprovalsPanel session={session} />}
+      {tab === 'staff' && <AdminStaffUsersPanel session={session} />}
+      {tab === 'ads' && <AdminAdsPanel session={session} />}
 
       {tab === 'news' && (
       <div className="admin-news-layout">

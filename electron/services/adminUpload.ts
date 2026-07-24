@@ -93,7 +93,7 @@ export async function uploadAdminImage(
         ok: false,
         error:
           (err as Error).message +
-          ' — deploy partners.php + icon.php + bootstrap.php to CMS web root; set Admin CMS API key',
+          ' — deploy partners.php + icon.php + bootstrap.php to CMS web root; sign in under Settings → Staff',
       }
     }
 

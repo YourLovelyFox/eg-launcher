@@ -941,6 +941,40 @@ function findInstalledVersionId(instance: GameInstance, preferred: string): stri
   return guess || preferred
 }
 
+function tokenizeJvmArgs(raw: string): string[] {
+  const out: string[] = []
+  const re = /"([^"]*)"|'([^']*)'|(\S+)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(raw))) {
+    const tok = (m[1] ?? m[2] ?? m[3] ?? '').trim()
+    if (tok) out.push(tok)
+  }
+  return out
+}
+
+/** Best-effort write of selected resource packs into Minecraft options.txt */
+function applyResourcePacksToOptions(gameDir: string, packNames: string[]): void {
+  const optionsPath = path.join(gameDir, 'options.txt')
+  const packs = packNames
+    .map((n) => n.trim())
+    .filter(Boolean)
+    .map((n) => {
+      const base = path.basename(n)
+      return base.startsWith('file/') ? base : `file/${base}`
+    })
+  const value = JSON.stringify(packs)
+  let text = ''
+  if (fs.existsSync(optionsPath)) {
+    text = fs.readFileSync(optionsPath, 'utf8')
+  }
+  if (/^resourcePacks:/m.test(text)) {
+    text = text.replace(/^resourcePacks:.*$/m, `resourcePacks:${value}`)
+  } else {
+    text = `${text.trimEnd()}\nresourcePacks:${value}\n`
+  }
+  fs.writeFileSync(optionsPath, text, 'utf8')
+}
+
 export type LaunchInstanceOptions = {
   /** Minecraft 1.20+ direct multiplayer connect (e.g. partner server). */
   quickPlayServer?: string
@@ -962,7 +996,7 @@ export async function launchInstance(
     return {
       success: false,
       message:
-        'Sign in required. Use a Microsoft account, or unlock Offline mode in Settings and log in with an offline account.',
+        'Sign in required. Use a Microsoft account, or log in with an Admin-created offline account under Account → Offline login.',
     }
   }
   // Redacted token from renderer must never be used for launch
@@ -1085,10 +1119,31 @@ export async function launchInstance(
     '${classpath_separator}': path.delimiter,
   }
 
-  const jvmArgs: string[] = [
-    `-Xms${settings.ramMinMb}M`,
-    `-Xmx${settings.ramMaxMb}M`,
-  ]
+  // Active launch profile (optional per-instance JVM / RAM / resource packs)
+  const profiles = instance.profiles || []
+  const activeProfile =
+    profiles.find((p) => p.id === instance.activeProfileId) || profiles[0] || null
+  const effectiveRamMax =
+    activeProfile?.ramMaxMb && activeProfile.ramMaxMb >= 1024
+      ? activeProfile.ramMaxMb
+      : settings.ramMaxMb
+  const effectiveRamMin = Math.min(Math.max(512, settings.ramMinMb), effectiveRamMax)
+
+  if (activeProfile?.resourcePacks && activeProfile.resourcePacks.length > 0) {
+    try {
+      applyResourcePacksToOptions(gameDir, activeProfile.resourcePacks)
+    } catch (err) {
+      console.warn('[launch] resource packs options.txt', err)
+    }
+  }
+
+  const jvmArgs: string[] = [`-Xms${effectiveRamMin}M`, `-Xmx${effectiveRamMax}M`]
+  if (activeProfile?.jvmArgs?.trim()) {
+    for (const tok of tokenizeJvmArgs(activeProfile.jvmArgs)) {
+      if (tok.startsWith('-Xms') || tok.startsWith('-Xmx')) continue
+      jvmArgs.push(tok)
+    }
+  }
 
   // Modern LWJGL / natives extraction dirs
   jvmArgs.push(`-Djava.library.path=${nativesDir}`)

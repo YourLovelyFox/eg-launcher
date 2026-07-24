@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type {
   AppVersionInfo,
   LauncherSettings,
+  LauncherTheme,
   SystemMemoryInfo,
   UpdateStatus,
 } from '../../shared/types'
 import { useAppStore } from '../store'
+import { applyTheme } from '../theme'
 
 function formatMb(mb: number): string {
   if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`
@@ -13,6 +16,7 @@ function formatMb(mb: number): string {
 }
 
 export function SettingsPage() {
+  const navigate = useNavigate()
   const { settings, setSettings, showToast } = useAppStore()
   const [form, setForm] = useState<LauncherSettings | null>(settings)
   const [javaInfo, setJavaInfo] = useState<string>('')
@@ -187,6 +191,29 @@ export function SettingsPage() {
       </div>
 
       <div className="panel">
+        <h2>Appearance</h2>
+        <p className="hint">Theme applies instantly and is saved with your settings.</p>
+        <div className="form-grid">
+          <div className="form-row">
+            <label>Theme</label>
+            <select
+              className="select"
+              value={form.theme || 'dark'}
+              onChange={(e) => {
+                const theme = e.target.value as LauncherTheme
+                setForm({ ...form, theme })
+                applyTheme(theme)
+              }}
+            >
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+              <option value="high-contrast">High contrast</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel">
         <h2>Mods</h2>
         <p className="hint">
           When you install a mod, EG Launcher reads its Modrinth dependencies and installs required
@@ -200,6 +227,18 @@ export function SettingsPage() {
           />
           Automatically install required mod dependencies
         </label>
+      </div>
+
+      <div className="panel">
+        <h2>Staff</h2>
+        <p className="hint">
+          Staff and Admin tools (news, partners, offline accounts, featured packs, ads). Sign in with
+          a CMS staff account. Idle timeout is <strong>5 minutes</strong> — any click or typing
+          resets the timer.
+        </p>
+        <button type="button" className="btn btn-secondary" onClick={() => navigate('/admin')}>
+          Open Staff Menu
+        </button>
       </div>
 
       <div className="panel">

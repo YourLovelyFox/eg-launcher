@@ -7,9 +7,29 @@ import {
   installedModMap,
   type ModUpdateInfo,
 } from '../modUpdates'
+import { pushRecent } from '../qolPrefs'
 import { formatDownloads, loaderLabel, useAppStore } from '../store'
 
 const PAGE_SIZE = 24
+
+/** Modrinth content categories (not loaders). */
+const MOD_CATEGORIES: Array<{ id: string; label: string }> = [
+  { id: 'optimization', label: 'Performance' },
+  { id: 'utility', label: 'Utility / QoL' },
+  { id: 'technology', label: 'Tech' },
+  { id: 'magic', label: 'Magic' },
+  { id: 'adventure', label: 'Adventure' },
+  { id: 'decoration', label: 'Decoration' },
+  { id: 'worldgen', label: 'World gen' },
+  { id: 'storage', label: 'Storage' },
+  { id: 'food', label: 'Food' },
+  { id: 'transportation', label: 'Transport' },
+  { id: 'equipment', label: 'Equipment' },
+  { id: 'social', label: 'Social' },
+  { id: 'management', label: 'Management' },
+  { id: 'minigame', label: 'Minigame' },
+  { id: 'mobs', label: 'Mobs' },
+]
 
 /** Build a compact page list like 1 … 4 5 [6] 7 8 … 40 */
 function getPageNumbers(current: number, totalPages: number): Array<number | 'ellipsis'> {
@@ -54,6 +74,7 @@ export function BrowsePage() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [sort, setSort] = useState('relevance')
+  const [categories, setCategories] = useState<string[]>([])
   const [selectedProject, setSelectedProject] = useState<ModrinthSearchHit | null>(null)
   const [versions, setVersions] = useState<ModrinthVersion[]>([])
   const [versionId, setVersionId] = useState('')
@@ -107,14 +128,16 @@ export function BrowsePage() {
 
     setLoading(true)
     try {
-      const result = await window.hive.modrinth.search({
+      const searchOpts = {
         query: nextQuery,
         gameVersion: instance?.gameVersion,
         loader: instance?.loader === 'vanilla' ? undefined : instance?.loader,
+        categories: categories.length ? categories : undefined,
         limit: PAGE_SIZE,
         offset,
         index: sort,
-      })
+      }
+      const result = await window.hive.modrinth.search(searchOpts)
       // Ignore stale responses if a newer search started
       if (gen !== searchGen.current) return
 
@@ -130,12 +153,8 @@ export function BrowsePage() {
 
       if (clampedPage !== nextPage && result.total_hits > 0) {
         const retry = await window.hive.modrinth.search({
-          query: nextQuery,
-          gameVersion: instance?.gameVersion,
-          loader: instance?.loader === 'vanilla' ? undefined : instance?.loader,
-          limit: PAGE_SIZE,
+          ...searchOpts,
           offset: (clampedPage - 1) * PAGE_SIZE,
-          index: sort,
         })
         if (gen !== searchGen.current) return
         setHits(retry.hits)
@@ -161,7 +180,13 @@ export function BrowsePage() {
   useEffect(() => {
     void search({ page: 1 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instance?.id, sort])
+  }, [instance?.id, sort, categories.join('|')])
+
+  function toggleCategory(id: string) {
+    setCategories((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+    )
+  }
 
   // For installed mods on this page, check whether a newer compatible version exists
   useEffect(() => {
@@ -287,6 +312,11 @@ export function BrowsePage() {
           ? ` + ${deps.length} dependenc${deps.length === 1 ? 'y' : 'ies'} (${deps.slice(0, 3).join(', ')}${deps.length > 3 ? '…' : ''})`
           : ''
       showToast('success', base + depMsg)
+      pushRecent({
+        kind: 'installed_mod',
+        label: `${action === 'update' ? 'Updated' : 'Installed'} ${hit.title}`,
+        href: instance ? `/instances/${instance.id}` : undefined,
+      })
       if (failedDeps.length > 0) {
         showToast(
           'error',
@@ -394,6 +424,35 @@ export function BrowsePage() {
           {loading ? 'Searching…' : 'Search'}
         </button>
       </form>
+
+      <div className="badge-row" style={{ marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
+        <span className="muted" style={{ marginRight: 4 }}>
+          Categories
+        </span>
+        {MOD_CATEGORIES.map((c) => {
+          const on = categories.includes(c.id)
+          return (
+            <button
+              key={c.id}
+              type="button"
+              className={`badge ${on ? 'badge-green' : ''}`}
+              style={{
+                cursor: 'pointer',
+                border: on ? '1px solid var(--green)' : '1px solid var(--border)',
+                background: on ? 'var(--green-soft)' : 'var(--bg-3)',
+              }}
+              onClick={() => toggleCategory(c.id)}
+            >
+              {c.label}
+            </button>
+          )
+        })}
+        {categories.length > 0 && (
+          <button type="button" className="btn btn-ghost" style={{ padding: '2px 8px' }} onClick={() => setCategories([])}>
+            Clear
+          </button>
+        )}
+      </div>
 
       {instance && (
         <div className="badge-row" style={{ marginBottom: 14 }}>

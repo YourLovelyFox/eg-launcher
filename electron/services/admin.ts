@@ -1,11 +1,18 @@
 import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
-import { isAdminBuild } from '../../shared/features'
 import { resolveCmsApiBase } from '../../shared/cmsApi'
 import type { NewsFeedResult, NewsItem } from '../../shared/types'
-import { isAdminAvailable, isAdminUnlocked } from './adminUnlock'
-import { loadAdminApiKey, setAdminApiKey } from './cms/httpClient'
+import { setAdminApiKey } from './cms/httpClient'
+import {
+  clearStaffSession,
+  getStaffInfo,
+  getStaffSessionExpiresAt,
+  getStaffSessionToken,
+  STAFF_SESSION_TTL_MS,
+  touchStaffSession,
+  touchStaffSessionRemote,
+} from './staffSession'
 import { replaceFeedInDb } from './db/newsRepo'
 import { applyLocalFeedSnapshot, fetchNews } from './news'
 
@@ -15,19 +22,11 @@ type AdminSession = {
 }
 
 const sessions = new Map<string, AdminSession>()
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000 // 8 hours
+/** Idle timeout: 5 minutes without activity. */
+const SESSION_TTL_MS = STAFF_SESSION_TTL_MS
 
 export function assertAdminBuild(): { ok: true } | { ok: false; error: string } {
-  if (!isAdminBuild()) {
-    return { ok: false, error: 'Admin is not available in the public Live launcher.' }
-  }
-  if (!isAdminUnlocked()) {
-    return {
-      ok: false,
-      error:
-        'Admin is locked. Add admin.local.json with "enableAdmin": true (or Desktop\\New folder\\eg-launcher-admin-unlock).',
-    }
-  }
+  // Staff Menu is always available; real auth is CMS staff login.
   return { ok: true }
 }
 
@@ -38,24 +37,76 @@ function purgeExpiredSessions() {
   }
 }
 
-/** Dev Admin unlock — no password (Dev launcher only). */
+/**
+ * Local session after successful CMS staff login.
+ * Password is not checked here — Staff Menu uses staffLogin() first.
+ */
 export function verifyAdminPassword(
   _password?: string,
-): { ok: true; sessionToken: string } | { ok: false; error: string } {
-  const gate = assertAdminBuild()
-  if (!gate.ok) return gate
-
+): { ok: true; sessionToken: string; expiresAt: number } | { ok: false; error: string } {
   purgeExpiredSessions()
+  // Align local expiry with CMS staff session if present
+  const staffExp = getStaffSessionExpiresAt()
+  const expiresAt = staffExp && staffExp > Date.now() ? staffExp : Date.now() + SESSION_TTL_MS
   const sessionToken = crypto.randomBytes(24).toString('hex')
   sessions.set(sessionToken, {
     token: sessionToken,
-    expiresAt: Date.now() + SESSION_TTL_MS,
+    expiresAt,
   })
-  return { ok: true, sessionToken }
+  return { ok: true, sessionToken, expiresAt }
 }
 
 export function logoutAdmin(sessionToken: string): void {
   sessions.delete(sessionToken)
+}
+
+/** Slide idle deadline on activity (local admin + staff session). */
+export function touchAdminSession(sessionToken: string | undefined | null): number | null {
+  if (!sessionToken) return null
+  purgeExpiredSessions()
+  const s = sessions.get(sessionToken)
+  if (!s) return null
+  if (s.expiresAt <= Date.now()) {
+    sessions.delete(sessionToken)
+    clearStaffSession()
+    return null
+  }
+  if (!getStaffSessionToken()) {
+    sessions.delete(sessionToken)
+    return null
+  }
+  const expiresAt = Date.now() + SESSION_TTL_MS
+  s.expiresAt = expiresAt
+  touchStaffSession()
+  return expiresAt
+}
+
+let lastRemoteTouchMs = 0
+const REMOTE_TOUCH_MIN_MS = 20_000
+
+/**
+ * Activity heartbeat: always slides local idle timer.
+ * CMS session is extended at most every 20s so typing doesn't spam the server.
+ */
+export async function touchAdminSessionRemote(
+  sessionToken: string | undefined | null,
+): Promise<{ ok: true; expiresAt: number } | { ok: false; error: string }> {
+  const local = touchAdminSession(sessionToken)
+  if (!local) return { ok: false, error: 'Session expired' }
+  const now = Date.now()
+  if (now - lastRemoteTouchMs < REMOTE_TOUCH_MIN_MS) {
+    return { ok: true, expiresAt: local }
+  }
+  lastRemoteTouchMs = now
+  try {
+    const remote = await touchStaffSessionRemote()
+    const expiresAt = remote || local
+    const s = sessions.get(sessionToken || '')
+    if (s) s.expiresAt = expiresAt
+    return { ok: true, expiresAt }
+  } catch {
+    return { ok: true, expiresAt: local }
+  }
 }
 
 export function requireAdmin(sessionToken: string | undefined | null): boolean {
@@ -63,40 +114,48 @@ export function requireAdmin(sessionToken: string | undefined | null): boolean {
   purgeExpiredSessions()
   const s = sessions.get(sessionToken)
   if (!s) return false
+  if (s.expiresAt <= Date.now()) {
+    sessions.delete(sessionToken)
+    clearStaffSession()
+    return false
+  }
+  // Staff CMS token must still be valid
+  if (!getStaffSessionToken()) {
+    sessions.delete(sessionToken)
+    return false
+  }
+  // Any authenticated IPC use counts as activity (sliding idle)
   s.expiresAt = Date.now() + SESSION_TTL_MS
+  touchStaffSession()
   return true
 }
 
 export function getAdminStatus(sessionToken: string | undefined | null) {
   const feedPath = 'HTTPS CMS API'
   const repo = resolveCmsApiBase().replace(/^https?:\/\//, '')
-  if (!isAdminAvailable()) {
-    return {
-      authenticated: false,
-      hasCmsApiKey: false,
-      feedPath,
-      feedUrl: resolveCmsApiBase(),
-      repo,
-      adminEnabled: false,
-    }
-  }
-  const authed = requireAdmin(sessionToken)
+  const staffTok = getStaffSessionToken()
+  const staff = getStaffInfo()
+  const authed = requireAdmin(sessionToken) && Boolean(staffTok && staff)
+  const expiresAt = sessions.get(sessionToken || '')?.expiresAt ?? getStaffSessionExpiresAt()
   return {
     authenticated: authed,
-    hasCmsApiKey: Boolean(loadAdminApiKey()),
+    hasCmsApiKey: false,
     feedPath,
     feedUrl: resolveCmsApiBase(),
     repo,
     adminEnabled: true,
+    staffRole: staff?.role || null,
+    expiresAt: authed ? expiresAt : null,
+    sessionTtlSeconds: Math.round(SESSION_TTL_MS / 1000),
   }
 }
 
 export function setCmsApiKeyForAdmin(
-  sessionToken: string,
-  key: string,
+  _sessionToken: string,
+  _key: string,
 ): { ok: boolean; error?: string } {
-  if (!requireAdmin(sessionToken)) return { ok: false, error: 'Not authenticated' }
-  return setAdminApiKey(key)
+  // CMS API keys are not used — staff account sessions only
+  return { ok: true }
 }
 
 function buildFeedJson(items: NewsItem[], title = 'EG Launcher News'): string {

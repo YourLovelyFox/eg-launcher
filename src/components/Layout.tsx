@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { APP_NAME, APP_TAGLINE, FEATURED_PACK, PARTNER_LIST } from '../../shared/branding'
 import type { PartnerDefinition } from '../../shared/branding'
 import appIcon from '../assets/app-icon.png'
 import horizonsIcon from '../assets/horizons-smp.png'
+import {
+  loadQolPrefs,
+  partnerNewsFingerprint,
+  togglePinnedPartner,
+} from '../qolPrefs'
 import { useAppStore } from '../store'
 import {
   IconCube,
@@ -25,19 +30,31 @@ function partnerNavIcon(p: PartnerDefinition): string | null {
 
 export function Layout() {
   const navigate = useNavigate()
-  const { accounts, activeAccountId, toast, clearToast, running, refreshRunning, stopGame } =
-    useAppStore()
+  const {
+    accounts,
+    activeAccountId,
+    toast,
+    clearToast,
+    running,
+    refreshRunning,
+    stopGame,
+    setAccounts,
+    showToast,
+    selectedInstanceId,
+    setSelectedInstanceId,
+    instances,
+    refreshAll,
+  } = useAppStore()
   const active = accounts.find((a) => a.id === activeAccountId)
   const loggedIn = Boolean(active)
-  // Admin only if Dev build + local unlock file (checked in main process)
-  const [adminOn, setAdminOn] = useState(() => {
-    try {
-      return window.hive.admin.isEnabled()
-    } catch {
-      return false
-    }
-  })
   const [partners, setPartners] = useState<PartnerDefinition[]>(() => [...PARTNER_LIST])
+  const [featured, setFeatured] = useState<Array<{ id: string; menuLabel: string; slug: string }>>([
+    { id: FEATURED_PACK.id, menuLabel: FEATURED_PACK.menuLabel, slug: FEATURED_PACK.slug },
+  ])
+  const [prefsTick, setPrefsTick] = useState(0)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const [partnerUnread, setPartnerUnread] = useState<Record<string, boolean>>({})
 
   const loadPartners = useCallback(async () => {
     try {
@@ -46,25 +63,36 @@ export function Layout() {
         setPartners(list)
       }
     } catch {
-      /* keep fallback PARTNER_LIST */
+      /* keep fallback */
     }
   }, [])
 
-  useEffect(() => {
+  const loadFeatured = useCallback(async () => {
     try {
-      setAdminOn(window.hive.admin.isEnabled())
+      const packs = await window.hive.featuredPacks.listPublic()
+      if (Array.isArray(packs) && packs.length > 0) {
+        setFeatured(
+          packs.map((p: { id: string; menuLabel?: string; title?: string; slug: string }) => ({
+            id: p.id,
+            menuLabel: p.menuLabel || p.title || p.slug,
+            slug: p.slug,
+          })),
+        )
+      }
     } catch {
-      setAdminOn(false)
+      /* keep bees fallback */
     }
   }, [])
 
   useEffect(() => {
     void loadPartners()
+    void loadFeatured()
     const id = window.setInterval(() => {
       void loadPartners()
+      void loadFeatured()
     }, 30_000)
     return () => window.clearInterval(id)
-  }, [loadPartners])
+  }, [loadPartners, loadFeatured])
 
   useEffect(() => {
     refreshRunning()
@@ -74,15 +102,165 @@ export function Layout() {
     return () => window.clearInterval(id)
   }, [refreshRunning])
 
+  // Partner news unread badges
+  useEffect(() => {
+    let cancelled = false
+    async function scan() {
+      const prefs = loadQolPrefs()
+      const next: Record<string, boolean> = {}
+      for (const p of partners) {
+        try {
+          const feed = await window.hive.news.fetch({
+            kind: 'partners',
+            tag: p.newsTag,
+            force: false,
+          })
+          const items = (feed.items || []).filter(
+            (i) => (i.tag || '').toLowerCase() === (p.newsTag || '').toLowerCase(),
+          )
+          const fp = partnerNewsFingerprint(items)
+          const seen = prefs.partnerNewsSeen[p.id]
+          next[p.id] = Boolean(fp && fp !== 'empty' && seen !== fp)
+        } catch {
+          next[p.id] = false
+        }
+      }
+      if (!cancelled) setPartnerUnread(next)
+    }
+    if (partners.length) void scan()
+    const id = window.setInterval(() => void scan(), 60_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [partners])
+
+  // Ctrl+K or / → Browse search
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null
+      const tag = (t?.tagName || '').toLowerCase()
+      const typing =
+        tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable
+      if (typing) return
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        navigate('/browse')
+        window.setTimeout(() => {
+          document.querySelector<HTMLInputElement>('.search-box input')?.focus()
+        }, 80)
+      } else if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault()
+        navigate('/browse')
+        window.setTimeout(() => {
+          document.querySelector<HTMLInputElement>('.search-box input')?.focus()
+        }, 80)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navigate])
+
+  const sortedPartners = useMemo(() => {
+    const pinned = loadQolPrefs().pinnedPartnerIds
+    return [...partners].sort((a, b) => {
+      const ap = pinned.includes(a.id) ? 0 : 1
+      const bp = pinned.includes(b.id) ? 0 : 1
+      if (ap !== bp) return ap - bp
+      return (a.menuLabel || a.title).localeCompare(b.menuLabel || b.title)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partners, prefsTick])
+
+  async function switchAccount(id: string) {
+    try {
+      const auth = await window.hive.auth.setActive(id)
+      setAccounts(auth.accounts, auth.activeAccountId)
+      setAccountMenuOpen(false)
+      showToast('success', `Switched to ${auth.accounts.find((a) => a.id === id)?.username || 'account'}`)
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    }
+  }
+
+  async function onDropFiles(files: FileList | File[]) {
+    const list = Array.from(files)
+    const jars = list.filter((f) => f.name.toLowerCase().endsWith('.jar'))
+    const mrpacks = list.filter((f) => f.name.toLowerCase().endsWith('.mrpack'))
+    if (mrpacks.length) {
+      showToast('info', 'Drop .mrpack on Bee’s SMP or create an instance pack install — JAR mods only for now')
+    }
+    if (!jars.length) {
+      if (!mrpacks.length) showToast('error', 'Drop a .jar mod file onto the launcher')
+      return
+    }
+    const instanceId =
+      selectedInstanceId ||
+      loadQolPrefs().lastInstanceId ||
+      instances[0]?.id ||
+      null
+    if (!instanceId) {
+      showToast('error', 'Create or select an instance first')
+      navigate('/instances')
+      return
+    }
+    setSelectedInstanceId(instanceId)
+    for (const file of jars) {
+      const anyFile = file as File & { path?: string }
+      const filePath = anyFile.path
+      if (!filePath) {
+        showToast('error', 'Could not read file path (use Electron drop)')
+        continue
+      }
+      try {
+        await window.hive.instances.installLocalJar(instanceId, filePath)
+        showToast('success', `Installed ${file.name}`)
+        await refreshAll()
+      } catch (err) {
+        showToast('error', (err as Error).message)
+      }
+    }
+  }
+
   return (
-    <div className="app-shell">
-      {/* Static ambient background (no animation) */}
+    <div
+      className="app-shell"
+      onDragOver={(e) => {
+        e.preventDefault()
+        setDragOver(true)
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault()
+        setDragOver(false)
+        if (e.dataTransfer?.files?.length) void onDropFiles(e.dataTransfer.files)
+      }}
+    >
       <div className="app-bg" aria-hidden>
         <div className="app-bg-base" />
         <div className="app-bg-mesh" />
         <div className="app-bg-grid" />
         <div className="app-bg-vignette" />
       </div>
+
+      {dragOver && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 50,
+            background: 'rgba(15, 159, 110, 0.18)',
+            border: '3px dashed var(--green)',
+            display: 'grid',
+            placeItems: 'center',
+            pointerEvents: 'none',
+            fontWeight: 700,
+            fontSize: 18,
+          }}
+        >
+          Drop .jar mods to install into the selected instance
+        </div>
+      )}
 
       <aside className="sidebar">
         <div className="brand">
@@ -110,6 +288,7 @@ export function Layout() {
             <NavLink
               to="/browse"
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+              title="Ctrl+K or / to search"
             >
               <IconSearch />
               Browse Mods
@@ -125,56 +304,84 @@ export function Layout() {
 
           <div className="nav-section">
             <div className="nav-label">Featured</div>
-            <NavLink
-              to="/bees-smp"
-              className={({ isActive }) => `nav-item nav-featured${isActive ? ' active' : ''}`}
-            >
-              <IconPack />
-              {FEATURED_PACK.menuLabel}
-            </NavLink>
+            {featured.map((f) => (
+              <NavLink
+                key={f.id}
+                to={f.slug === 'beessmp' || f.id === 'beessmp' ? '/bees-smp' : `/bees-smp?pack=${encodeURIComponent(f.slug)}`}
+                className={({ isActive }) => `nav-item nav-featured${isActive ? ' active' : ''}`}
+              >
+                <IconPack />
+                {f.menuLabel}
+              </NavLink>
+            ))}
           </div>
 
           <div className="nav-section">
             <div className="nav-label">Partners</div>
-            {partners.map((p) => {
+            {sortedPartners.map((p) => {
               const icon = partnerNavIcon(p)
+              const pinned = loadQolPrefs().pinnedPartnerIds.includes(p.id)
+              const unread = partnerUnread[p.id]
               return (
-                <NavLink
-                  key={p.id}
-                  to={`/partners/${p.id}`}
-                  className={({ isActive }) =>
-                    `nav-item nav-partner${isActive ? ' active' : ''}`
-                  }
-                >
-                  {icon ? (
-                    <img
-                      src={icon}
-                      alt=""
-                      className="nav-partner-icon"
-                      width={18}
-                      height={18}
-                      draggable={false}
-                    />
-                  ) : (
-                    <span
-                      className="nav-partner-icon"
-                      style={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: 4,
-                        background: 'var(--bg-3)',
-                        display: 'inline-grid',
-                        placeItems: 'center',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        lineHeight: 1,
-                      }}
-                    >
-                      {(p.menuLabel || p.title).slice(0, 1)}
-                    </span>
-                  )}
-                  {p.menuLabel || p.title}
-                </NavLink>
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <NavLink
+                    to={`/partners/${p.id}`}
+                    className={({ isActive }) =>
+                      `nav-item nav-partner${isActive ? ' active' : ''}`
+                    }
+                    style={{ flex: 1 }}
+                  >
+                    {icon ? (
+                      <img
+                        src={icon}
+                        alt=""
+                        className="nav-partner-icon"
+                        width={18}
+                        height={18}
+                        draggable={false}
+                      />
+                    ) : (
+                      <span
+                        className="nav-partner-icon"
+                        style={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: 4,
+                          background: 'var(--bg-3)',
+                          display: 'inline-grid',
+                          placeItems: 'center',
+                          fontSize: 10,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {(p.menuLabel || p.title).slice(0, 1)}
+                      </span>
+                    )}
+                    <span style={{ flex: 1 }}>{p.menuLabel || p.title}</span>
+                    {unread && (
+                      <span
+                        className="badge badge-orange"
+                        style={{ fontSize: 9, padding: '1px 5px' }}
+                        title="Unread partner news"
+                      >
+                        New
+                      </span>
+                    )}
+                  </NavLink>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ padding: 4, minWidth: 28 }}
+                    title={pinned ? 'Unpin' : 'Pin'}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      togglePinnedPartner(p.id)
+                      setPrefsTick((n) => n + 1)
+                    }}
+                  >
+                    {pinned ? '★' : '☆'}
+                  </button>
+                </div>
               )
             })}
           </div>
@@ -186,7 +393,7 @@ export function Layout() {
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
             >
               <IconUser />
-              Microsoft Login
+              Accounts
             </NavLink>
             <NavLink
               to="/settings"
@@ -195,15 +402,6 @@ export function Layout() {
               <IconSettings />
               Settings
             </NavLink>
-            {adminOn && (
-              <NavLink
-                to="/admin"
-                className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-              >
-                <IconSettings />
-                Admin
-              </NavLink>
-            )}
           </div>
         </nav>
 
@@ -241,18 +439,90 @@ export function Layout() {
             )}
           </div>
 
-          <button
-            type="button"
-            className={`account-chip${loggedIn ? ' signed-in' : ' signed-out'}`}
-            onClick={() => navigate('/account')}
-            title={loggedIn ? 'Manage Microsoft account' : 'Sign in required to play'}
-          >
-            <PlayerHeadWithFallback uuid={active?.uuid} username={active?.username} size={36} />
-            <div className="account-meta">
-              <strong>{active?.username || 'Not signed in'}</strong>
-              <span>{loggedIn ? 'Microsoft account' : 'Sign in required'}</span>
-            </div>
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              className={`account-chip${loggedIn ? ' signed-in' : ' signed-out'}`}
+              onClick={() => setAccountMenuOpen((o) => !o)}
+              title={loggedIn ? 'Switch or manage account' : 'Sign in'}
+            >
+              <PlayerHeadWithFallback uuid={active?.uuid} username={active?.username} size={36} />
+              <div className="account-meta">
+                <strong>{active?.username || 'Not signed in'}</strong>
+                <span>
+                  {loggedIn
+                    ? active?.type === 'offline' || active?.id.startsWith('offline-')
+                      ? 'Offline account · click to switch'
+                      : 'Microsoft · click to switch'
+                    : 'Sign in required'}
+                </span>
+              </div>
+            </button>
+            {accountMenuOpen && (
+              <div
+                className="panel"
+                style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: 0,
+                  right: 0,
+                  marginBottom: 8,
+                  zIndex: 40,
+                  maxHeight: 240,
+                  overflow: 'auto',
+                  padding: 8,
+                }}
+              >
+                {accounts.length === 0 ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ width: '100%' }}
+                    onClick={() => {
+                      setAccountMenuOpen(false)
+                      navigate('/account')
+                    }}
+                  >
+                    Sign in
+                  </button>
+                ) : (
+                  <>
+                    {accounts.map((acc) => (
+                      <button
+                        key={acc.id}
+                        type="button"
+                        className="btn btn-ghost"
+                        style={{
+                          width: '100%',
+                          justifyContent: 'flex-start',
+                          marginBottom: 4,
+                          opacity: acc.id === activeAccountId ? 1 : 0.9,
+                        }}
+                        onClick={() => void switchAccount(acc.id)}
+                      >
+                        <PlayerHeadWithFallback uuid={acc.uuid} username={acc.username} size={22} />
+                        <span style={{ marginLeft: 8 }}>
+                          {acc.username}
+                          {acc.id === activeAccountId ? ' · active' : ''}
+                        </span>
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ width: '100%', marginTop: 4 }}
+                      onClick={() => {
+                        setAccountMenuOpen(false)
+                        navigate('/account')
+                      }}
+                    >
+                      Manage accounts
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
@@ -260,11 +530,11 @@ export function Layout() {
         {!loggedIn && (
           <div className="login-banner">
             <div>
-              <strong>Microsoft login required</strong>
-              <span>You must sign in to play. Offline mode is disabled.</span>
+              <strong>Sign in to play</strong>
+              <span>Microsoft login or Admin-created offline account (Account → Offline login).</span>
             </div>
             <button type="button" className="btn btn-primary" onClick={() => navigate('/account')}>
-              Sign in
+              Accounts
             </button>
           </div>
         )}

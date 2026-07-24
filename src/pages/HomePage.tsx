@@ -1,33 +1,63 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CreateInstanceModal } from '../components/CreateInstanceModal'
+import { AdsBanner } from '../components/AdsBanner'
 import { HomeNews } from '../components/HomeNews'
 import { IconPlay, IconPlus, IconStop } from '../components/Icons'
 import { PlayerHeadWithFallback } from '../components/PlayerHead'
+import { loadQolPrefs, pushRecent, type RecentActivityItem } from '../qolPrefs'
 import { loaderLabel, useAppStore } from '../store'
 
 export function HomePage() {
   const navigate = useNavigate()
-  const { instances, accounts, activeAccountId, showToast, refreshAll, running, stopGame, refreshRunning } =
-    useAppStore()
+  const {
+    instances,
+    accounts,
+    activeAccountId,
+    showToast,
+    refreshAll,
+    running,
+    stopGame,
+    refreshRunning,
+    setSelectedInstanceId,
+  } = useAppStore()
   const [createOpen, setCreateOpen] = useState(false)
   const [launchingId, setLaunchingId] = useState<string | null>(null)
+  const [recent, setRecent] = useState<RecentActivityItem[]>(() => loadQolPrefs().recent)
   const active = accounts.find((a) => a.id === activeAccountId)
-  const recent = instances.slice(0, 6)
+  const pinnedIds = loadQolPrefs().pinnedInstanceIds
+  const lastId = loadQolPrefs().lastInstanceId
+  const sorted = [...instances].sort((a, b) => {
+    const ap = pinnedIds.includes(a.id) ? 0 : 1
+    const bp = pinnedIds.includes(b.id) ? 0 : 1
+    if (ap !== bp) return ap - bp
+    if (a.id === lastId) return -1
+    if (b.id === lastId) return 1
+    return 0
+  })
+  const recentInstances = sorted.slice(0, 6)
 
   const loggedIn = Boolean(active)
 
+  useEffect(() => {
+    setRecent(loadQolPrefs().recent)
+  }, [instances, running.running])
+
   async function launch(id: string, acknowledgeLowMemory = false) {
     if (!loggedIn) {
-      showToast('error', 'Sign in with Microsoft to play')
+      showToast('error', 'Sign in to play (Microsoft or offline account)')
       navigate('/account')
       return
     }
     setLaunchingId(id)
+    setSelectedInstanceId(id)
     try {
       const result = await window.hive.mc.launch(id, { acknowledgeLowMemory })
       await refreshRunning()
       if (result.success) {
+        const name = instances.find((i) => i.id === id)?.name || 'instance'
+        pushRecent({ kind: 'played', label: `Played ${name}`, href: `/instances/${id}` })
+        setRecent(loadQolPrefs().recent)
         showToast('success', result.message)
         await refreshAll()
       } else if (result.requiresConfirmation) {
@@ -46,6 +76,12 @@ export function HomePage() {
     } finally {
       setLaunchingId(null)
     }
+  }
+
+  function playLabel(id: string): string {
+    if (running.running && running.instanceId === id) return 'Running'
+    if (launchingId === id) return 'Launching…'
+    return 'Play'
   }
 
   return (
@@ -73,7 +109,7 @@ export function HomePage() {
           <p>
             {loggedIn
               ? 'Browse Modrinth mods, build instances, and launch Minecraft.'
-              : 'Sign in with Microsoft to play — offline mode is disabled.'}
+              : 'Sign in with Microsoft or an Admin-created offline account to play.'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -90,6 +126,8 @@ export function HomePage() {
         </div>
       </div>
 
+      <AdsBanner />
+
       {running.running && (
         <div className="panel" style={{ marginBottom: 18 }}>
           <div className="page-header" style={{ marginBottom: 0, alignItems: 'center' }}>
@@ -98,120 +136,135 @@ export function HomePage() {
                 <span className="badge badge-running">Live</span>
               </div>
               <h2 style={{ fontSize: 16, marginBottom: 2 }}>
-                Running: {running.instanceName || 'Minecraft'}
+                {running.instanceName || 'Minecraft'}
               </h2>
               <p className="hint" style={{ marginBottom: 0 }}>
-                PID {running.pid ?? '—'}
-                {running.startedAt
-                  ? ` · started ${new Date(running.startedAt).toLocaleTimeString()}`
-                  : ''}
+                Game is running
+                {running.pid ? ` · PID ${running.pid}` : ''}
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {running.instanceId && (
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => navigate(`/instances/${running.instanceId}`)}
-                >
-                  Open instance
-                </button>
-              )}
-              <button className="btn btn-danger" onClick={() => stopGame()}>
-                <IconStop />
-                Stop
-              </button>
-            </div>
+            <button
+              className="btn btn-secondary"
+              onClick={() => running.instanceId && navigate(`/instances/${running.instanceId}`)}
+            >
+              Open instance
+            </button>
           </div>
         </div>
       )}
 
-      <HomeNews />
+      {recent.length > 0 && (
+        <section className="panel" style={{ marginBottom: 18 }}>
+          <h2 style={{ fontSize: 16 }}>Recent activity</h2>
+          <div className="list" style={{ marginTop: 10 }}>
+            {recent.slice(0, 8).map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                className="list-item"
+                style={{ width: '100%', textAlign: 'left', cursor: r.href ? 'pointer' : 'default' }}
+                onClick={() => r.href && navigate(r.href)}
+              >
+                <div className="grow">
+                  <div className="title">{r.label}</div>
+                  <div className="sub">{new Date(r.at).toLocaleString()}</div>
+                </div>
+                <span className="badge">{r.kind.replace('_', ' ')}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
-      <section style={{ marginTop: 22 }}>
-        <div className="page-header" style={{ marginBottom: 12 }}>
-          <h2 style={{ fontSize: 18 }}>Recent instances</h2>
-          <button className="btn btn-ghost" onClick={() => navigate('/instances')}>
-            View all
-          </button>
-        </div>
-
-        {recent.length === 0 ? (
-          <div className="empty">
-            <h3>No instances yet</h3>
-            <p>Create a Fabric, Forge, NeoForge, or Vanilla instance to get started.</p>
-            <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
-              <IconPlus />
-              Create instance
+      <div className="home-grid">
+        <section className="panel">
+          <div className="page-header" style={{ marginBottom: 12 }}>
+            <div>
+              <h2 style={{ fontSize: 16 }}>Recent instances</h2>
+              <p className="hint" style={{ marginBottom: 0 }}>
+                Pinned and last-used first. Double-click an instance on the Instances page to play.
+              </p>
+            </div>
+            <button className="btn btn-ghost" onClick={() => navigate('/instances')}>
+              View all
             </button>
           </div>
-        ) : (
-          <div className="grid grid-instances">
-            {recent.map((inst) => {
-              const isLive = running.running && running.instanceId === inst.id
-              return (
-                <div
-                  key={inst.id}
-                  className="card card-clickable instance-card"
-                  onClick={() => navigate(`/instances/${inst.id}`)}
-                >
-                  <div className="instance-top">
+          {recentInstances.length === 0 ? (
+            <div className="empty" style={{ padding: 24 }}>
+              <h3>No instances yet</h3>
+              <p>Create one to install mods and play.</p>
+              <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+                Create instance
+              </button>
+            </div>
+          ) : (
+            <div className="list">
+              {recentInstances.map((inst) => {
+                const isLive = running.running && running.instanceId === inst.id
+                const isLaunching = launchingId === inst.id
+                const pinned = pinnedIds.includes(inst.id)
+                return (
+                  <div key={inst.id} className="list-item">
                     <div
-                      className="instance-icon"
-                      style={{ background: inst.iconColor || '#1bd96a' }}
-                    >
-                      {inst.name.slice(0, 1).toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="instance-title">{inst.name}</div>
-                      <div className="instance-sub">
-                        {loaderLabel(inst.loader)} · {inst.gameVersion}
+                      className="instance-swatch"
+                      style={{ background: inst.iconColor || 'var(--bg-3)' }}
+                    />
+                    <div className="grow">
+                      <div className="title">
+                        {pinned ? '★ ' : ''}
+                        {inst.name}
+                        {inst.id === lastId ? (
+                          <span className="badge" style={{ marginLeft: 8 }}>
+                            Last
+                          </span>
+                        ) : null}
                       </div>
-                      <div className="badge-row" style={{ marginTop: 8 }}>
-                        <span className="badge badge-green">{loaderLabel(inst.loader)}</span>
-                        <span className="badge">{inst.mods.length} mods</span>
-                        {isLive && <span className="badge badge-running">Running</span>}
+                      <div className="sub">
+                        {loaderLabel(inst.loader)} · {inst.gameVersion} · {inst.mods.length} mods
                       </div>
                     </div>
-                  </div>
-                  <div className="card-actions" onClick={(e) => e.stopPropagation()}>
                     {isLive ? (
-                      <button className="btn btn-danger" onClick={() => stopGame()}>
+                      <button className="btn btn-danger" onClick={() => stopGame()} disabled={false}>
                         <IconStop />
                         Stop
                       </button>
                     ) : (
                       <button
                         className="btn btn-primary"
-                        disabled={launchingId === inst.id || running.running || !loggedIn}
-                        onClick={() => launch(inst.id)}
-                        title={loggedIn ? 'Play' : 'Sign in with Microsoft first'}
+                        disabled={isLaunching || (running.running && !isLive)}
+                        onClick={() => void launch(inst.id)}
                       >
                         <IconPlay />
-                        {launchingId === inst.id
-                          ? 'Launching…'
-                          : loggedIn
-                            ? 'Play'
-                            : 'Sign in to play'}
+                        {playLabel(inst.id)}
                       </button>
                     )}
                     <button
-                      className="btn btn-secondary"
-                      onClick={() => navigate(`/browse?instance=${inst.id}`)}
+                      className="btn btn-ghost"
+                      onClick={() => {
+                        setSelectedInstanceId(inst.id)
+                        navigate(`/instances/${encodeURIComponent(inst.id)}`)
+                      }}
                     >
-                      Add mods
+                      Open
                     </button>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </section>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        <HomeNews />
+      </div>
 
       <CreateInstanceModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={(id) => navigate(`/instances/${id}`)}
+        onCreated={(id) => {
+          pushRecent({ kind: 'created_instance', label: 'Created instance', href: `/instances/${id}` })
+          setSelectedInstanceId(id)
+          navigate(`/instances/${id}`)
+        }}
       />
     </div>
   )

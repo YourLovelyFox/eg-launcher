@@ -17,11 +17,13 @@ import {
   getActiveAccountSecret,
 } from './services/auth'
 import {
+  addModToInstance,
   createInstance,
   deleteInstance,
   getInstance,
   listInstances,
   removeModFromInstance,
+  renameInstance,
   toggleMod,
   updateInstance,
 } from './services/instances'
@@ -78,6 +80,35 @@ import {
   startPeriodicUpdateChecks,
   stopPeriodicUpdateChecks,
 } from './services/updater'
+import {
+  adminDeletePartnerEvent,
+  adminUpsertPartnerEvent,
+  listPartnerEvents,
+} from './services/partnerEvents'
+import { getAdminHealthSnapshot } from './services/healthDashboard'
+import {
+  clearStaffSession,
+  getStaffInfo,
+  refreshStaffMe,
+  staffLogin,
+  staffLogout,
+} from './services/staffSession'
+import { listApprovals, reviewApproval, staffMustQueue, submitApproval } from './services/approvals'
+import {
+  deleteFeaturedPack,
+  listFeaturedPacks,
+  saveFeaturedPack,
+} from './services/featuredPacksRemote'
+import {
+  getDeviceId,
+  getLocalAdFree,
+  getPaypalCheckoutUrl,
+  redeemAdCode,
+  submitAdClaim,
+  syncAdsStatus,
+} from './services/adsService'
+import { cmsRequest } from './services/cms/httpClient'
+import { getStaffSessionToken } from './services/staffSession'
 import { fetchNews, getDefaultNewsFeedUrl, setNewsUpdateListener } from './services/news'
 import {
   getAdminStatus,
@@ -86,6 +117,7 @@ import {
   newNewsId,
   publishNewsFeed,
   setCmsApiKeyForAdmin,
+  touchAdminSessionRemote,
   verifyAdminPassword,
 } from './services/admin'
 import { uploadAdminImage } from './services/adminUpload'
@@ -113,7 +145,7 @@ import {
 import { isAdminBuild } from '../shared/features'
 import { getAdminUnlockInfo, isAdminAvailable } from './services/adminUnlock'
 import type { NewsItem } from '../shared/types'
-import { getInstanceModsDir } from './paths'
+import { getInstanceDir, getInstanceModsDir } from './paths'
 
 // Reduce GPU / compositor freezes on some Windows setups after install
 if (process.platform === 'win32') {
@@ -294,6 +326,7 @@ function registerIpc() {
   ipcMain.handle('instances:update', (_e, id: string, patch: Partial<GameInstance>) =>
     updateInstance(id, patch),
   )
+  ipcMain.handle('instances:rename', (_e, id: string, newName: string) => renameInstance(id, newName))
   ipcMain.handle('instances:delete', (_e, id: string) => {
     deleteInstance(id)
     return true
@@ -410,6 +443,7 @@ function registerIpc() {
         query?: string
         gameVersion?: string
         loader?: string
+        categories?: string[]
         offset?: number
         limit?: number
         index?: string
@@ -503,8 +537,70 @@ function registerIpc() {
     const dir = getInstanceModsDir(instanceId)
     await shell.openPath(path.dirname(dir))
   })
+  ipcMain.handle(
+    'shell:openInstancePath',
+    async (_e, instanceId: string, sub?: 'root' | 'mods' | 'screenshots' | 'logs' | 'resourcepacks') => {
+      const root = getInstanceDir(instanceId)
+      let target = root
+      if (sub === 'mods') target = getInstanceModsDir(instanceId)
+      else if (sub === 'screenshots') {
+        target = path.join(root, 'screenshots')
+        fs.mkdirSync(target, { recursive: true })
+      } else if (sub === 'logs') {
+        target = path.join(root, 'logs')
+        fs.mkdirSync(target, { recursive: true })
+      } else if (sub === 'resourcepacks') {
+        target = path.join(root, 'resourcepacks')
+        fs.mkdirSync(target, { recursive: true })
+      }
+      await shell.openPath(target)
+    },
+  )
+  /** Copy a local .jar into instance mods (simple drop install). */
+  ipcMain.handle(
+    'instances:installLocalJar',
+    async (_e, instanceId: string, filePath: string) => {
+      const inst = getInstance(instanceId)
+      if (!inst) throw new Error('Instance not found')
+      const src = path.resolve(filePath)
+      if (!fs.existsSync(src) || !src.toLowerCase().endsWith('.jar')) {
+        throw new Error('Only .jar mod files are supported for drag-and-drop right now')
+      }
+      const fileName = path.basename(src)
+      const dest = path.join(getInstanceModsDir(instanceId), fileName)
+      fs.copyFileSync(src, dest)
+      const slug = fileName.replace(/\.jar$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      const mod = {
+        projectId: `local-${slug}`,
+        versionId: `local-${Date.now()}`,
+        slug,
+        title: fileName.replace(/\.jar$/i, ''),
+        iconUrl: null,
+        fileName,
+        versionNumber: 'local',
+        loaders: [inst.loader],
+        gameVersions: [inst.gameVersion],
+        enabled: true,
+        downloadedAt: new Date().toISOString(),
+      }
+      return addModToInstance(instanceId, mod)
+    },
+  )
 
-  // Featured permanent pack (Bee's SMP)
+  // Featured packs (public list for Live + Dev)
+  ipcMain.handle('featured:listPublic', async () => listFeaturedPacks(false))
+
+  // Ads (Live + Dev)
+  ipcMain.handle('ads:status', async () => syncAdsStatus())
+  ipcMain.handle('ads:local', () => getLocalAdFree())
+  ipcMain.handle('ads:deviceId', () => getDeviceId())
+  ipcMain.handle('ads:redeem', async (_e, code: string) => redeemAdCode(code))
+  ipcMain.handle('ads:claim', async (_e, input: { email?: string; message?: string }) =>
+    submitAdClaim(input || {}),
+  )
+  ipcMain.handle('ads:paypalCheckout', async () => getPaypalCheckoutUrl())
+
+  // Featured permanent pack (Bee's SMP / CMS packs)
   ipcMain.handle('featured:status', async (_e, slug?: string) =>
     getFeaturedPackStatus(slug || undefined),
   )
@@ -558,20 +654,23 @@ function registerIpc() {
   )
   ipcMain.handle('news:defaultUrl', () => getDefaultNewsFeedUrl())
 
-  // Admin: Dev build + local unlock file only (public clones without unlock never get Admin)
+  // Staff Menu: always available — gated by CMS staff accounts (Settings → Staff)
   ipcMain.on('admin:isUnlocked', (event) => {
-    event.returnValue = isAdminAvailable()
+    event.returnValue = true
   })
   ipcMain.handle('admin:unlockInfo', () => getAdminUnlockInfo())
 
-  if (isAdminAvailable()) {
-    console.log('[EG Launcher] Admin ENABLED (Dev + local unlock file)')
+  {
+    console.log('[EG Launcher] Staff Menu ENABLED (CMS staff accounts)')
     ipcMain.handle('admin:login', (_e, password: string) => verifyAdminPassword(password))
     ipcMain.handle('admin:logout', (_e, sessionToken: string) => {
       logoutAdmin(sessionToken)
       return true
     })
     ipcMain.handle('admin:status', (_e, sessionToken: string) => getAdminStatus(sessionToken))
+    ipcMain.handle('admin:touchSession', async (_e, sessionToken: string) =>
+      touchAdminSessionRemote(sessionToken),
+    )
     ipcMain.handle('admin:setCmsApiKey', (_e, sessionToken: string, key: string) =>
       setCmsApiKeyForAdmin(sessionToken, key),
     )
@@ -639,10 +738,211 @@ function registerIpc() {
       if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
       return adminPublishOfflineAuth()
     })
-  } else {
-    const info = getAdminUnlockInfo()
-    console.log('[EG Launcher] Admin DISABLED:', info.reason)
+    ipcMain.handle(
+      'admin:listPartnerEvents',
+      async (_e, sessionToken: string, partnerId?: string) => {
+        if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+        try {
+          const events = await listPartnerEvents(partnerId)
+          return { ok: true as const, events }
+        } catch (err) {
+          return { ok: false as const, error: (err as Error).message }
+        }
+      },
+    )
+    ipcMain.handle(
+      'admin:upsertPartnerEvent',
+      async (
+        _e,
+        sessionToken: string,
+        input: {
+          id?: string
+          partnerId: string
+          title: string
+          description?: string
+          startsAt: string
+          endsAt?: string | null
+          location?: string | null
+        },
+      ) => adminUpsertPartnerEvent(sessionToken, input, requireAdmin),
+    )
+    ipcMain.handle(
+      'admin:deletePartnerEvent',
+      async (_e, sessionToken: string, eventId: string) =>
+        adminDeletePartnerEvent(sessionToken, eventId, requireAdmin),
+    )
+    ipcMain.handle('admin:health', async (_e, sessionToken: string) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      try {
+        const health = await getAdminHealthSnapshot()
+        return { ok: true as const, health }
+      } catch (err) {
+        return { ok: false as const, error: (err as Error).message }
+      }
+    })
+
+    // Staff role login (CMS accounts)
+    ipcMain.handle('staff:login', async (_e, username: string, password: string) =>
+      staffLogin(username, password),
+    )
+    ipcMain.handle('staff:logout', async () => {
+      await staffLogout()
+      return true
+    })
+    ipcMain.handle('staff:me', async () => {
+      const staff = (await refreshStaffMe()) || getStaffInfo()
+      return { staff, mustQueue: staffMustQueue() }
+    })
+    ipcMain.handle('staff:listUsers', async (_e, sessionToken: string) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      try {
+        const r = await cmsRequest<{ users?: unknown[] }>({
+          path: 'staff.php?action=list',
+          admin: true,
+          sessionToken: getStaffSessionToken(),
+        })
+        return { ok: true as const, users: r.users || [] }
+      } catch (err) {
+        return { ok: false as const, error: (err as Error).message }
+      }
+    })
+    ipcMain.handle(
+      'staff:createUser',
+      async (
+        _e,
+        sessionToken: string,
+        input: { username: string; password: string; role: string; offlineQuota?: number },
+      ) => {
+        if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+        try {
+          await cmsRequest({
+            path: 'staff.php?action=create',
+            method: 'POST',
+            admin: true,
+            sessionToken: getStaffSessionToken(),
+            body: input,
+          })
+          return { ok: true as const, message: 'Staff user created' }
+        } catch (err) {
+          return { ok: false as const, error: (err as Error).message }
+        }
+      },
+    )
+    ipcMain.handle('staff:deleteUser', async (_e, sessionToken: string, id: string) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      try {
+        await cmsRequest({
+          path: 'staff.php?action=delete',
+          method: 'POST',
+          admin: true,
+          sessionToken: getStaffSessionToken(),
+          body: { id },
+        })
+        return { ok: true as const }
+      } catch (err) {
+        return { ok: false as const, error: (err as Error).message }
+      }
+    })
+    ipcMain.handle('staff:listApprovals', async (_e, sessionToken: string, status?: string) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      return listApprovals(status || 'pending')
+    })
+    ipcMain.handle(
+      'staff:reviewApproval',
+      async (
+        _e,
+        sessionToken: string,
+        id: string,
+        decision: 'approved' | 'rejected',
+        note?: string,
+      ) => {
+        if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+        return reviewApproval(id, decision, note)
+      },
+    )
+    ipcMain.handle('staff:submitApproval', async (_e, sessionToken: string, input: unknown) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      return submitApproval(input as { type: string; summary: string; payload: unknown })
+    })
+    ipcMain.handle('featured:listPacks', async (_e, all?: boolean) => listFeaturedPacks(Boolean(all)))
+    ipcMain.handle('featured:savePack', async (_e, sessionToken: string, pack: unknown) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      if (staffMustQueue()) {
+        return submitApproval({
+          type: 'featured_pack',
+          summary: `Featured pack: ${(pack as { title?: string }).title || 'pack'}`,
+          payload: pack,
+        })
+      }
+      return saveFeaturedPack(pack as never)
+    })
+    ipcMain.handle('featured:deletePack', async (_e, sessionToken: string, id: string) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      if (staffMustQueue()) {
+        return { ok: false as const, error: 'Staff cannot delete featured packs — ask an Admin' }
+      }
+      return deleteFeaturedPack(id)
+    })
+    ipcMain.handle(
+      'ads:createCode',
+      async (_e, sessionToken: string, input: { days?: number; code?: string; note?: string }) => {
+        if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+        try {
+          const r = await cmsRequest<{ code?: string; days?: number }>({
+            path: 'ads.php?action=create_code',
+            method: 'POST',
+            admin: true,
+            body: input || {},
+          })
+          return { ok: true as const, code: r.code, days: r.days }
+        } catch (err) {
+          return { ok: false as const, error: (err as Error).message }
+        }
+      },
+    )
+    ipcMain.handle('ads:listClaims', async (_e, sessionToken: string) => {
+      if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+      try {
+        const r = await cmsRequest<{ claims?: unknown[] }>({
+          path: 'ads.php?action=claims',
+          admin: true,
+        })
+        return { ok: true as const, claims: r.claims || [] }
+      } catch (err) {
+        return { ok: false as const, error: (err as Error).message }
+      }
+    })
+    ipcMain.handle(
+      'ads:grant',
+      async (
+        _e,
+        sessionToken: string,
+        input: { deviceId: string; days?: number; claimId?: string; note?: string },
+      ) => {
+        if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+        try {
+          const r = await cmsRequest<{ paidUntil?: string }>({
+            path: 'ads.php?action=grant',
+            method: 'POST',
+            admin: true,
+            body: input,
+          })
+          return { ok: true as const, paidUntil: r.paidUntil }
+        } catch (err) {
+          return { ok: false as const, error: (err as Error).message }
+        }
+      },
+    )
   }
+
+  // Public partner events (Live + Dev)
+  ipcMain.handle('partners:listEvents', async (_e, partnerId?: string) => {
+    try {
+      return await listPartnerEvents(partnerId)
+    } catch {
+      return []
+    }
+  })
 
   // Partner news auth + editor (available Live + Dev; publish needs write token on PC)
   ipcMain.handle('partnerAuth:login', async (_e, username: string, password: string) =>
@@ -664,6 +964,58 @@ function registerIpc() {
       publishPartnerNews(sessionToken, items),
   )
   ipcMain.handle('partnerAuth:newId', () => newPartnerNewsId())
+  ipcMain.handle(
+    'partnerAuth:upsertEvent',
+    async (
+      _e,
+      sessionToken: string,
+      input: {
+        id?: string
+        title: string
+        description?: string
+        startsAt: string
+        endsAt?: string | null
+        location?: string | null
+      },
+    ) => {
+      const st = getPartnerSessionInfo(sessionToken)
+      if (!st.authenticated) return { ok: false as const, error: 'Partner login required' }
+      try {
+        const r = await cmsRequest<{ event?: unknown; message?: string; error?: string }>({
+          path: 'partner_events.php',
+          method: 'POST',
+          sessionToken,
+          body: {
+            action: 'upsert',
+            partnerId: st.partnerId,
+            ...input,
+          },
+        })
+        if (!r.event) return { ok: false as const, error: r.error || 'Save failed' }
+        return { ok: true as const, event: r.event, message: r.message }
+      } catch (err) {
+        return { ok: false as const, error: (err as Error).message }
+      }
+    },
+  )
+  ipcMain.handle(
+    'partnerAuth:deleteEvent',
+    async (_e, sessionToken: string, eventId: string) => {
+      const st = getPartnerSessionInfo(sessionToken)
+      if (!st.authenticated) return { ok: false as const, error: 'Partner login required' }
+      try {
+        await cmsRequest({
+          path: 'partner_events.php',
+          method: 'POST',
+          sessionToken,
+          body: { action: 'delete', id: eventId },
+        })
+        return { ok: true as const }
+      } catch (err) {
+        return { ok: false as const, error: (err as Error).message }
+      }
+    },
+  )
 }
 
 app.on('second-instance', () => {

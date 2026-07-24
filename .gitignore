@@ -25,6 +25,10 @@ certs/
 # Server-side CMS secrets (upload to host only — never in the launcher)
 cms-api/config.php
 
+# Local deploy credentials / one-off ops tooling (never publish)
+.deploy-secrets.json
+deploy-cms-images/
+
 # Local ops notes / CMS deploy tools — do not publish infrastructure docs
 sql/**/*.md
 cms-api/**/*.md
@@ -35,3 +39,13 @@ scripts/_ftp-list-root.mjs
 scripts/_probe-db.mjs
 scripts/_verify-cms.mjs
 scripts/_verify-cms-security.mjs
+scripts/_check-remote-partners.mjs
+scripts/_deploy-cms-images.mjs
+scripts/_deploy-cms-now.mjs
+scripts/_deploy-staff-cms.mjs
+scripts/_find-webroot.mjs
+scripts/_fix-cms-config.mjs
+scripts/_force-deploy-partners.mjs
+scripts/_probe-cms-upload.mjs
+scripts/_test-php-names.mjs
+scripts/_try-db-and-ftp-sync.mjs

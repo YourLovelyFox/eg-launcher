@@ -6,6 +6,7 @@ import type {
   ProgressEvent,
   RunningGameInfo,
 } from '../shared/types'
+import { loadQolPrefs, setLastInstanceId } from './qolPrefs'
 
 type Toast = {
   id: number
@@ -55,7 +56,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeAccountId: null,
   settings: null,
   instances: [],
-  selectedInstanceId: null,
+  selectedInstanceId: loadQolPrefs().lastInstanceId,
   installProgress: null,
   downloadProgress: null,
   running: IDLE_RUNNING,
@@ -65,7 +66,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAccounts: (accounts, activeAccountId) => set({ accounts, activeAccountId }),
   setSettings: (settings) => set({ settings }),
   setInstances: (instances) => set({ instances }),
-  setSelectedInstanceId: (id) => set({ selectedInstanceId: id }),
+  setSelectedInstanceId: (id) => {
+    set({ selectedInstanceId: id })
+    if (id) setLastInstanceId(id)
+  },
   setInstallProgress: (p) => set({ installProgress: p }),
   setDownloadProgress: (p) => set({ downloadProgress: p }),
   setRunning: (running) => set({ running }),
@@ -109,14 +113,22 @@ export const useAppStore = create<AppState>((set, get) => ({
         window.hive.instances.list(),
         window.hive.mc.running().catch(() => IDLE_RUNNING),
       ])
+      const lastId = loadQolPrefs().lastInstanceId
+      const selected =
+        (lastId && instances.some((i) => i.id === lastId) ? lastId : null) ||
+        get().selectedInstanceId ||
+        instances[0]?.id ||
+        null
       set({
         accounts: auth.accounts,
         activeAccountId: auth.activeAccountId,
         settings,
         instances,
+        selectedInstanceId: selected,
         running,
         loading: false,
       })
+      if (selected) setLastInstanceId(selected)
     } catch (err) {
       set({ loading: false })
       get().showToast('error', (err as Error).message || 'Failed to load launcher data')

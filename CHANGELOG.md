@@ -6,6 +6,29 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.4.0] — 2026-07-24
+
+### Added
+- **Staff Menu** in Settings → Staff: CMS multi-admin sign-in (session token only; no local unlock password or launcher CMS key prompts).
+- **Staff roles & verification queue**: approvals for offline accounts and related staff workflows.
+- **CMS featured modpacks** managed from Admin / Staff panels.
+- **Ads banner** with PayPal Friends & Family checkout (monthly sponsor flow).
+- **Partner events**: partners can manage events under partner login (not staff-only).
+- **Staff health dashboard**, featured packs, ads, and staff-user management panels.
+- **Sliding idle staff session (5 minutes)**: timer resets on clicks/typing; not an absolute login timeout.
+- Theme and QoL preference helpers for a smoother UI.
+
+### Changed
+- Staff features available in **Live** builds (gated by CMS staff/admin accounts, not a Dev-only flag).
+- CMS HTTP client no longer requires a launcher CMS API key for staff session work; error copy sanitized.
+- Offline auth and CMS bootstrap support staff sessions, approvals, ads, featured packs, and partner events.
+
+### Downloads
+- Windows: `EG-Launcher-2.4.0-win-x64-setup.exe` and `EG-Launcher-2.4.0-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.4.0-linux-x86_64.AppImage`
+
+---
+
 ## [2.3.0] — 2026-07-23
 
 ### Added

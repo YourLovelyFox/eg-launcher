@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { LoaderType, PartnerConfig } from '../../shared/types'
+import type { LoaderType, PartnerConfig, PartnerEvent } from '../../shared/types'
 import { useAppStore } from '../store'
 
 type FormState = {
@@ -73,6 +73,12 @@ export function AdminPartnersPanel({ session }: Props) {
   const [uploadingIcon, setUploadingIcon] = useState(false)
   const [form, setForm] = useState<FormState>(emptyForm())
   const [mode, setMode] = useState<'list' | 'edit'>('list')
+  const [events, setEvents] = useState<PartnerEvent[]>([])
+  const [eventTitle, setEventTitle] = useState('')
+  const [eventStarts, setEventStarts] = useState('')
+  const [eventDesc, setEventDesc] = useState('')
+  const [eventLoc, setEventLoc] = useState('')
+  const [eventBusy, setEventBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -102,6 +108,89 @@ export function AdminPartnersPanel({ session }: Props) {
   function startEdit(p: PartnerConfig) {
     setForm(fromConfig(p))
     setMode('edit')
+    void loadEvents(p.id)
+  }
+
+  async function loadEvents(partnerId: string) {
+    try {
+      const res = await window.hive.admin.listPartnerEvents(session, partnerId)
+      if (res.ok) setEvents(res.events)
+      else setEvents([])
+    } catch {
+      setEvents([])
+    }
+  }
+
+  async function saveEvent() {
+    if (!form.id) {
+      showToast('error', 'Save the partner once before adding events')
+      return
+    }
+    if (!eventTitle.trim() || !eventStarts) {
+      showToast('error', 'Event title and start time required')
+      return
+    }
+    setEventBusy(true)
+    try {
+      const payload = {
+        partnerId: form.id,
+        title: eventTitle.trim(),
+        description: eventDesc.trim(),
+        startsAt: new Date(eventStarts).toISOString(),
+        location: eventLoc.trim() || null,
+      }
+      const me = await window.hive.admin.staffMe()
+      if (me?.mustQueue) {
+        const sub = await window.hive.admin.submitApproval(session, {
+          type: 'partner_event',
+          summary: `Partner event “${payload.title}” for ${form.id}`,
+          payload,
+        })
+        if (!sub.ok) {
+          showToast('error', sub.error)
+          return
+        }
+        showToast('success', sub.message || 'Event submitted for admin verification')
+        setEventTitle('')
+        setEventStarts('')
+        setEventDesc('')
+        setEventLoc('')
+        return
+      }
+      const res = await window.hive.admin.upsertPartnerEvent(session, payload)
+      if (!res.ok) {
+        showToast('error', res.error)
+        return
+      }
+      showToast('success', res.message || 'Event saved')
+      setEventTitle('')
+      setEventStarts('')
+      setEventDesc('')
+      setEventLoc('')
+      await loadEvents(form.id)
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setEventBusy(false)
+    }
+  }
+
+  async function deleteEvent(id: string) {
+    if (!form.id) return
+    setEventBusy(true)
+    try {
+      const res = await window.hive.admin.deletePartnerEvent(session, id)
+      if (!res.ok) {
+        showToast('error', res.error)
+        return
+      }
+      showToast('success', 'Event deleted')
+      await loadEvents(form.id)
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setEventBusy(false)
+    }
   }
 
   async function save() {
@@ -111,7 +200,7 @@ export function AdminPartnersPanel({ session }: Props) {
         .split(/[,\n]+/)
         .map((s) => s.trim())
         .filter(Boolean)
-      const res = await window.hive.admin.upsertPartner(session, {
+      const payload = {
         id: form.id,
         title: form.title,
         menuLabel: form.menuLabel || form.title,
@@ -129,7 +218,23 @@ export function AdminPartnersPanel({ session }: Props) {
         iconUrl: form.iconUrl.trim() || null,
         discordUrl: form.discordUrl.trim() || null,
         enabled: true,
-      })
+      }
+      const me = await window.hive.admin.staffMe()
+      if (me?.mustQueue) {
+        const sub = await window.hive.admin.submitApproval(session, {
+          type: 'partner_upsert',
+          summary: `Partner ${payload.title}`,
+          payload,
+        })
+        if (!sub.ok) {
+          showToast('error', sub.error)
+          return
+        }
+        showToast('success', sub.message || 'Partner change submitted for admin verification')
+        setForm((f) => ({ ...f, newsPassword: '' }))
+        return
+      }
+      const res = await window.hive.admin.upsertPartner(session, payload)
       if (!res.ok) {
         showToast('error', res.error || 'Save failed')
         return
@@ -165,6 +270,20 @@ export function AdminPartnersPanel({ session }: Props) {
     }
     setSaving(true)
     try {
+      const me = await window.hive.admin.staffMe()
+      if (me?.mustQueue) {
+        const sub = await window.hive.admin.submitApproval(session, {
+          type: 'partner_delete',
+          summary: `Delete partner ${p.title}`,
+          payload: { id: p.id },
+        })
+        if (!sub.ok) {
+          showToast('error', sub.error)
+          return
+        }
+        showToast('success', sub.message || 'Delete submitted for admin verification')
+        return
+      }
       const res = await window.hive.admin.deletePartner(session, p.id)
       if (!res.ok) {
         showToast('error', res.error || 'Delete failed')
@@ -534,6 +653,84 @@ export function AdminPartnersPanel({ session }: Props) {
             </button>
           </div>
         </form>
+
+        {!isCreate && form.id && (
+          <div style={{ marginTop: 28, borderTop: '1px solid var(--border-soft)', paddingTop: 18 }}>
+            <h3 style={{ fontSize: 15, marginBottom: 8 }}>Events calendar</h3>
+            <p className="hint">Shown on the partner page. Stored in CMS MariaDB.</p>
+            <div className="form-grid">
+              <div className="form-row">
+                <label>Title *</label>
+                <input
+                  className="input"
+                  value={eventTitle}
+                  onChange={(e) => setEventTitle(e.target.value)}
+                  placeholder="Community build day"
+                />
+              </div>
+              <div className="form-row">
+                <label>Starts *</label>
+                <input
+                  className="input"
+                  type="datetime-local"
+                  value={eventStarts}
+                  onChange={(e) => setEventStarts(e.target.value)}
+                />
+              </div>
+              <div className="form-row">
+                <label>Location</label>
+                <input
+                  className="input"
+                  value={eventLoc}
+                  onChange={(e) => setEventLoc(e.target.value)}
+                  placeholder="Spawn / Discord / coords"
+                />
+              </div>
+              <div className="form-row">
+                <label>Description</label>
+                <textarea
+                  className="input admin-textarea"
+                  rows={2}
+                  value={eventDesc}
+                  onChange={(e) => setEventDesc(e.target.value)}
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ marginTop: 10 }}
+              disabled={eventBusy}
+              onClick={() => void saveEvent()}
+            >
+              {eventBusy ? '…' : 'Add event'}
+            </button>
+            {events.length > 0 && (
+              <div className="list" style={{ marginTop: 14 }}>
+                {events.map((ev) => (
+                  <div key={ev.id} className="list-item">
+                    <div className="grow">
+                      <div className="title">{ev.title}</div>
+                      <div className="sub">
+                        {new Date(ev.startsAt).toLocaleString()}
+                        {ev.location ? ` · ${ev.location}` : ''}
+                      </div>
+                      {ev.description ? <div className="sub">{ev.description}</div> : null}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      disabled={eventBusy}
+                      onClick={() => void deleteEvent(ev.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     )
   }

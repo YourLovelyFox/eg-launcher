@@ -54,6 +54,8 @@ export async function searchMods(options: {
   query?: string
   gameVersion?: string
   loader?: string
+  /** Modrinth category slugs, e.g. optimization, utility, adventure */
+  categories?: string[]
   offset?: number
   limit?: number
   index?: string
@@ -65,6 +67,13 @@ export async function searchMods(options: {
   }
   if (options.loader && options.loader !== 'vanilla') {
     facets.push([`categories:${options.loader}`])
+  }
+  // Additional content categories (OR within group, AND with other facets)
+  const cats = (options.categories || []).map((c) => c.trim()).filter(Boolean)
+  if (cats.length === 1) {
+    facets.push([`categories:${cats[0]}`])
+  } else if (cats.length > 1) {
+    facets.push(cats.map((c) => `categories:${c}`))
   }
 
   const params = new URLSearchParams()

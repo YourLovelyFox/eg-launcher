@@ -90,6 +90,19 @@ CREATE TABLE IF NOT EXISTS cms_images (
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Partner events calendar
+CREATE TABLE IF NOT EXISTS partner_events (
+  id VARCHAR(64) NOT NULL PRIMARY KEY,
+  partner_id VARCHAR(64) NOT NULL,
+  title VARCHAR(512) NOT NULL,
+  description TEXT NULL,
+  starts_at DATETIME(3) NOT NULL,
+  ends_at DATETIME(3) NULL,
+  location VARCHAR(512) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY idx_partner_starts (partner_id, starts_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT IGNORE INTO offline_settings (id, unlock_password_hash) VALUES (1, NULL);
 INSERT IGNORE INTO feed_meta (feed_kind, title) VALUES
   ('launcher', 'EG Launcher News'),

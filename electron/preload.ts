@@ -1,13 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { isAdminBuild } from '../shared/features'
 
+/** Staff Menu always available — gated by CMS staff login. */
 function adminUnlockedSync(): boolean {
-  if (!isAdminBuild()) return false
-  try {
-    return Boolean(ipcRenderer.sendSync('admin:isUnlocked'))
-  } catch {
-    return false
-  }
+  return true
 }
 import type {
   DeviceCodeResponse,
@@ -101,11 +96,15 @@ const api = {
     }): Promise<GameInstance> => ipcRenderer.invoke('instances:create', input),
     update: (id: string, patch: Partial<GameInstance>): Promise<GameInstance> =>
       ipcRenderer.invoke('instances:update', id, patch),
+    rename: (id: string, newName: string): Promise<GameInstance> =>
+      ipcRenderer.invoke('instances:rename', id, newName),
     delete: (id: string): Promise<boolean> => ipcRenderer.invoke('instances:delete', id),
     toggleMod: (instanceId: string, projectId: string, enabled: boolean): Promise<GameInstance> =>
       ipcRenderer.invoke('instances:toggleMod', instanceId, projectId, enabled),
     removeMod: (instanceId: string, projectId: string): Promise<GameInstance> =>
       ipcRenderer.invoke('instances:removeMod', instanceId, projectId),
+    installLocalJar: (instanceId: string, filePath: string): Promise<GameInstance> =>
+      ipcRenderer.invoke('instances:installLocalJar', instanceId, filePath),
     listBackups: (instanceId: string): Promise<InstanceBackupInfo[]> =>
       ipcRenderer.invoke('instances:listBackups', instanceId),
     createBackup: (
@@ -162,6 +161,7 @@ const api = {
       query?: string
       gameVersion?: string
       loader?: string
+      categories?: string[]
       offset?: number
       limit?: number
       index?: string
@@ -201,6 +201,10 @@ const api = {
     openExternal: (url: string): Promise<void> => ipcRenderer.invoke('shell:openExternal', url),
     openInstanceFolder: (instanceId: string): Promise<void> =>
       ipcRenderer.invoke('shell:openInstanceFolder', instanceId),
+    openInstancePath: (
+      instanceId: string,
+      sub?: 'root' | 'mods' | 'screenshots' | 'logs' | 'resourcepacks',
+    ): Promise<void> => ipcRenderer.invoke('shell:openInstancePath', instanceId, sub),
   },
   featured: {
     getStatus: (slug?: string) => ipcRenderer.invoke('featured:status', slug),
@@ -224,6 +228,9 @@ const api = {
       id: string,
     ): Promise<{ instanceId: string; serverAddress: string; serverName: string }> =>
       ipcRenderer.invoke('partners:prepareJoin', id),
+    listEvents: (partnerId?: string): Promise<
+      import('../shared/types').PartnerEvent[]
+    > => ipcRenderer.invoke('partners:listEvents', partnerId),
     onInstallProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
       const listener = (_: unknown, event: ProgressEvent) => cb(event)
       ipcRenderer.on('partners:installProgress', listener)
@@ -304,29 +311,33 @@ const api = {
     ): Promise<{ ok: true; message: string; commitUrl?: string } | { ok: false; error: string }> =>
       ipcRenderer.invoke('partnerAuth:publish', sessionToken, items),
     newId: (): Promise<string> => ipcRenderer.invoke('partnerAuth:newId'),
+    upsertEvent: (
+      sessionToken: string,
+      input: {
+        id?: string
+        title: string
+        description?: string
+        startsAt: string
+        endsAt?: string | null
+        location?: string | null
+      },
+    ) => ipcRenderer.invoke('partnerAuth:upsertEvent', sessionToken, input),
+    deleteEvent: (sessionToken: string, eventId: string) =>
+      ipcRenderer.invoke('partnerAuth:deleteEvent', sessionToken, eventId),
   },
   /**
-   * Admin API is only functional in the Dev Launcher.
-   * Public Live builds do not register these IPC handlers.
+   * Staff Menu API — available in all builds; requires CMS staff login.
    */
   admin: {
-    /** Dev build + local unlock file on this PC */
-    isEnabled: (): boolean => adminUnlockedSync(),
+    /** Always true — open Settings → Staff and sign in with a CMS account. */
+    isEnabled: (): boolean => true,
     login: (
       password: string,
-    ): Promise<{ ok: true; sessionToken: string } | { ok: false; error: string }> => {
-      if (!adminUnlockedSync()) {
-        return Promise.resolve({
-          ok: false,
-          error: 'Admin is locked. Create admin.local.json with "enableAdmin": true on this PC.',
-        })
-      }
-      return ipcRenderer.invoke('admin:login', password)
-    },
-    logout: (sessionToken: string): Promise<boolean> => {
-      if (!adminUnlockedSync()) return Promise.resolve(false)
-      return ipcRenderer.invoke('admin:logout', sessionToken)
-    },
+    ): Promise<
+      { ok: true; sessionToken: string; expiresAt?: number } | { ok: false; error: string }
+    > => ipcRenderer.invoke('admin:login', password),
+    logout: (sessionToken: string): Promise<boolean> =>
+      ipcRenderer.invoke('admin:logout', sessionToken),
     status: (
       sessionToken: string,
     ): Promise<{
@@ -336,64 +347,46 @@ const api = {
       feedUrl: string
       repo: string
       adminEnabled?: boolean
-    }> => {
-      if (!adminUnlockedSync()) {
-        return Promise.resolve({
-          authenticated: false,
-          hasCmsApiKey: false,
-          feedPath: '',
-          feedUrl: '',
-          repo: '',
-          adminEnabled: false,
-        })
-      }
-      return ipcRenderer.invoke('admin:status', sessionToken)
-    },
+      staffRole?: string | null
+      expiresAt?: number | null
+      sessionTtlSeconds?: number
+    }> => ipcRenderer.invoke('admin:status', sessionToken),
+    /** Reset idle timeout (call on clicks / typing). */
+    touchSession: (
+      sessionToken: string,
+    ): Promise<{ ok: true; expiresAt: number } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('admin:touchSession', sessionToken),
     setCmsApiKey: (
       sessionToken: string,
       key: string,
-    ): Promise<{ ok: boolean; error?: string }> => {
-      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
-      return ipcRenderer.invoke('admin:setCmsApiKey', sessionToken, key)
-    },
+    ): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('admin:setCmsApiKey', sessionToken, key),
     loadNews: (
       sessionToken: string,
-    ): Promise<{ ok: true; feed: NewsFeedResult } | { ok: false; error: string }> => {
-      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
-      return ipcRenderer.invoke('admin:loadNews', sessionToken)
-    },
+    ): Promise<{ ok: true; feed: NewsFeedResult } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('admin:loadNews', sessionToken),
     publishNews: (
       sessionToken: string,
       items: NewsItem[],
       title?: string,
     ): Promise<
       { ok: true; commitUrl?: string; message: string } | { ok: false; error: string }
-    > => {
-      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
-      return ipcRenderer.invoke('admin:publishNews', sessionToken, items, title)
-    },
-    newId: (): Promise<string> => {
-      if (!adminUnlockedSync()) return Promise.resolve(`news-${Date.now()}`)
-      return ipcRenderer.invoke('admin:newId')
-    },
+    > => ipcRenderer.invoke('admin:publishNews', sessionToken, items, title),
+    newId: (): Promise<string> => ipcRenderer.invoke('admin:newId'),
     listPartners: (
       sessionToken: string,
-    ): Promise<{ ok: true; partners: PartnerConfig[] } | { ok: false; error: string }> => {
-      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
-      return ipcRenderer.invoke('admin:listPartners', sessionToken)
-    },
+    ): Promise<{ ok: true; partners: PartnerConfig[] } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('admin:listPartners', sessionToken),
     upsertPartner: (
       sessionToken: string,
       input: Record<string, unknown>,
     ): Promise<{ ok: true; partner: PartnerConfig } | { ok: false; error: string }> => {
-      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:upsertPartner', sessionToken, input)
     },
     deletePartner: (
       sessionToken: string,
       partnerId: string,
     ): Promise<{ ok: true } | { ok: false; error: string }> => {
-      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:deletePartner', sessionToken, partnerId)
     },
     /**
@@ -407,7 +400,6 @@ const api = {
         | { name: string; mime?: string; base64: string }
         | null,
     ): Promise<{ ok: true; url: string; message?: string } | { ok: false; error: string }> => {
-      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:uploadImage', sessionToken, input ?? null)
     },
     listOfflineUsers: (
@@ -427,7 +419,6 @@ const api = {
         }
       | { ok: false; error: string }
     > => {
-      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:listOfflineUsers', sessionToken)
     },
     createOfflineUser: (
@@ -435,29 +426,127 @@ const api = {
       username: string,
       password: string,
     ): Promise<{ ok: true; message: string } | { ok: false; error: string }> => {
-      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:createOfflineUser', sessionToken, username, password)
     },
     deleteOfflineUser: (
       sessionToken: string,
       userId: string,
     ): Promise<{ ok: true; message: string } | { ok: false; error: string }> => {
-      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:deleteOfflineUser', sessionToken, userId)
     },
     setOfflineUnlockPassword: (
       sessionToken: string,
       password: string,
     ): Promise<{ ok: true; message: string } | { ok: false; error: string }> => {
-      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:setOfflineUnlockPassword', sessionToken, password)
     },
     publishOfflineAuth: (
       sessionToken: string,
     ): Promise<{ ok: true; message: string; commitUrl?: string } | { ok: false; error: string }> => {
-      if (!adminUnlockedSync()) return Promise.resolve({ ok: false, error: 'Admin locked' })
       return ipcRenderer.invoke('admin:publishOfflineAuth', sessionToken)
     },
+    listPartnerEvents: (
+      sessionToken: string,
+      partnerId?: string,
+    ): Promise<
+      | { ok: true; events: import('../shared/types').PartnerEvent[] }
+      | { ok: false; error: string }
+    > => {
+      return ipcRenderer.invoke('admin:listPartnerEvents', sessionToken, partnerId)
+    },
+    upsertPartnerEvent: (
+      sessionToken: string,
+      input: {
+        id?: string
+        partnerId: string
+        title: string
+        description?: string
+        startsAt: string
+        endsAt?: string | null
+        location?: string | null
+      },
+    ): Promise<
+      | { ok: true; event: import('../shared/types').PartnerEvent; message?: string }
+      | { ok: false; error: string }
+    > => {
+      return ipcRenderer.invoke('admin:upsertPartnerEvent', sessionToken, input)
+    },
+    deletePartnerEvent: (
+      sessionToken: string,
+      eventId: string,
+    ): Promise<{ ok: true; message?: string } | { ok: false; error: string }> => {
+      return ipcRenderer.invoke('admin:deletePartnerEvent', sessionToken, eventId)
+    },
+    health: (
+      sessionToken: string,
+    ): Promise<
+      | { ok: true; health: import('./services/healthDashboard').AdminHealthSnapshot }
+      | { ok: false; error: string }
+    > => {
+      return ipcRenderer.invoke('admin:health', sessionToken)
+    },
+    staffLogin: (
+      username: string,
+      password: string,
+    ): Promise<
+      | {
+          ok: true
+          staff: {
+            id: string
+            username: string
+            role: string
+            offlineQuota: number
+            offlineUsed: number
+          }
+          expiresAt?: number
+        }
+      | { ok: false; error: string }
+    > => ipcRenderer.invoke('staff:login', username, password),
+    staffLogout: () => ipcRenderer.invoke('staff:logout'),
+    staffMe: () => ipcRenderer.invoke('staff:me'),
+    listStaffUsers: (sessionToken: string) => ipcRenderer.invoke('staff:listUsers', sessionToken),
+    createStaffUser: (
+      sessionToken: string,
+      input: { username: string; password: string; role: string; offlineQuota?: number },
+    ) => ipcRenderer.invoke('staff:createUser', sessionToken, input),
+    deleteStaffUser: (sessionToken: string, id: string) =>
+      ipcRenderer.invoke('staff:deleteUser', sessionToken, id),
+    listApprovals: (sessionToken: string, status?: string) =>
+      ipcRenderer.invoke('staff:listApprovals', sessionToken, status),
+    reviewApproval: (
+      sessionToken: string,
+      id: string,
+      decision: 'approved' | 'rejected',
+      note?: string,
+    ) => ipcRenderer.invoke('staff:reviewApproval', sessionToken, id, decision, note),
+    submitApproval: (
+      sessionToken: string,
+      input: { type: string; summary: string; payload: unknown },
+    ) => ipcRenderer.invoke('staff:submitApproval', sessionToken, input),
+    listFeaturedPacks: (all?: boolean) => ipcRenderer.invoke('featured:listPacks', all),
+    saveFeaturedPack: (sessionToken: string, pack: unknown) =>
+      ipcRenderer.invoke('featured:savePack', sessionToken, pack),
+    deleteFeaturedPack: (sessionToken: string, id: string) =>
+      ipcRenderer.invoke('featured:deletePack', sessionToken, id),
+    adsCreateCode: (sessionToken: string, input?: { days?: number; code?: string; note?: string }) =>
+      ipcRenderer.invoke('ads:createCode', sessionToken, input || {}),
+    adsListClaims: (sessionToken: string) => ipcRenderer.invoke('ads:listClaims', sessionToken),
+    adsGrant: (
+      sessionToken: string,
+      input: { deviceId: string; days?: number; claimId?: string; note?: string },
+    ) => ipcRenderer.invoke('ads:grant', sessionToken, input),
+  },
+  featuredPacks: {
+    listPublic: () => ipcRenderer.invoke('featured:listPublic'),
+  },
+  ads: {
+    status: () => ipcRenderer.invoke('ads:status'),
+    local: () => ipcRenderer.invoke('ads:local'),
+    deviceId: () => ipcRenderer.invoke('ads:deviceId'),
+    redeem: (code: string) => ipcRenderer.invoke('ads:redeem', code),
+    claim: (input?: { email?: string; message?: string }) =>
+      ipcRenderer.invoke('ads:claim', input || {}),
+    paypalCheckout: () => ipcRenderer.invoke('ads:paypalCheckout'),
   },
 }
 

@@ -74,6 +74,8 @@ export type MinecraftAccount = {
   type?: MinecraftAccountType
 }
 
+export type LauncherTheme = 'dark' | 'light' | 'high-contrast'
+
 export type LauncherSettings = {
   ramMinMb: number
   ramMaxMb: number
@@ -86,6 +88,49 @@ export type LauncherSettings = {
    * Kept for settings file compatibility; ignored by the app.
    */
   offlineModeEnabled?: boolean
+  /** UI theme (default dark). */
+  theme?: LauncherTheme
+}
+
+/** Launch profile: same mods, different JVM / RAM / resource-pack selection. */
+export type InstanceProfile = {
+  id: string
+  name: string
+  /** Extra JVM args (space-separated), e.g. -XX:+UseG1GC */
+  jvmArgs?: string
+  /** Override max RAM (MB); null/undefined = use Settings */
+  ramMaxMb?: number | null
+  /**
+   * Resource pack file/folder names under the instance resourcepacks/ folder.
+   * Applied to options.txt on launch when possible.
+   */
+  resourcePacks?: string[]
+}
+
+/** Partner calendar event (CMS). */
+export type PartnerEvent = {
+  id: string
+  partnerId: string
+  title: string
+  description?: string
+  startsAt: string
+  endsAt?: string | null
+  location?: string | null
+}
+
+/** CMS-driven featured modpack (sidebar Featured section). */
+export type FeaturedPackConfig = {
+  id: string
+  slug: string
+  projectId: string
+  title: string
+  description: string
+  menuLabel: string
+  minSystemRamGb: number
+  recommendedAllocatedMb: number
+  iconUrl?: string | null
+  enabled?: boolean
+  sortOrder?: number
 }
 
 /** Offline auth user record (password hash only — never plain passwords in the client). */
@@ -191,6 +236,9 @@ export type GameInstance = {
   lastPlayed?: string
   mods: InstalledMod[]
   iconColor?: string
+  /** Launch profiles (JVM / RAM / resource packs). */
+  profiles?: InstanceProfile[]
+  activeProfileId?: string | null
 }
 
 export type ModrinthSearchHit = {

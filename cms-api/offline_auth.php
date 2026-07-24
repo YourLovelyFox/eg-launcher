@@ -104,7 +104,7 @@ try {
     }
 
     if ($action === 'list' && $method === 'GET') {
-        require_admin();
+        require_staff_member();
         $s = $pdo->query('SELECT unlock_password_hash FROM offline_settings WHERE id = 1')->fetch();
         $users = $pdo->query(
             'SELECT id, username, uuid, display_name, created_at FROM offline_users ORDER BY username'
@@ -143,15 +143,36 @@ try {
     }
 
     if ($action === 'create_user' && $method === 'POST') {
-        require_admin();
+        $staff = require_staff_member();
         $body = json_body();
         $u = trim((string) ($body['username'] ?? ''));
         $p = (string) ($body['password'] ?? '');
+        $createdBy = (string) $staff['id'];
         if (strlen($u) < 3 || strlen($u) > 16 || !preg_match('/^[A-Za-z0-9_]+$/', $u)) {
             json_fail('Username must be 3–16 letters, numbers, underscores', 400);
         }
         if (strlen($p) < 8) {
             json_fail('Password must be at least 8 characters', 400);
+        }
+        try {
+            $pdo->exec('ALTER TABLE offline_users ADD COLUMN created_by_staff VARCHAR(64) NULL');
+        } catch (Throwable $e) {
+        }
+
+        // Staff role: max offline accounts (default 3). Admins unlimited.
+        if (($staff['role'] ?? '') === 'staff') {
+            $quota = (int) ($staff['offline_quota'] ?? 3);
+            $usedStmt = $pdo->prepare(
+                'SELECT COUNT(*) c FROM offline_users WHERE created_by_staff = ?'
+            );
+            $usedStmt->execute([$createdBy]);
+            $used = (int) $usedStmt->fetch()['c'];
+            if ($used >= $quota) {
+                json_fail(
+                    "Staff offline account limit reached ({$used}/{$quota}). Ask an Admin for more.",
+                    403
+                );
+            }
         }
         $id = 'offline-' . bin2hex(random_bytes(8));
         // Classic offline UUID (nameUUIDFromBytes OfflinePlayer:name)
@@ -163,9 +184,9 @@ try {
         $hash = hash_password_secure($p);
         try {
             $pdo->prepare(
-                'INSERT INTO offline_users (id, username, password_hash, uuid, display_name, created_at)
-                 VALUES (?,?,?,?,?,UTC_TIMESTAMP())'
-            )->execute([$id, $u, $hash, $uuid, $u]);
+                'INSERT INTO offline_users (id, username, password_hash, uuid, display_name, created_at, created_by_staff)
+                 VALUES (?,?,?,?,?,UTC_TIMESTAMP(),?)'
+            )->execute([$id, $u, $hash, $uuid, $u, $createdBy !== '' ? $createdBy : null]);
         } catch (PDOException $e) {
             json_fail('That username already exists', 409);
         }
@@ -173,7 +194,7 @@ try {
     }
 
     if ($action === 'delete_user' && $method === 'POST') {
-        require_admin();
+        require_staff_member();
         $body = json_body();
         $id = trim((string) ($body['id'] ?? ''));
         if ($id === '') {

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { GameInstance, InstanceBackupInfo } from '../../shared/types'
+import type { GameInstance, InstanceBackupInfo, InstanceProfile } from '../../shared/types'
 import { IconDownload, IconFolder, IconPlay, IconStop, IconTrash } from '../components/Icons'
 import { checkModsUpdates, type ModUpdateInfo } from '../modUpdates'
+import { pushRecent } from '../qolPrefs'
 import { loaderLabel, useAppStore } from '../store'
 
 function formatBytes(n: number): string {
@@ -44,16 +45,144 @@ export function InstanceDetailPage() {
   const [backupProgress, setBackupProgress] = useState<{ message: string; progress: number } | null>(
     null,
   )
+  const [profileName, setProfileName] = useState('Performance')
+  const [profileJvm, setProfileJvm] = useState('')
+  const [profileRam, setProfileRam] = useState('')
+  const [profilePacks, setProfilePacks] = useState('')
+  const [profileBusy, setProfileBusy] = useState(false)
+  const [modFilter, setModFilter] = useState('')
+  const [cancelUpdateAll, setCancelUpdateAll] = useState(false)
+  const cancelUpdateAllRef = useRef(false)
+  const [loadingInstance, setLoadingInstance] = useState(true)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+  const [renaming, setRenaming] = useState(false)
 
   const isLive = !!(instance && running.running && running.instanceId === instance.id)
   const loggedIn = accounts.some((a) => a.id === activeAccountId)
   const updatesAvailable = Object.values(updateMap).filter((u) => u.hasUpdate)
+
+  // Must stay above any conditional return (Rules of Hooks)
+  const filteredMods = useMemo(() => {
+    const mods = instance?.mods || []
+    const q = modFilter.trim().toLowerCase()
+    if (!q) return mods
+    return mods.filter(
+      (m) =>
+        m.title.toLowerCase().includes(q) ||
+        m.slug.toLowerCase().includes(q) ||
+        m.fileName.toLowerCase().includes(q),
+    )
+  }, [instance?.mods, modFilter])
 
   async function reload() {
     if (!id) return
     const data = await window.hive.instances.get(id)
     setInstance(data)
     return data
+  }
+
+  async function submitRename() {
+    if (!instance) return
+    const next = renameValue.trim()
+    if (!next) {
+      showToast('error', 'Name cannot be empty')
+      return
+    }
+    if (isLive) {
+      showToast('error', 'Stop the game before renaming this instance')
+      return
+    }
+    setRenaming(true)
+    try {
+      const oldId = instance.id
+      const updated = await window.hive.instances.rename(instance.id, next)
+      setInstance(updated)
+      setRenameOpen(false)
+      await refreshAll()
+      // Folder / id may change to match the name — keep URL in sync
+      if (updated.id !== oldId) {
+        navigate(`/instances/${encodeURIComponent(updated.id)}`, { replace: true })
+      }
+      showToast('success', `Renamed to “${updated.name}”`)
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setRenaming(false)
+    }
+  }
+
+  async function addProfile() {
+    if (!instance) return
+    setProfileBusy(true)
+    try {
+      const ram = profileRam.trim() ? Number(profileRam) : null
+      const profile: InstanceProfile = {
+        id: `prof-${Date.now().toString(36)}`,
+        name: profileName.trim() || 'Profile',
+        jvmArgs: profileJvm.trim() || undefined,
+        ramMaxMb: ram && Number.isFinite(ram) && ram >= 1024 ? ram : null,
+        resourcePacks: profilePacks
+          .split(/[,]+/)
+          .map((s) => s.trim())
+          .filter(Boolean),
+      }
+      const profiles = [...(instance.profiles || []), profile]
+      const updated = await window.hive.instances.update(instance.id, {
+        profiles,
+        activeProfileId: instance.activeProfileId || profile.id,
+      })
+      setInstance(updated)
+      await refreshAll()
+      showToast('success', `Profile “${profile.name}” added`)
+      setProfileJvm('')
+      setProfileRam('')
+      setProfilePacks('')
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setProfileBusy(false)
+    }
+  }
+
+  async function setActiveProfile(profileId: string) {
+    if (!instance) return
+    setProfileBusy(true)
+    try {
+      const updated = await window.hive.instances.update(instance.id, {
+        activeProfileId: profileId,
+      })
+      setInstance(updated)
+      await refreshAll()
+      showToast('success', 'Active profile updated')
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setProfileBusy(false)
+    }
+  }
+
+  async function removeProfile(profileId: string) {
+    if (!instance) return
+    setProfileBusy(true)
+    try {
+      const profiles = (instance.profiles || []).filter((p) => p.id !== profileId)
+      const activeProfileId =
+        instance.activeProfileId === profileId
+          ? profiles[0]?.id || null
+          : instance.activeProfileId
+      const updated = await window.hive.instances.update(instance.id, {
+        profiles,
+        activeProfileId,
+      })
+      setInstance(updated)
+      await refreshAll()
+      showToast('success', 'Profile removed')
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setProfileBusy(false)
+    }
   }
 
   async function reloadBackups() {
@@ -84,12 +213,15 @@ export function InstanceDetailPage() {
   }
 
   useEffect(() => {
+    setLoadingInstance(true)
+    setInstance(null)
     reload()
       .then((data) => {
         void refreshUpdateChecks(data)
         void reloadBackups()
       })
       .catch((err) => showToast('error', (err as Error).message))
+      .finally(() => setLoadingInstance(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
@@ -105,19 +237,6 @@ export function InstanceDetailPage() {
       offBackup()
     }
   }, [setInstallProgress, setDownloadProgress])
-
-  if (!instance) {
-    return (
-      <div className="page">
-        <div className="empty">
-          <h3>Instance not found</h3>
-          <Link to="/instances" className="btn btn-secondary">
-            Back
-          </Link>
-        </div>
-      </div>
-    )
-  }
 
   async function install() {
     setBusy('install')
@@ -136,7 +255,7 @@ export function InstanceDetailPage() {
 
   async function launch(acknowledgeLowMemory = false) {
     if (!loggedIn) {
-      showToast('error', 'Sign in with Microsoft to play')
+      showToast('error', 'Sign in to play')
       navigate('/account')
       return
     }
@@ -145,6 +264,11 @@ export function InstanceDetailPage() {
       const result = await window.hive.mc.launch(instance!.id, { acknowledgeLowMemory })
       await refreshRunning()
       if (result.success) {
+        pushRecent({
+          kind: 'played',
+          label: `Played ${instance!.name}`,
+          href: `/instances/${instance!.id}`,
+        })
         showToast('success', result.message)
         await refreshAll()
         await reload()
@@ -228,9 +352,15 @@ export function InstanceDetailPage() {
   async function updateAll() {
     if (updatesAvailable.length === 0) return
     setUpdatingAll(true)
+    cancelUpdateAllRef.current = false
+    setCancelUpdateAll(false)
     let ok = 0
     try {
       for (const info of updatesAvailable) {
+        if (cancelUpdateAllRef.current) {
+          showToast('info', `Update all cancelled after ${ok} mod${ok === 1 ? '' : 's'}`)
+          break
+        }
         if (!info.latestVersionId) continue
         setUpdatingId(info.projectId)
         try {
@@ -247,12 +377,28 @@ export function InstanceDetailPage() {
       const updated = await reload()
       await refreshAll()
       await refreshUpdateChecks(updated)
-      if (ok > 0) showToast('success', `Updated ${ok} mod${ok === 1 ? '' : 's'}`)
+      if (ok > 0 && !cancelUpdateAllRef.current) {
+        showToast('success', `Updated ${ok} mod${ok === 1 ? '' : 's'}`)
+      }
     } finally {
       setUpdatingId(null)
       setUpdatingAll(false)
+      cancelUpdateAllRef.current = false
+      setCancelUpdateAll(false)
       setTimeout(() => setDownloadProgress(null), 1200)
     }
+  }
+
+  async function bulkSetEnabled(enabled: boolean) {
+    if (!instance) return
+    const mods = instance.mods
+    for (const m of mods) {
+      if (m.enabled === enabled) continue
+      await window.hive.instances.toggleMod(instance.id, m.projectId, enabled)
+    }
+    await reload()
+    await refreshAll()
+    showToast('success', enabled ? 'Enabled all mods' : 'Disabled all mods')
   }
 
   async function createBackup() {
@@ -324,29 +470,127 @@ export function InstanceDetailPage() {
     }
   }
 
+  if (loadingInstance) {
+    return (
+      <div className="page">
+        <div className="skeleton" style={{ height: 200, borderRadius: 16 }} />
+      </div>
+    )
+  }
+
+  if (!instance) {
+    return (
+      <div className="page">
+        <div className="empty">
+          <h3>Instance not found</h3>
+          <Link to="/instances" className="btn btn-secondary">
+            Back
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="page">
+      {renameOpen && (
+        <div
+          className="update-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => !renaming && setRenameOpen(false)}
+        >
+          <div className="update-modal panel" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginTop: 0 }}>Rename instance</h2>
+            <p className="hint">
+              This also renames the folder under your EG Launcher data so Explorer shows the name,
+              not a random ID.
+            </p>
+            <input
+              className="input"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void submitRename()
+                if (e.key === 'Escape') setRenameOpen(false)
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={renaming}
+                onClick={() => setRenameOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={renaming || !renameValue.trim()}
+                onClick={() => void submitRename()}
+              >
+                {renaming ? 'Renaming…' : 'Save name'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="page-header">
         <div>
           <button className="btn btn-ghost" style={{ marginBottom: 8 }} onClick={() => navigate(-1)}>
             ← Back
           </button>
-          <h1>{instance.name}</h1>
+          <h1 style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {instance.name}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ padding: '4px 10px', fontSize: 13 }}
+              disabled={isLive || renaming}
+              onClick={() => {
+                setRenameValue(instance.name)
+                setRenameOpen(true)
+              }}
+              title={isLive ? 'Stop the game to rename' : 'Rename instance'}
+            >
+              Rename
+            </button>
+          </h1>
           <p>
             {loaderLabel(instance.loader)}
             {instance.loaderVersion ? ` ${instance.loaderVersion}` : ''} · Minecraft{' '}
             {instance.gameVersion}
           </p>
+          <p className="hint mono" style={{ marginBottom: 0 }}>
+            Folder: eg-data/instances/{instance.id}
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
             className="btn btn-secondary"
-            onClick={() => window.hive.shell.openInstanceFolder(instance.id)}
+            onClick={() => window.hive.shell.openInstancePath(instance.id, 'root')}
+            title="Open instance folder"
           >
             <IconFolder />
             Folder
           </button>
-          <button className="btn btn-secondary" onClick={install} disabled={busy === 'install'}>
+          <button
+            className="btn btn-ghost"
+            onClick={() => window.hive.shell.openInstancePath(instance.id, 'screenshots')}
+            title="Screenshots"
+          >
+            Shots
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => window.hive.shell.openInstancePath(instance.id, 'logs')}
+            title="Logs"
+          >
+            Logs
+          </button>
+          <button className="btn btn-secondary" onClick={install} disabled={busy === 'install' || isLive}>
             <IconDownload />
             {busy === 'install' ? 'Installing…' : 'Install / Repair'}
           </button>
@@ -360,10 +604,16 @@ export function InstanceDetailPage() {
               className="btn btn-primary btn-lg"
               onClick={() => launch()}
               disabled={!!busy || running.running || !loggedIn}
-              title={loggedIn ? 'Play' : 'Sign in with Microsoft first'}
+              title={loggedIn ? 'Play' : 'Sign in first'}
             >
               <IconPlay />
-              {busy === 'launch' ? 'Launching…' : loggedIn ? 'Play' : 'Sign in to play'}
+              {busy === 'launch'
+                ? 'Launching…'
+                : running.running
+                  ? 'Game running'
+                  : loggedIn
+                    ? 'Play'
+                    : 'Sign in to play'}
             </button>
           )}
         </div>
@@ -426,6 +676,26 @@ export function InstanceDetailPage() {
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {instance.mods.length > 0 && (
+                <>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => void bulkSetEnabled(true)}
+                    disabled={updatingAll || !!updatingId}
+                    title="Enable all mods"
+                  >
+                    Enable all
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => void bulkSetEnabled(false)}
+                    disabled={updatingAll || !!updatingId}
+                    title="Disable all mods"
+                  >
+                    Disable all
+                  </button>
+                </>
+              )}
+              {instance.mods.length > 0 && (
                 <button
                   className="btn btn-secondary"
                   onClick={() => refreshUpdateChecks()}
@@ -437,11 +707,25 @@ export function InstanceDetailPage() {
               {updatesAvailable.length > 0 && (
                 <button
                   className="btn btn-primary"
-                  onClick={updateAll}
+                  onClick={() => void updateAll()}
                   disabled={updatingAll || !!updatingId || checkingUpdates}
                 >
                   <IconDownload />
-                  {updatingAll ? 'Updating…' : `Update all (${updatesAvailable.length})`}
+                  {updatingAll
+                    ? `Updating…`
+                    : `Update all (${updatesAvailable.length})`}
+                </button>
+              )}
+              {updatingAll && (
+                <button
+                  className="btn btn-danger"
+                  type="button"
+                  onClick={() => {
+                    cancelUpdateAllRef.current = true
+                    setCancelUpdateAll(true)
+                  }}
+                >
+                  {cancelUpdateAll ? 'Cancelling…' : 'Cancel'}
                 </button>
               )}
               <Link className="btn btn-primary" to={`/browse?instance=${instance.id}`}>
@@ -449,6 +733,16 @@ export function InstanceDetailPage() {
               </Link>
             </div>
           </div>
+
+          {instance.mods.length > 0 && (
+            <input
+              className="input"
+              style={{ marginBottom: 12 }}
+              placeholder="Search installed mods…"
+              value={modFilter}
+              onChange={(e) => setModFilter(e.target.value)}
+            />
+          )}
 
           {instance.mods.length === 0 ? (
             <div className="empty" style={{ padding: 28 }}>
@@ -458,9 +752,13 @@ export function InstanceDetailPage() {
                 Find mods
               </Link>
             </div>
+          ) : filteredMods.length === 0 ? (
+            <div className="empty" style={{ padding: 20 }}>
+              <p>No mods match “{modFilter}”.</p>
+            </div>
           ) : (
             <div className="list">
-              {instance.mods.map((mod) => {
+              {filteredMods.map((mod) => {
                 const info = updateMap[mod.projectId]
                 const hasUpdate = Boolean(info?.hasUpdate)
                 const isUpdating = updatingId === mod.projectId
@@ -572,6 +870,100 @@ export function InstanceDetailPage() {
           </p>
         </section>
       </div>
+
+      <section className="panel" style={{ marginTop: 16 }}>
+        <h2>Launch profiles</h2>
+        <p className="hint">
+          Same mods, different JVM args / RAM / resource packs. Active profile is used on Play.
+        </p>
+        <div className="form-grid">
+          <div className="form-row">
+            <label>Profile name</label>
+            <input
+              className="input"
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+              placeholder="Performance"
+            />
+          </div>
+          <div className="form-row">
+            <label>Extra JVM args</label>
+            <input
+              className="input"
+              value={profileJvm}
+              onChange={(e) => setProfileJvm(e.target.value)}
+              placeholder="-XX:+UseG1GC -XX:+ParallelRefProcEnabled"
+            />
+          </div>
+          <div className="form-row">
+            <label>Max RAM MB (optional)</label>
+            <input
+              className="input"
+              value={profileRam}
+              onChange={(e) => setProfileRam(e.target.value)}
+              placeholder="Leave empty for Settings default"
+            />
+          </div>
+          <div className="form-row">
+            <label>Resource packs (comma-separated file names)</label>
+            <input
+              className="input"
+              value={profilePacks}
+              onChange={(e) => setProfilePacks(e.target.value)}
+              placeholder="MyPack.zip, VanillaTweaks.zip"
+            />
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ marginTop: 10 }}
+          disabled={profileBusy || !instance || !profileName.trim()}
+          onClick={() => void addProfile()}
+        >
+          {profileBusy ? '…' : 'Add profile'}
+        </button>
+        {(instance?.profiles || []).length > 0 && (
+          <div className="list" style={{ marginTop: 14 }}>
+            {(instance?.profiles || []).map((p) => {
+              const active = instance?.activeProfileId === p.id
+              return (
+                <div key={p.id} className="list-item">
+                  <div className="grow">
+                    <div className="title" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {p.name}
+                      {active && <span className="badge badge-green">Active</span>}
+                    </div>
+                    <div className="sub mono">
+                      {p.ramMaxMb ? `${p.ramMaxMb} MB · ` : ''}
+                      {p.jvmArgs || 'default JVM'}
+                      {p.resourcePacks?.length ? ` · packs: ${p.resourcePacks.join(', ')}` : ''}
+                    </div>
+                  </div>
+                  {!active && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={profileBusy}
+                      onClick={() => void setActiveProfile(p.id)}
+                    >
+                      Use
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    disabled={profileBusy}
+                    onClick={() => void removeProfile(p.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
 
       <section className="panel" style={{ marginTop: 16 }}>
         <div className="page-header" style={{ marginBottom: 12 }}>

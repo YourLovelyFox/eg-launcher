@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import type { MinecraftServerStatus } from '../../shared/types'
+import type { MinecraftServerStatus, PartnerEvent } from '../../shared/types'
 import horizonsIcon from '../assets/horizons-smp.png'
 import { PartnerNews } from '../components/PartnerNews'
 import { IconDownload, IconExternal, IconPlay, IconStop } from '../components/Icons'
+import { loadQolPrefs, setPartnerLastOnline } from '../qolPrefs'
 import { loaderLabel, useAppStore } from '../store'
 
 type PartnerStatus = {
@@ -58,6 +59,7 @@ export function PartnerPage() {
   const [busy, setBusy] = useState<'install' | 'launch' | 'join' | null>(null)
   const [serverStatus, setServerStatus] = useState<MinecraftServerStatus | null>(null)
   const [serverChecking, setServerChecking] = useState(false)
+  const [events, setEvents] = useState<PartnerEvent[]>([])
   const loggedIn = accounts.some((a) => a.id === activeAccountId)
   const isLive = !!(
     status?.local.instanceId &&
@@ -96,6 +98,7 @@ export function PartnerPage() {
       try {
         const result = await window.hive.server.status(addr)
         setServerStatus(result)
+        if (result.online && id) setPartnerLastOnline(id)
       } catch (err) {
         setServerStatus({
           online: false,
@@ -114,6 +117,25 @@ export function PartnerPage() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useEffect(() => {
+    if (!id) {
+      setEvents([])
+      return
+    }
+    let cancelled = false
+    window.hive.partners
+      .listEvents(id)
+      .then((list) => {
+        if (!cancelled) setEvents(Array.isArray(list) ? list : [])
+      })
+      .catch(() => {
+        if (!cancelled) setEvents([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id])
 
   useEffect(() => {
     if (!status?.partner.serverAddress) return
@@ -314,6 +336,12 @@ export function PartnerPage() {
             >
               Server · {serverLabel}
             </span>
+            {!serverOnline && loadQolPrefs().partnerLastOnline[partner.id] && (
+              <span className="badge" title="Last time this client saw the server online">
+                Last online{' '}
+                {new Date(loadQolPrefs().partnerLastOnline[partner.id]).toLocaleString()}
+              </span>
+            )}
           </div>
 
           <div className="partner-title-row">
@@ -364,7 +392,24 @@ export function PartnerPage() {
             </div>
             <div>
               <span className="meta-label">Server</span>
-              <strong className="mono">{partner.serverAddress}</strong>
+              <strong className="mono" style={{ display: 'block' }}>
+                {partner.serverAddress}
+              </strong>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ marginTop: 6, padding: '2px 8px' }}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(partner.serverAddress)
+                    showToast('success', 'Server address copied')
+                  } catch {
+                    showToast('error', 'Could not copy address')
+                  }
+                }}
+              >
+                Copy address
+              </button>
             </div>
             <div>
               <span className="meta-label">Live status</span>
@@ -536,7 +581,45 @@ export function PartnerPage() {
         )}
       </section>
 
-      <PartnerNews newsTag={partner.newsTag} partnerTitle={partner.title} />
+      <section className="panel" style={{ marginTop: 16 }}>
+        <h2>Events</h2>
+        <p className="hint">Upcoming community events for this partner.</p>
+        {events.length === 0 ? (
+          <div className="empty" style={{ padding: 20 }}>
+            <p>No events scheduled yet.</p>
+          </div>
+        ) : (
+          <div className="list">
+            {[...events]
+              .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+              .map((ev) => {
+                const start = new Date(ev.startsAt)
+                const past = start.getTime() < Date.now()
+                return (
+                  <div key={ev.id} className="list-item">
+                    <div className="grow">
+                      <div className="title" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        {ev.title}
+                        <span className={`badge ${past ? '' : 'badge-green'}`}>
+                          {past ? 'Past' : 'Upcoming'}
+                        </span>
+                      </div>
+                      <div className="sub">{start.toLocaleString()}</div>
+                      {ev.location ? <div className="sub">{ev.location}</div> : null}
+                      {ev.description ? <div className="sub">{ev.description}</div> : null}
+                    </div>
+                  </div>
+                )
+              })}
+          </div>
+        )}
+      </section>
+
+      <PartnerNews
+        newsTag={partner.newsTag}
+        partnerTitle={partner.title}
+        partnerId={partner.id}
+      />
     </div>
   )
 }

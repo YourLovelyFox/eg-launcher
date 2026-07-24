@@ -18,6 +18,7 @@ export function AccountPage() {
 
   const [offlineUser, setOfflineUser] = useState('')
   const [offlinePass, setOfflinePass] = useState('')
+  const [showOfflinePass, setShowOfflinePass] = useState(false)
   const [offlineBusy, setOfflineBusy] = useState(false)
   const [offlineWarning, setOfflineWarning] = useState('')
 
@@ -300,16 +301,26 @@ export function AccountPage() {
             </div>
             <div className="form-row">
               <label>Password</label>
-              <input
-                className="input"
-                type="password"
-                value={offlinePass}
-                onChange={(e) => setOfflinePass(e.target.value)}
-                autoComplete="current-password"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void submitOfflineLogin()
-                }}
-              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  className="input"
+                  style={{ flex: 1 }}
+                  type={showOfflinePass ? 'text' : 'password'}
+                  value={offlinePass}
+                  onChange={(e) => setOfflinePass(e.target.value)}
+                  autoComplete="current-password"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void submitOfflineLogin()
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowOfflinePass((v) => !v)}
+                >
+                  {showOfflinePass ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
           </div>
           <button

@@ -25,4 +25,9 @@ return [
     // Login / unlock rate limit (per IP + action)
     'rate_limit_max' => 12,
     'rate_limit_window' => 300,
+
+    // First Staff Menu admin account (created only when staff_users table is empty).
+    // If staff_bootstrap_pass is empty, first 16 chars of admin_api_key are used once.
+    'staff_bootstrap_user' => 'admin',
+    'staff_bootstrap_pass' => '',
 ];

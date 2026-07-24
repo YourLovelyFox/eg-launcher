@@ -13,10 +13,12 @@ import { PartnerPage } from './pages/PartnerPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AdminPage } from './pages/AdminPage'
 import { useAppStore } from './store'
+import { applyTheme } from './theme'
 
 export default function App() {
   const refreshAll = useAppStore((s) => s.refreshAll)
   const loading = useAppStore((s) => s.loading)
+  const settings = useAppStore((s) => s.settings)
 
   useEffect(() => {
     document.title = APP_FULL_NAME
@@ -27,6 +29,10 @@ export default function App() {
     refreshAll().finally(() => window.clearTimeout(safety))
     return () => window.clearTimeout(safety)
   }, [refreshAll])
+
+  useEffect(() => {
+    if (settings?.theme) applyTheme(settings.theme)
+  }, [settings?.theme])
 
   if (loading) {
     return (

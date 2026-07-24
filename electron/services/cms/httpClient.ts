@@ -1,86 +1,27 @@
 import https from 'https'
 import http from 'http'
-import fs from 'fs'
-import path from 'path'
 import { CMS_API_FALLBACK_BASES, resolveCmsApiBase } from '../../../shared/cmsApi'
-import { getDataRoot, readJsonFile, writeJsonFile } from '../../paths'
 
 const USER_AGENT = 'EGLauncher-CMS/1.0'
 const MAX_REDIRECTS = 8
 
 export type CmsJson = Record<string, unknown>
 
-/** Resolve admin API key from env, admin.local.json, or userData secrets. */
+/**
+ * CMS admin API keys are no longer used by the launcher.
+ * Staff Menu is 100% CMS staff-account based (X-EG-Session).
+ * Kept as no-ops so older call sites compile without errors.
+ */
 export function loadAdminApiKey(): string | null {
-  if (process.env.EG_CMS_API_KEY?.trim()) return process.env.EG_CMS_API_KEY.trim()
-
-  const candidates: string[] = []
-
-  // CWD (npm run dev / project root)
-  candidates.push(path.join(process.cwd(), 'admin.local.json'))
-
-  // Relative to compiled main (dist-electron/) and source (electron/services/cms/)
-  candidates.push(path.join(__dirname, '../../admin.local.json')) // dist-electron → project
-  candidates.push(path.join(__dirname, '../../../admin.local.json')) // electron/services/cms → project
-  candidates.push(path.join(__dirname, '../../../../admin.local.json'))
-
-  // Electron app path (dev)
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { app } = require('electron') as typeof import('electron')
-    if (app?.getAppPath) {
-      candidates.push(path.join(app.getAppPath(), 'admin.local.json'))
-      candidates.push(path.join(app.getAppPath(), '..', 'admin.local.json'))
-    }
-  } catch {
-    /* not in electron yet */
-  }
-
-  for (const p of candidates) {
-    try {
-      if (!p || !fs.existsSync(p)) continue
-      const j = readJsonFile<{ cmsApiKey?: string; adminApiKey?: string }>(p, {})
-      const key = (j.cmsApiKey || j.adminApiKey || '').trim()
-      if (key) {
-        // Cache into userData so later Admin ops work even if cwd changes
-        try {
-          cacheAdminApiKey(key)
-        } catch {
-          /* ignore */
-        }
-        return key
-      }
-    } catch {
-      /* next */
-    }
-  }
-
-  // Cached key from previous session / Admin UI
-  try {
-    const secrets = readJsonFile<{ cmsApiKey?: string }>(
-      path.join(getDataRoot(), 'admin-secrets.json'),
-      {},
-    )
-    if (secrets.cmsApiKey?.trim()) return secrets.cmsApiKey.trim()
-  } catch {
-    /* ignore */
-  }
-
   return null
 }
 
-export function cacheAdminApiKey(key: string): void {
-  const t = key.trim()
-  if (!t) return
-  const secretsPath = path.join(getDataRoot(), 'admin-secrets.json')
-  const prev = readJsonFile<Record<string, unknown>>(secretsPath, {})
-  writeJsonFile(secretsPath, { ...prev, cmsApiKey: t })
+export function cacheAdminApiKey(_key: string): void {
+  /* intentionally unused */
 }
 
-export function setAdminApiKey(key: string): { ok: true } | { ok: false; error: string } {
-  const t = (key || '').trim()
-  if (t.length < 8) return { ok: false, error: 'CMS API key looks too short' }
-  cacheAdminApiKey(t)
+export function setAdminApiKey(_key: string): { ok: true } | { ok: false; error: string } {
+  // No local CMS key — account session only
   return { ok: true }
 }
 
@@ -103,17 +44,21 @@ function buildHeaders(options: {
   }
   if (options.sessionToken) {
     headers['X-EG-Session'] = options.sessionToken
-  }
-  if (options.admin) {
-    const key = loadAdminApiKey()
-    if (!key) {
-      throw new Error(
-        'CMS API key missing. In project folder create/edit admin.local.json with:\n' +
-          '  "cmsApiKey": "<same as server config.php admin_api_key>"\n' +
-          'Or set it under Admin → CMS API key. Partner login does NOT need this key.',
-      )
+  } else if (options.admin) {
+    // Attach staff session when present (never use CMS API keys)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { getStaffSessionToken } = require('../staffSession') as typeof import('../staffSession')
+      const st = getStaffSessionToken()
+      if (st) headers['X-EG-Session'] = st
+    } catch {
+      /* ignore */
     }
-    headers['X-EG-Admin-Key'] = key
+  }
+  if (options.admin && !headers['X-EG-Session']) {
+    throw new Error(
+      'Session expired or not signed in. Open Settings → Staff and sign in again (sessions last 5 minutes).',
+    )
   }
   return headers
 }
@@ -248,7 +193,7 @@ export async function cmsRequest<T extends CmsJson = CmsJson>(options: {
       const json = parseJsonBody(res.status, res.body, res.finalUrl)
 
       if (res.status >= 400) {
-        const err = String(json.error || `HTTP ${res.status}`)
+        const err = sanitizeCmsError(String(json.error || `HTTP ${res.status}`))
         if (res.status === 404) {
           lastErr = new Error(err)
           continue
@@ -257,12 +202,20 @@ export async function cmsRequest<T extends CmsJson = CmsJson>(options: {
       }
       return json as T
     } catch (err) {
-      lastErr = err as Error
+      lastErr = new Error(sanitizeCmsError((err as Error).message))
       continue
     }
   }
 
   throw lastErr || new Error('CMS request failed')
+}
+
+/** Never surface legacy CMS API-key wording to the UI. */
+function sanitizeCmsError(msg: string): string {
+  if (/api key|admin key|cms key|admin_api_key|X-EG-Admin-Key/i.test(msg)) {
+    return 'Staff login required. Open Settings → Staff and sign in (sessions last 5 minutes).'
+  }
+  return msg
 }
 
 export async function cmsHealth(): Promise<{ ok: boolean; error?: string }> {

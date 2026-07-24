@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CreateInstanceModal } from '../components/CreateInstanceModal'
 import { IconPlay, IconPlus, IconStop, IconTrash } from '../components/Icons'
 import { checkModsUpdates } from '../modUpdates'
+import { loadQolPrefs, pushRecent, setLastInstanceId, togglePinnedInstance } from '../qolPrefs'
 import { loaderLabel, useAppStore } from '../store'
 
 export function InstancesPage() {
@@ -16,12 +17,28 @@ export function InstancesPage() {
     running,
     stopGame,
     refreshRunning,
+    setSelectedInstanceId,
   } = useAppStore()
   const [createOpen, setCreateOpen] = useState(false)
   const [launchingId, setLaunchingId] = useState<string | null>(null)
   const [updateCounts, setUpdateCounts] = useState<Record<string, number>>({})
   const [checkingUpdates, setCheckingUpdates] = useState(false)
+  const [prefsTick, setPrefsTick] = useState(0)
   const loggedIn = accounts.some((a) => a.id === activeAccountId)
+
+  const sorted = useMemo(() => {
+    const pinned = loadQolPrefs().pinnedInstanceIds
+    const last = loadQolPrefs().lastInstanceId
+    return [...instances].sort((a, b) => {
+      const ap = pinned.includes(a.id) ? 0 : 1
+      const bp = pinned.includes(b.id) ? 0 : 1
+      if (ap !== bp) return ap - bp
+      if (a.id === last) return -1
+      if (b.id === last) return 1
+      return a.name.localeCompare(b.name)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instances, prefsTick])
 
   useEffect(() => {
     let cancelled = false
@@ -33,7 +50,6 @@ export function InstancesPage() {
       setCheckingUpdates(true)
       const next: Record<string, number> = {}
       try {
-        // Sequential per instance to avoid hammering Modrinth
         for (const inst of instances) {
           if (cancelled) return
           if (!inst.mods.length) {
@@ -62,16 +78,21 @@ export function InstancesPage() {
 
   async function launch(id: string, acknowledgeLowMemory = false) {
     if (!loggedIn) {
-      showToast('error', 'Sign in with Microsoft to play')
+      showToast('error', 'Sign in to play')
       navigate('/account')
       return
     }
     setLaunchingId(id)
+    setSelectedInstanceId(id)
+    setLastInstanceId(id)
     try {
       const result = await window.hive.mc.launch(id, { acknowledgeLowMemory })
       await refreshRunning()
-      if (result.success) showToast('success', result.message)
-      else if (result.requiresConfirmation) {
+      if (result.success) {
+        const name = instances.find((i) => i.id === id)?.name || 'instance'
+        pushRecent({ kind: 'played', label: `Played ${name}`, href: `/instances/${id}` })
+        showToast('success', result.message)
+      } else if (result.requiresConfirmation) {
         if (window.confirm(result.message)) {
           await launch(id, true)
           return
@@ -105,12 +126,18 @@ export function InstancesPage() {
     }
   }
 
+  function playLabel(id: string): string {
+    if (running.running && running.instanceId === id) return 'Running'
+    if (launchingId === id) return 'Launching…'
+    return loggedIn ? 'Play' : 'Sign in'
+  }
+
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1>Instances</h1>
-          <p>Your Minecraft installs — Vanilla, Fabric, Forge, and NeoForge.</p>
+          <p>Double-click a card to play · Star to pin · Last used is remembered.</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {running.running && (
@@ -167,21 +194,42 @@ export function InstancesPage() {
         </div>
       ) : (
         <div className="grid grid-instances">
-          {instances.map((inst) => {
+          {sorted.map((inst) => {
             const isLive = running.running && running.instanceId === inst.id
             const updates = updateCounts[inst.id] ?? 0
+            const pinned = loadQolPrefs().pinnedInstanceIds.includes(inst.id)
+            const last = loadQolPrefs().lastInstanceId === inst.id
             return (
               <div
                 key={inst.id}
                 className="card card-clickable instance-card"
-                onClick={() => navigate(`/instances/${inst.id}`)}
+                onClick={() => {
+                  setSelectedInstanceId(inst.id)
+                  navigate(`/instances/${encodeURIComponent(inst.id)}`)
+                }}
+                onDoubleClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (!isLive && launchingId !== inst.id && !running.running) {
+                    void launch(inst.id)
+                  }
+                }}
+                title="Double-click to play"
               >
                 <div className="instance-top">
                   <div className="instance-icon" style={{ background: inst.iconColor || '#1bd96a' }}>
                     {inst.name.slice(0, 1).toUpperCase()}
                   </div>
                   <div>
-                    <div className="instance-title">{inst.name}</div>
+                    <div className="instance-title">
+                      {pinned ? '★ ' : ''}
+                      {inst.name}
+                      {last ? (
+                        <span className="badge" style={{ marginLeft: 6 }}>
+                          Last
+                        </span>
+                      ) : null}
+                    </div>
                     <div className="instance-sub">
                       {loaderLabel(inst.loader)} {inst.loaderVersion ? inst.loaderVersion : ''} ·{' '}
                       {inst.gameVersion}
@@ -198,15 +246,23 @@ export function InstancesPage() {
                         <span className="badge">Checking…</span>
                       )}
                       {isLive && <span className="badge badge-running">Running</span>}
-                      {inst.lastPlayed && !isLive && (
-                        <span className="badge">
-                          Played {new Date(inst.lastPlayed).toLocaleDateString()}
-                        </span>
+                      {launchingId === inst.id && !isLive && (
+                        <span className="badge badge-orange">Launching…</span>
                       )}
                     </div>
                   </div>
                 </div>
                 <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className="btn btn-ghost"
+                    title={pinned ? 'Unpin' : 'Pin'}
+                    onClick={() => {
+                      togglePinnedInstance(inst.id)
+                      setPrefsTick((n) => n + 1)
+                    }}
+                  >
+                    {pinned ? '★' : '☆'}
+                  </button>
                   {isLive ? (
                     <button className="btn btn-danger" onClick={() => stopGame()}>
                       <IconStop />
@@ -216,11 +272,11 @@ export function InstancesPage() {
                     <button
                       className="btn btn-primary"
                       disabled={launchingId === inst.id || running.running || !loggedIn}
-                      onClick={() => launch(inst.id)}
-                      title={loggedIn ? 'Play' : 'Sign in with Microsoft first'}
+                      onClick={() => void launch(inst.id)}
+                      title={loggedIn ? 'Play' : 'Sign in first'}
                     >
                       <IconPlay />
-                      {launchingId === inst.id ? '…' : loggedIn ? 'Play' : 'Sign in'}
+                      {playLabel(inst.id)}
                     </button>
                   )}
                   <button className="btn btn-danger" onClick={() => remove(inst.id, inst.name)}>
@@ -236,7 +292,11 @@ export function InstancesPage() {
       <CreateInstanceModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={(id) => navigate(`/instances/${id}`)}
+        onCreated={(id) => {
+          pushRecent({ kind: 'created_instance', label: 'Created instance', href: `/instances/${id}` })
+          setSelectedInstanceId(id)
+          navigate(`/instances/${id}`)
+        }}
       />
     </div>
   )

@@ -235,18 +235,142 @@ function rate_limit_or_fail(string $action, int $maxAttempts = 12, int $windowSe
     }
 }
 
+/**
+ * Admin write access: CMS staff session with role=admin.
+ * (Optional server-side admin_api_key still accepted for deploy scripts only —
+ * the launcher never sends it.)
+ */
 function require_admin(): void
 {
     global $CONFIG;
     $key = $_SERVER['HTTP_X_EG_ADMIN_KEY'] ?? '';
     $expected = (string) ($CONFIG['admin_api_key'] ?? '');
-    if ($expected === '' || $expected === 'CHANGE_ME_TO_A_LONG_RANDOM_ADMIN_KEY' || strlen($expected) < 32) {
-        json_fail('Admin API key not configured on server', 500);
+    $keyOk =
+        $expected !== ''
+        && $expected !== 'CHANGE_ME_TO_A_LONG_RANDOM_ADMIN_KEY'
+        && strlen($expected) >= 32
+        && $key !== ''
+        && hash_equals($expected, $key);
+    if ($keyOk) {
+        return;
     }
-    if ($key === '' || !hash_equals($expected, $key)) {
-        rate_limit_or_fail('admin_key', 20, 600);
-        usleep(200000);
-        json_fail('Invalid admin key', 401);
+
+    $staff = try_staff_session_row();
+    if ($staff !== null && ($staff['role'] ?? '') === 'admin' && (int) ($staff['enabled'] ?? 0) === 1) {
+        return;
+    }
+
+    rate_limit_or_fail('admin_auth', 20, 600);
+    usleep(200000);
+    json_fail('Admin login required (Settings → Staff). Sessions expire after 5 minutes.', 401);
+}
+
+/**
+ * Any authenticated staff account (admin or staff role).
+ * Used for offline account management and similar staff tools.
+ *
+ * @return array{id:string,username:string,role:string,offline_quota:int,enabled:int}
+ */
+function require_staff_member(): array
+{
+    $staff = try_staff_session_row();
+    if ($staff !== null && (int) ($staff['enabled'] ?? 0) === 1) {
+        return $staff;
+    }
+    rate_limit_or_fail('staff_auth', 20, 600);
+    usleep(200000);
+    json_fail('Staff login required (Settings → Staff). Sessions expire after 5 minutes.', 401);
+}
+
+/** @return array{id:string,username:string,role:string,offline_quota:int,enabled:int}|null */
+function try_staff_session_row(): ?array
+{
+    $tok = header_session();
+    if ($tok === '') {
+        return null;
+    }
+    try {
+        $pdo = db();
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS staff_users (
+              id VARCHAR(64) NOT NULL PRIMARY KEY,
+              username VARCHAR(64) NOT NULL,
+              password_hash VARCHAR(255) NOT NULL,
+              role ENUM('admin','staff') NOT NULL DEFAULT 'staff',
+              offline_quota INT NOT NULL DEFAULT 3,
+              enabled TINYINT(1) NOT NULL DEFAULT 1,
+              created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+              UNIQUE KEY uq_staff_user (username)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS staff_sessions (
+              token CHAR(64) NOT NULL PRIMARY KEY,
+              staff_id VARCHAR(64) NOT NULL,
+              expires_at DATETIME NOT NULL,
+              KEY idx_staff_sess (staff_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $stmt = $pdo->prepare(
+            'SELECT u.id, u.username, u.role, u.offline_quota, u.enabled, s.expires_at
+             FROM staff_sessions s JOIN staff_users u ON u.id = s.staff_id
+             WHERE s.token = ? LIMIT 1'
+        );
+        $stmt->execute([$tok]);
+        $row = $stmt->fetch();
+        if (!$row || !(int) $row['enabled']) {
+            return null;
+        }
+        if (strtotime((string) $row['expires_at']) < time()) {
+            $pdo->prepare('DELETE FROM staff_sessions WHERE token = ?')->execute([$tok]);
+            return null;
+        }
+        // Sliding idle timeout: any validated request resets the 5‑minute clock
+        $newExp = date('Y-m-d H:i:s', time() + 5 * 60);
+        try {
+            $pdo->prepare('UPDATE staff_sessions SET expires_at = ? WHERE token = ?')
+                ->execute([$newExp, $tok]);
+        } catch (Throwable $e) {
+            // ignore
+        }
+        return [
+            'id' => (string) $row['id'],
+            'username' => (string) $row['username'],
+            'role' => (string) $row['role'],
+            'offline_quota' => (int) $row['offline_quota'],
+            'enabled' => (int) $row['enabled'],
+        ];
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/** Partner CMS session (partner_auth login). */
+function try_partner_session_row(): ?array
+{
+    $tok = header_session();
+    if ($tok === '') {
+        return null;
+    }
+    try {
+        $pdo = db();
+        ensure_sessions_table($pdo);
+        $stmt = $pdo->prepare(
+            "SELECT * FROM cms_sessions WHERE token = ? AND kind = 'partner' AND expires_at > UTC_TIMESTAMP() LIMIT 1"
+        );
+        $stmt->execute([$tok]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return null;
+        }
+        return [
+            'partner_id' => (string) $row['partner_id'],
+            'username' => (string) $row['username'],
+            'news_tag' => (string) $row['news_tag'],
+            'display_name' => (string) $row['display_name'],
+        ];
+    } catch (Throwable $e) {
+        return null;
     }
 }
 

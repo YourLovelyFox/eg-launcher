@@ -1,6 +1,6 @@
 {
   "name": "eg-launcher",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "EG Launcher — Minecraft mods via Modrinth, with permanent Bee's SMP pack support.",
   "main": "dist-electron/main.js",
   "author": "EG Launcher",
@@ -61,9 +61,13 @@
       "icon": "build/icon.ico",
       "signAndEditExecutable": true,
       "signDlls": false,
-      "signingHashAlgorithms": ["sha256"],
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
       "rfc3161TimeStampServer": "http://timestamp.digicert.com",
-      "publisherName": ["EG Launcher"],
+      "publisherName": [
+        "EG Launcher"
+      ],
       "verifyUpdateCodeSignature": false,
       "requestedExecutionLevel": "asInvoker",
       "target": [

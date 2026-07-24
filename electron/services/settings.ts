@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS: LauncherSettings = {
   resolveDependencies: true,
   /** Always on — offline login is on Account page (Admin-created users only). */
   offlineModeEnabled: true,
+  theme: 'dark',
 }
 
 export function getDefaultSettings(): LauncherSettings {
