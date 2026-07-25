@@ -6,6 +6,17 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.5.1] — 2026-07-25
+
+### Changed
+- **Ads banner disabled** until Google AdSense site approval. The launcher shows no ad strip and no placeholder.
+
+### Downloads
+- Windows: `EG-Launcher-2.5.1-win-x64-setup.exe` and `EG-Launcher-2.5.1-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.1-linux-x86_64.AppImage`
+
+---
+
 ## [2.5.0] — 2026-07-24
 
 ### Added
