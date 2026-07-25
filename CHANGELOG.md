@@ -6,6 +6,19 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.5.2] — 2026-07-25
+
+### Changed
+- Smoother boot: progress bar, staged loading labels, short minimum splash, fade-in into the app shell.
+- Code cleanup: removed unused DB stubs, dead pages, unused `mysql2` dependency, and one-off local deploy scripts.
+- GitHub: removed old draft 1.0.x releases.
+
+### Downloads
+- Windows: `EG-Launcher-2.5.2-win-x64-setup.exe` and `EG-Launcher-2.5.2-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.2-linux-x86_64.AppImage`
+
+---
+
 ## [2.5.1] — 2026-07-25
 
 ### Changed

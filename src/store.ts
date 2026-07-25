@@ -126,11 +126,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         instances,
         selectedInstanceId: selected,
         running,
-        loading: false,
+        // loading is cleared by App after a short min boot duration (smooth UX)
       })
       if (selected) setLastInstanceId(selected)
     } catch (err) {
-      set({ loading: false })
       get().showToast('error', (err as Error).message || 'Failed to load launcher data')
     }
   },

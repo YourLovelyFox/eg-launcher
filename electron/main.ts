@@ -153,7 +153,7 @@ import {
   unlockOfflineMode,
 } from './services/offlineAuth'
 import { isAdminBuild } from '../shared/features'
-import { getAdminUnlockInfo, isAdminAvailable } from './services/adminUnlock'
+import { getAdminUnlockInfo } from './services/adminUnlock'
 import type { NewsItem } from '../shared/types'
 import { getInstanceDir, getInstanceModsDir } from './paths'
 

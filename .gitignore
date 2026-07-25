@@ -28,24 +28,8 @@ cms-api/config.php
 # Local deploy credentials / one-off ops tooling (never publish)
 .deploy-secrets.json
 deploy-cms-images/
+scripts/_*.mjs
 
-# Local ops notes / CMS deploy tools — do not publish infrastructure docs
+# Local ops notes
 sql/**/*.md
 cms-api/**/*.md
-scripts/init-cms-db.mjs
-scripts/_ftp-upload-cms.mjs
-scripts/_ftp-upload-root.mjs
-scripts/_ftp-list-root.mjs
-scripts/_probe-db.mjs
-scripts/_verify-cms.mjs
-scripts/_verify-cms-security.mjs
-scripts/_check-remote-partners.mjs
-scripts/_deploy-cms-images.mjs
-scripts/_deploy-cms-now.mjs
-scripts/_deploy-staff-cms.mjs
-scripts/_find-webroot.mjs
-scripts/_fix-cms-config.mjs
-scripts/_force-deploy-partners.mjs
-scripts/_probe-cms-upload.mjs
-scripts/_test-php-names.mjs
-scripts/_try-db-and-ftp-sync.mjs

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { APP_FULL_NAME, APP_NAME } from '../shared/branding'
 import appIcon from './assets/app-icon.png'
@@ -15,19 +15,45 @@ import { AdminPage } from './pages/AdminPage'
 import { useAppStore } from './store'
 import { applyTheme } from './theme'
 
+const BOOT_MIN_MS = 480
+const BOOT_SAFETY_MS = 8000
+
 export default function App() {
   const refreshAll = useAppStore((s) => s.refreshAll)
   const loading = useAppStore((s) => s.loading)
   const settings = useAppStore((s) => s.settings)
+  const [bootPhase, setBootPhase] = useState(0)
+  const [readyFade, setReadyFade] = useState(false)
 
   useEffect(() => {
     document.title = APP_FULL_NAME
-    // Don't leave the boot screen forever if IPC is slow
+    const started = Date.now()
+    // Gentle progress steps while IPC loads
+    const phases = window.setInterval(() => {
+      setBootPhase((p) => (p < 3 ? p + 1 : p))
+    }, 180)
+
     const safety = window.setTimeout(() => {
       useAppStore.getState().setLoading(false)
-    }, 8000)
-    refreshAll().finally(() => window.clearTimeout(safety))
-    return () => window.clearTimeout(safety)
+    }, BOOT_SAFETY_MS)
+
+    void refreshAll().finally(() => {
+      window.clearTimeout(safety)
+      window.clearInterval(phases)
+      setBootPhase(4)
+      const elapsed = Date.now() - started
+      const wait = Math.max(0, BOOT_MIN_MS - elapsed)
+      window.setTimeout(() => {
+        useAppStore.getState().setLoading(false)
+        // One frame later allow fade-in of the shell
+        requestAnimationFrame(() => setReadyFade(true))
+      }, wait)
+    })
+
+    return () => {
+      window.clearTimeout(safety)
+      window.clearInterval(phases)
+    }
   }, [refreshAll])
 
   useEffect(() => {
@@ -35,30 +61,56 @@ export default function App() {
   }, [settings?.theme])
 
   if (loading) {
+    const labels = [
+      'Starting…',
+      'Loading accounts…',
+      'Loading instances…',
+      'Almost ready…',
+      'Ready',
+    ]
     return (
-      <div className="boot-screen">
-        <img src={appIcon} alt="" className="boot-mark boot-mark-img" width={72} height={72} draggable={false} />
-        <div className="boot-text">Loading {APP_NAME}…</div>
+      <div className="boot-screen" role="status" aria-live="polite">
+        <div className="boot-inner">
+          <div className="boot-glow" aria-hidden />
+          <img
+            src={appIcon}
+            alt=""
+            className="boot-mark boot-mark-img boot-pulse"
+            width={80}
+            height={80}
+            draggable={false}
+          />
+          <div className="boot-text">Loading {APP_NAME}</div>
+          <div className="boot-sub">{labels[Math.min(bootPhase, labels.length - 1)]}</div>
+          <div className="boot-bar" aria-hidden>
+            <div
+              className="boot-bar-fill"
+              style={{ width: `${Math.min(100, 18 + bootPhase * 20)}%` }}
+            />
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <HashRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route index element={<HomePage />} />
-          <Route path="browse" element={<BrowsePage />} />
-          <Route path="instances" element={<InstancesPage />} />
-          <Route path="instances/:id" element={<InstanceDetailPage />} />
-          <Route path="bees-smp" element={<BeesSmpPage />} />
-          <Route path="partners/:id" element={<PartnerPage />} />
-          <Route path="account" element={<AccountPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="admin" element={<AdminPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </HashRouter>
+    <div className={`app-fade-in${readyFade ? ' is-visible' : ''}`}>
+      <HashRouter>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<HomePage />} />
+            <Route path="browse" element={<BrowsePage />} />
+            <Route path="instances" element={<InstancesPage />} />
+            <Route path="instances/:id" element={<InstanceDetailPage />} />
+            <Route path="bees-smp" element={<BeesSmpPage />} />
+            <Route path="partners/:id" element={<PartnerPage />} />
+            <Route path="account" element={<AccountPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="admin" element={<AdminPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </HashRouter>
+    </div>
   )
 }
