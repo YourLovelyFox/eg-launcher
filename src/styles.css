@@ -325,6 +325,28 @@ a:hover {
   font-weight: 500;
 }
 
+.brand-text strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badge-beta {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px !important;
+  border-radius: 6px !important;
+  background: rgba(255, 200, 87, 0.16) !important;
+  color: var(--amber) !important;
+  border: 1px solid rgba(255, 200, 87, 0.4) !important;
+  vertical-align: middle;
+}
+
 .nav-scroll {
   flex: 1;
   min-height: 0;

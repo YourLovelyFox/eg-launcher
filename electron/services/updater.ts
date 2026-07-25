@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Notification } from 'electron'
 import { autoUpdater, type UpdateInfo, type ProgressInfo } from 'electron-updater'
+import { IS_PRE_RELEASE } from '../../shared/branding'
 
 export type UpdateStatus =
   | { state: 'idle' }
@@ -116,7 +117,8 @@ export function initAutoUpdater(win: BrowserWindow | null) {
   try {
     autoUpdater.autoDownload = false
     autoUpdater.autoInstallOnAppQuit = true
-    autoUpdater.allowPrerelease = false
+    // All 2.x builds are pre-release (Beta) for now — still receive beta updates
+    autoUpdater.allowPrerelease = IS_PRE_RELEASE
     autoUpdater.allowDowngrade = false
     // Differential packages often hang or corrupt on Windows — full download is safer
     autoUpdater.disableDifferentialDownload = true

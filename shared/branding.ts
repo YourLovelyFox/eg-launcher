@@ -3,7 +3,20 @@ export const APP_NAME = 'EG'
 export const APP_TAGLINE = 'Launcher'
 export const APP_FULL_NAME = 'EG Launcher'
 /** Display version — keep in sync with package.json for UI; runtime uses app.getVersion(). */
-export const APP_VERSION = '2.5.2'
+export const APP_VERSION = '2.5.3'
+
+/**
+ * All current public builds are pre-release (Beta) until a stable channel is announced.
+ * Used for UI badges and electron-updater allowPrerelease.
+ */
+export const IS_PRE_RELEASE = true
+export const RELEASE_CHANNEL = 'beta' as const
+export const RELEASE_CHANNEL_LABEL = 'Beta'
+/** e.g. "v2.5.3 · Beta" */
+export function formatAppVersion(version: string = APP_VERSION): string {
+  const v = version.startsWith('v') ? version : `v${version}`
+  return IS_PRE_RELEASE ? `${v} · ${RELEASE_CHANNEL_LABEL}` : v
+}
 
 import { resolveCmsApiBase } from './cmsApi'
 

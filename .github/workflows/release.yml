@@ -287,18 +287,20 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.resolve-version.outputs.tag }}
-          name: Release Version ${{ needs.resolve-version.outputs.version }}
+          # All 2.x builds are pre-release (Beta) until a stable channel is announced.
+          name: EG Launcher ${{ needs.resolve-version.outputs.version }} (Beta)
           # Human changelog from CHANGELOG.md (not only auto-generated compare links)
           body_path: release-notes.md
           generate_release_notes: false
           # Live 2.x releases are public so already-installed launchers can auto-update via latest.yml.
           # Other major lines (e.g. 1.x) stay draft unless you change this.
           draft: ${{ !startsWith(needs.resolve-version.outputs.tag, 'v2.') }}
-          prerelease: ${{ contains(needs.resolve-version.outputs.version, '-') }}
+          prerelease: ${{ startsWith(needs.resolve-version.outputs.tag, 'v2.') }}
           # NSIS setup + AppImage + latest.yml / latest-linux.yml
           # IMPORTANT: Do not re-run with force_rebuild for the same version unless necessary.
           files: artifacts/*
           fail_on_unmatched_files: true
-          make_latest: ${{ startsWith(needs.resolve-version.outputs.tag, 'v2.') && !contains(needs.resolve-version.outputs.version, '-') }}
+          # Still mark as GitHub "latest" so latest.yml stays current (updater allows prerelease in beta).
+          make_latest: ${{ startsWith(needs.resolve-version.outputs.tag, 'v2.') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

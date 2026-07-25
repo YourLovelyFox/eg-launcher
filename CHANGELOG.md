@@ -6,6 +6,19 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.5.3] — 2026-07-25
+
+### Changed
+- **Pre-release (Beta) labeling** on all current 2.x builds: sidebar badge, boot screen, Settings version line.
+- GitHub Releases for 2.x marked as **pre-release**; in-app updater allows beta channel updates.
+- CI release titles use “EG Launcher x.y.z (Beta)”.
+
+### Downloads
+- Windows: `EG-Launcher-2.5.3-win-x64-setup.exe` and `EG-Launcher-2.5.3-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.3-linux-x86_64.AppImage`
+
+---
+
 ## [2.5.2] — 2026-07-25
 
 ### Changed

@@ -9,6 +9,7 @@ import type {
 } from '../../shared/types'
 import { useAppStore } from '../store'
 import { applyTheme } from '../theme'
+import { IS_PRE_RELEASE, RELEASE_CHANNEL_LABEL } from '../../shared/branding'
 
 function formatMb(mb: number): string {
   if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`
@@ -252,6 +253,16 @@ export function SettingsPage() {
             <label>Installed version</label>
             <div className="muted">
               v{versionInfo?.version || '…'}
+              {IS_PRE_RELEASE ? (
+                <>
+                  <span className="badge badge-beta" style={{ marginLeft: 8 }}>
+                    {RELEASE_CHANNEL_LABEL}
+                  </span>
+                  <span className="hint" style={{ display: 'block', marginTop: 4, marginBottom: 0 }}>
+                    Pre-release (Beta) — features may change; report issues if something breaks.
+                  </span>
+                </>
+              ) : null}
               {versionInfo && !versionInfo.isPackaged ? ' (dev build — auto-update disabled)' : ''}
               {versionInfo ? ` · ${versionInfo.platform}/${versionInfo.arch}` : ''}
             </div>

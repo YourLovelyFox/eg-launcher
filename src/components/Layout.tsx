@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { AdsBanner } from './AdsBanner'
-import { APP_NAME, APP_TAGLINE, FEATURED_PACK, PARTNER_LIST } from '../../shared/branding'
+import {
+  APP_NAME,
+  APP_TAGLINE,
+  APP_VERSION,
+  FEATURED_PACK,
+  IS_PRE_RELEASE,
+  PARTNER_LIST,
+  RELEASE_CHANNEL_LABEL,
+} from '../../shared/branding'
 import type { PartnerDefinition } from '../../shared/branding'
 import appIcon from '../assets/app-icon.png'
 import horizonsIcon from '../assets/horizons-smp.png'
@@ -300,8 +308,18 @@ export function Layout() {
             draggable={false}
           />
           <div className="brand-text">
-            <strong>{APP_NAME}</strong>
-            <span>{APP_TAGLINE}</span>
+            <strong>
+              {APP_NAME}
+              {IS_PRE_RELEASE ? (
+                <span className="badge badge-beta" title="Pre-release build">
+                  {RELEASE_CHANNEL_LABEL}
+                </span>
+              ) : null}
+            </strong>
+            <span>
+              {APP_TAGLINE} · v{APP_VERSION}
+              {IS_PRE_RELEASE ? ' (pre-release)' : ''}
+            </span>
           </div>
         </div>
 

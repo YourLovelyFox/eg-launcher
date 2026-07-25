@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { APP_FULL_NAME, APP_NAME } from '../shared/branding'
+import { APP_FULL_NAME, APP_NAME, APP_VERSION, IS_PRE_RELEASE, RELEASE_CHANNEL_LABEL } from '../shared/branding'
 import appIcon from './assets/app-icon.png'
 import { Layout } from './components/Layout'
 import { AccountPage } from './pages/AccountPage'
@@ -80,8 +80,18 @@ export default function App() {
             height={80}
             draggable={false}
           />
-          <div className="boot-text">Loading {APP_NAME}</div>
-          <div className="boot-sub">{labels[Math.min(bootPhase, labels.length - 1)]}</div>
+          <div className="boot-text">
+            Loading {APP_NAME}
+            {IS_PRE_RELEASE ? (
+              <span className="badge badge-beta" style={{ marginLeft: 8 }}>
+                {RELEASE_CHANNEL_LABEL}
+              </span>
+            ) : null}
+          </div>
+          <div className="boot-sub">
+            {labels[Math.min(bootPhase, labels.length - 1)]}
+            {IS_PRE_RELEASE ? ` · v${APP_VERSION} pre-release` : ''}
+          </div>
           <div className="boot-bar" aria-hidden>
             <div
               className="boot-bar-fill"
