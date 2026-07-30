@@ -15,6 +15,7 @@ Modern **Minecraft: Java Edition** launcher for browsing and installing mods via
 | --- | --- |
 | **Latest release** | [GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest) |
 | **Changelog** | [CHANGELOG.md](./CHANGELOG.md) |
+| **Privacy** | [PRIVACY.md](./PRIVACY.md) |
 | **Repo** | [YourLovelyFox/eg-launcher](https://github.com/YourLovelyFox/eg-launcher) |
 
 ---
