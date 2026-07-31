@@ -13,7 +13,8 @@ Modern **Minecraft: Java Edition** launcher for browsing and installing mods via
 
 | | |
 | --- | --- |
-| **Latest release** | [GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest) |
+| **Windows (recommended)** | [Microsoft Store](https://apps.microsoft.com/detail/9P32SFSJH9B1) |
+| **GitHub releases** | [Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest) (Linux AppImage + optional Windows setup) |
 | **Changelog** | [CHANGELOG.md](./CHANGELOG.md) |
 | **Privacy** | [PRIVACY.md](./PRIVACY.md) |
 | **Repo** | [YourLovelyFox/eg-launcher](https://github.com/YourLovelyFox/eg-launcher) |
@@ -30,21 +31,33 @@ Modern **Minecraft: Java Edition** launcher for browsing and installing mods via
 - Enable / disable / remove mods; update checks on installed mods  
 - Featured pack: **Bee's SMP** (manual install, news & changelogs from Modrinth)  
 - **Partners**: **Horizons SMP** (Fabric instance, default mods, server pre-added)  
-- **Auto-update** from GitHub Releases (confirm before download / install)  
-  - Windows: **NSIS** setup  
-  - Linux: **AppImage**  
+- **Updates**  
+  - **Microsoft Store** builds: updates via the Store  
+  - **GitHub** builds: optional in-app check against GitHub Releases (confirm before download / install)  
+  - Linux: **AppImage** from GitHub  
 
 ---
 
 ## Download (end users)
 
-Get installers from:
+### Windows — recommended: Microsoft Store
+
+Install from the Store (Microsoft signs the package; avoids most Smart App Control / SmartScreen issues with unsigned or self-signed EXEs):
+
+**https://apps.microsoft.com/detail/9P32SFSJH9B1**
+
+Store protocol link: `ms-windows-store://pdp/?productid=9P32SFSJH9B1`  
+Store ID: `9P32SFSJH9B1`
+
+Updates for Store installs come from the **Microsoft Store**, not from the GitHub updater.
+
+### Linux & optional Windows (GitHub)
 
 **https://github.com/YourLovelyFox/eg-launcher/releases/latest**
 
 | Platform | File | How to use |
 | --- | --- | --- |
-| **Windows x64** | `EG-Launcher-<version>-win-x64-setup.exe` | Run the NSIS installer. If Windows SmartScreen / Smart App Control warns about an unknown publisher, choose *More info* → *Run anyway* when available (builds are not code-signed yet). |
+| **Windows x64** (optional) | `EG-Launcher-<version>-win-x64-setup.exe` | NSIS installer from GitHub. **Not recommended** if Smart App Control (SAC) or SmartScreen blocks it — use the **Microsoft Store** build instead. GitHub Windows builds are not commercially code-signed; SAC may hard-block them. |
 | **Linux x64** | `EG-Launcher-<version>-linux-*.AppImage` | Make executable and run (see below). |
 
 ### Linux — run the AppImage
@@ -62,6 +75,7 @@ chmod +x EG-Launcher-*-linux-*.AppImage
 - On some distros you may need FUSE for older AppImage runtimes; modern electron-builder AppImages often work without extra packages. If it fails to start, try:  
   `./EG-Launcher-*.AppImage --appimage-extract-and-run`
 - Auto-update only runs in the **packaged** AppImage, not when running from source.
+- **Windows GitHub setup.exe** and **Store MSIX** are different install paths. Pick one; they do not share the same update channel.
 
 ---
 
