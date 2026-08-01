@@ -320,8 +320,8 @@ export function Layout() {
             src={appIcon}
             alt=""
             className="brand-mark brand-mark-img"
-            width={40}
-            height={40}
+            width={44}
+            height={44}
             draggable={false}
           />
           <div className="brand-text">

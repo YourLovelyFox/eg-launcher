@@ -282,10 +282,10 @@ a:hover {
 }
 
 .brand-mark {
-  width: 40px;
-  height: 40px;
-  border-radius: 13px;
-  background: linear-gradient(145deg, var(--green) 0%, #3d9eff 50%, var(--amber) 130%);
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #2e353d;
   display: grid;
   place-items: center;
   font-weight: 800;
@@ -293,19 +293,22 @@ a:hover {
   letter-spacing: -0.04em;
   color: #04140a;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
     0 8px 28px var(--green-glow);
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .brand-mark-img {
   display: block;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+  object-position: center;
   padding: 0;
   background: transparent;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    0 8px 24px rgba(0, 0, 0, 0.35);
+  border-radius: inherit;
+  box-shadow: none;
 }
 
 .brand-text {
@@ -757,9 +760,9 @@ a:hover {
 
 .boot-mark {
   position: relative;
-  width: 72px;
-  height: 72px;
-  border-radius: 20px;
+  width: 88px;
+  height: 88px;
+  border-radius: 22px;
   margin: 0 auto 8px;
   display: grid;
   place-items: center;
@@ -767,16 +770,20 @@ a:hover {
   font-size: 18px;
   letter-spacing: -0.04em;
   color: #04140a;
-  background: linear-gradient(145deg, var(--green), #3d9eff 55%, var(--amber));
+  background: #2e353d;
   box-shadow: 0 12px 40px var(--green-glow);
   z-index: 1;
+  overflow: hidden;
 }
 
 .boot-mark-img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+  object-position: center;
   padding: 0;
   background: transparent;
-  border-radius: 20px;
+  border-radius: inherit;
 }
 
 .boot-pulse {
