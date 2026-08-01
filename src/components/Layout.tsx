@@ -93,31 +93,46 @@ export function Layout() {
     }
   }, [])
 
+  // Defer network chrome until after first paint — never blocks shell
   useEffect(() => {
-    void loadPartners()
-    void loadFeatured()
-    const id = window.setInterval(() => {
+    let cancelled = false
+    const run = () => {
+      if (cancelled) return
       void loadPartners()
       void loadFeatured()
-    }, 30_000)
-    return () => window.clearInterval(id)
+    }
+    const kick = window.setTimeout(run, 400)
+    // Partners/featured change rarely — poll much less often than before
+    const id = window.setInterval(run, 5 * 60_000)
+    return () => {
+      cancelled = true
+      window.clearTimeout(kick)
+      window.clearInterval(id)
+    }
   }, [loadPartners, loadFeatured])
 
   useEffect(() => {
-    refreshRunning()
+    // Soft poll while game may be running; start delayed so boot stays light
+    const start = window.setTimeout(() => {
+      void refreshRunning()
+    }, 800)
     const id = window.setInterval(() => {
-      refreshRunning()
-    }, 2500)
-    return () => window.clearInterval(id)
+      void refreshRunning()
+    }, 4000)
+    return () => {
+      window.clearTimeout(start)
+      window.clearInterval(id)
+    }
   }, [refreshRunning])
 
-  // Partner news unread badges
+  // Partner news unread badges — deferred sequential fetch, not on critical path
   useEffect(() => {
     let cancelled = false
     async function scan() {
       const prefs = loadQolPrefs()
       const next: Record<string, boolean> = {}
       for (const p of partners) {
+        if (cancelled) return
         try {
           const feed = await window.hive.news.fetch({
             kind: 'partners',
@@ -136,10 +151,12 @@ export function Layout() {
       }
       if (!cancelled) setPartnerUnread(next)
     }
-    if (partners.length) void scan()
-    const id = window.setInterval(() => void scan(), 60_000)
+    if (!partners.length) return
+    const kick = window.setTimeout(() => void scan(), 2000)
+    const id = window.setInterval(() => void scan(), 3 * 60_000)
     return () => {
       cancelled = true
+      window.clearTimeout(kick)
       window.clearInterval(id)
     }
   }, [partners])

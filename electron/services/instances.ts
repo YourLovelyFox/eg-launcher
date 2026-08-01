@@ -153,8 +153,18 @@ function migrateInstanceFoldersToNames(): void {
 }
 
 let migratedOnce = false
+function needsFolderMigration(instances: GameInstance[]): boolean {
+  return instances.some((i) => UUID_RE.test(i.id))
+}
+
 function ensureMigrated(): void {
   if (migratedOnce) return
+  // Fast path: most installs already use human-readable folder ids
+  const current = loadIndex()
+  if (!needsFolderMigration(current)) {
+    migratedOnce = true
+    return
+  }
   migrateInstanceFoldersToNames()
   migratedOnce = true
 }

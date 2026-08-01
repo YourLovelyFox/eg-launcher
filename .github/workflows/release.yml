@@ -119,58 +119,28 @@ jobs:
       - name: Build app (Vite + Electron compile)
         run: npm run build
 
-      - name: Prepare self-signed code signing cert (optional secrets)
-        id: csc
-        shell: bash
-        env:
-          EG_CSC_PFX_BASE64: ${{ secrets.EG_CSC_PFX_BASE64 }}
-          EG_CSC_PASSWORD: ${{ secrets.EG_CSC_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [[ -n "${EG_CSC_PFX_BASE64:-}" && -n "${EG_CSC_PASSWORD:-}" ]]; then
-            mkdir -p certs
-            echo "${EG_CSC_PFX_BASE64}" | base64 --decode > certs/eg-launcher-codesign.pfx
-            echo "${EG_CSC_PASSWORD}" > certs/csc-password.txt
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-            echo "Self-signed PFX restored from GitHub secrets (A1)."
-          else
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::EG_CSC_PFX_BASE64 / EG_CSC_PASSWORD not set — Windows build will be UNSIGNED. Run npm run cert:generate locally and add those secrets."
-          fi
-
-      - name: Package Windows NSIS (electron-builder)
+      # UNSIGNED GitHub build. Keep signAndEditExecutable=true (package.json) so rcedit
+      # stamps PE version metadata — better for reputation than a naked unsigned binary.
+      # Do NOT force_rebuild the same version (hash freeze). See docs/GITHUB-SAC.md
+      - name: Package Windows NSIS unsigned (metadata stamped, not signed)
         shell: bash
         env:
           CI: 'true'
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Signs with self-signed PFX when secrets were restored; else unsigned.
         run: |
           set -euo pipefail
-          if [[ -f certs/eg-launcher-codesign.pfx && -f certs/csc-password.txt ]]; then
-            export CSC_LINK="${GITHUB_WORKSPACE}/certs/eg-launcher-codesign.pfx"
-            export WIN_CSC_LINK="${CSC_LINK}"
-            export CSC_KEY_PASSWORD="$(cat certs/csc-password.txt)"
-            export WIN_CSC_KEY_PASSWORD="${CSC_KEY_PASSWORD}"
-            export CSC_IDENTITY_AUTO_DISCOVERY=true
-            echo "Signing Windows build with self-signed cert (CN=EG Launcher)"
-            npx electron-builder --win nsis --x64 --publish never
-          else
-            export CSC_IDENTITY_AUTO_DISCOVERY=false
-            echo "Building UNSIGNED Windows installer (no EG_CSC_* secrets)"
-            npx electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never
-          fi
+          echo "Building UNSIGNED Windows installer (rcedit metadata on; no Authenticode)"
+          npx electron-builder --win nsis --x64 --publish never
 
       - name: Build standalone Windows uninstaller
         shell: bash
         env:
           CI: 'true'
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
           set -euo pipefail
-          if [[ -f certs/eg-launcher-codesign.pfx && -f certs/csc-password.txt ]]; then
-            export CSC_LINK="${GITHUB_WORKSPACE}/certs/eg-launcher-codesign.pfx"
-            export CSC_KEY_PASSWORD="$(cat certs/csc-password.txt)"
-          fi
           node scripts/build-win-uninstaller.mjs --version "${{ needs.resolve-version.outputs.version }}"
           ls -la release/*uninstall* || true
 
@@ -289,7 +259,7 @@ jobs:
           tag_name: ${{ needs.resolve-version.outputs.tag }}
           # All 2.x builds are pre-release (Beta) until a stable channel is announced.
           name: EG Launcher ${{ needs.resolve-version.outputs.version }} (Beta)
-          # Human changelog from CHANGELOG.md (not only auto-generated compare links)
+          # Human changelog + SAC/Store banner from scripts/extract-changelog.mjs
           body_path: release-notes.md
           generate_release_notes: false
           # Live 2.x releases are public so already-installed launchers can auto-update via latest.yml.
@@ -304,3 +274,23 @@ jobs:
           make_latest: ${{ startsWith(needs.resolve-version.outputs.tag, 'v2.') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release summary (GitHub + SAC)
+        if: always()
+        run: |
+          {
+            echo "## EG Launcher ${{ needs.resolve-version.outputs.tag }}"
+            echo ""
+            echo "### GitHub Windows (unsigned)"
+            echo "- No code signing — SAC Enforcement may hard-block until this **exact hash** has reputation"
+            echo "- **Hash freeze:** do not force_rebuild this version"
+            echo "- Docs: \`docs/GITHUB-SAC.md\`"
+            echo ""
+            echo "### Linux"
+            echo "- AppImage from release assets"
+            if [[ "${{ needs.resolve-version.outputs.needs_build }}" != "true" ]]; then
+              echo ""
+              echo "> Hash frozen — no new binaries uploaded (good for reputation)."
+              echo "> ${{ needs.resolve-version.outputs.skip_reason }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

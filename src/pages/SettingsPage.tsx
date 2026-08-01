@@ -245,8 +245,10 @@ export function SettingsPage() {
       <div className="panel">
         <h2>Updates</h2>
         <p className="hint">
-          EG Launcher checks GitHub Releases for new versions. Windows uses the NSIS installer;
-          Linux uses the AppImage. Nothing downloads until you confirm.
+          Updates come from <strong>GitHub Releases</strong> (Windows NSIS / Linux AppImage). Nothing
+          downloads until you confirm. Windows builds are <strong>unsigned</strong> — SmartScreen may
+          warn; Smart App Control Enforcement may block unknown hashes until reputation builds. Only
+          install official releases from this project&apos;s GitHub.
         </p>
         <div className="form-grid">
           <div className="form-row">

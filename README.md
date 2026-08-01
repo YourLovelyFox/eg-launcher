@@ -40,25 +40,20 @@ Modern **Minecraft: Java Edition** launcher for browsing and installing mods via
 
 ## Download (end users)
 
-### Windows — recommended: Microsoft Store
-
-Install from the Store (Microsoft signs the package; avoids most Smart App Control / SmartScreen issues with unsigned or self-signed EXEs):
-
-**https://apps.microsoft.com/detail/9P32SFSJH9B1**
-
-Store protocol link: `ms-windows-store://pdp/?productid=9P32SFSJH9B1`  
-Store ID: `9P32SFSJH9B1`
-
-Updates for Store installs come from the **Microsoft Store**, not from the GitHub updater.
-
-### Linux & optional Windows (GitHub)
+### GitHub Releases (primary)
 
 **https://github.com/YourLovelyFox/eg-launcher/releases/latest**
 
-| Platform | File | How to use |
+| Platform | File | Notes |
 | --- | --- | --- |
-| **Windows x64** (optional) | `EG-Launcher-<version>-win-x64-setup.exe` | NSIS installer from GitHub. **Not recommended** if Smart App Control (SAC) or SmartScreen blocks it — use the **Microsoft Store** build instead. GitHub Windows builds are not commercially code-signed; SAC may hard-block them. |
-| **Linux x64** | `EG-Launcher-<version>-linux-*.AppImage` | Make executable and run (see below). |
+| **Windows x64** | `EG-Launcher-<version>-win-x64-setup.exe` | **Unsigned.** SmartScreen may warn; SAC Enforcement may hard-block until that **exact file hash** has reputation. See [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md). |
+| **Linux x64** | `EG-Launcher-<version>-linux-*.AppImage` | Make executable and run (below). |
+
+- Ship each version **once** (hash freeze) — rebuilding the same version resets reputation.  
+- Do **not** use packers or self-signed certs expecting SAC to trust them.  
+- Release how-to: [docs/GITHUB-RELEASES.md](./docs/GITHUB-RELEASES.md)
+
+Microsoft Store listing may appear later; it is not required for GitHub distribution.
 
 ### Linux — run the AppImage
 

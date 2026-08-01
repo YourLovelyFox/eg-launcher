@@ -9,11 +9,14 @@
     />
     <title>EG Launcher</title>
     <link rel="icon" type="image/png" href="/icon.png" />
+    <!-- System fonts first paint; Inter loads async so boot never waits on Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700;750;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=optional"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
   </head>
   <body>

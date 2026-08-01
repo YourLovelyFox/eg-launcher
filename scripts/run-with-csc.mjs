@@ -42,7 +42,9 @@ if (!hasEnvLink && fs.existsSync(pfx) && fs.existsSync(passFile)) {
   console.log('[csc] Using CSC_LINK / WIN_CSC_LINK from environment')
 } else {
   env.CSC_IDENTITY_AUTO_DISCOVERY = 'false'
-  console.log('[csc] No cert found — building unsigned (run scripts/generate-self-signed-cert.ps1)')
+  // Self-signed does not satisfy Smart App Control — unsigned GitHub builds are expected.
+  // Windows end users: Microsoft Store. See docs/GITHUB-RELEASES.md
+  console.log('[csc] No cert found — building UNSIGNED (correct for GitHub; Store for SAC-friendly Windows)')
 }
 
 // Avoid electron-builder hunting for Apple identities on Windows

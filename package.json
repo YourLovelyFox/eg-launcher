@@ -27,13 +27,16 @@
     "dist:linux": "npm run build && npx electron-builder --linux AppImage --x64 --publish never",
     "dist:all": "npm run dist && npm run dist:linux",
     "release:check": "node scripts/check-release-assets.mjs",
+    "release:notes": "node scripts/extract-changelog.mjs",
+    "dist:github": "npm run dist:unsigned",
     "dist:uninstaller": "node scripts/build-win-uninstaller.mjs",
-    "dist:unsigned": "npm run build && node scripts/run-with-env.mjs CSC_IDENTITY_AUTO_DISCOVERY=false -- npx electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false --publish never && node scripts/build-win-uninstaller.mjs"
+    "dist:unsigned": "npm run build && node scripts/run-with-env.mjs CSC_IDENTITY_AUTO_DISCOVERY=false -- npx electron-builder --win nsis --x64 --publish never && node scripts/build-win-uninstaller.mjs"
   },
   "build": {
     "appId": "com.eg.launcher",
     "productName": "EG Launcher",
     "copyright": "Copyright © EG Launcher",
+    "executableName": "EG Launcher",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -65,15 +68,9 @@
       "icon": "build/icon.ico",
       "signAndEditExecutable": true,
       "signDlls": false,
-      "signingHashAlgorithms": [
-        "sha256"
-      ],
-      "rfc3161TimeStampServer": "http://timestamp.digicert.com",
-      "publisherName": [
-        "EG Launcher"
-      ],
       "verifyUpdateCodeSignature": false,
       "requestedExecutionLevel": "asInvoker",
+      "legalTrademarks": "EG Launcher",
       "target": [
         {
           "target": "nsis",
@@ -101,7 +98,7 @@
         "en_US"
       ],
       "displayLanguageSelector": false,
-      "packElevateHelper": true,
+      "packElevateHelper": false,
       "artifactName": "EG-Launcher-${version}-win-x64-setup.${ext}"
     },
     "linux": {

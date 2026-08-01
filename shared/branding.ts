@@ -6,6 +6,15 @@ export const APP_FULL_NAME = 'EG Launcher'
 export const APP_VERSION = '2.5.3'
 
 /**
+ * Microsoft Store — primary Windows distribution when we have no code-signing cert.
+ * Store packages are Microsoft-signed → Smart App Control / SmartScreen friendly.
+ */
+export const MS_STORE_PRODUCT_ID = '9P32SFSJH9B1'
+export const MS_STORE_URL = `https://apps.microsoft.com/detail/${MS_STORE_PRODUCT_ID}`
+export const MS_STORE_PROTOCOL_URL = `ms-windows-store://pdp/?productid=${MS_STORE_PRODUCT_ID}`
+export const GITHUB_RELEASES_URL = 'https://github.com/YourLovelyFox/eg-launcher/releases/latest'
+
+/**
  * All current public builds are pre-release (Beta) until a stable channel is announced.
  * Used for UI badges and electron-updater allowPrerelease.
  */

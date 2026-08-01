@@ -6,6 +6,7 @@ import type {
   ProgressEvent,
   RunningGameInfo,
 } from '../shared/types'
+import { readBootCache, writeBootCache } from './bootCache'
 import { loadQolPrefs, setLastInstanceId } from './qolPrefs'
 
 type Toast = {
@@ -22,6 +23,9 @@ const IDLE_RUNNING: RunningGameInfo = {
   startedAt: null,
 }
 
+/** Hydrate from disk cache so first paint is real content, not a spinner. */
+const cached = typeof localStorage !== 'undefined' ? readBootCache() : null
+
 type AppState = {
   accounts: MinecraftAccount[]
   activeAccountId: string | null
@@ -32,7 +36,12 @@ type AppState = {
   downloadProgress: ProgressEvent | null
   running: RunningGameInfo
   toast: Toast | null
+  /** True only when we have no cache and still waiting on first IPC. */
   loading: boolean
+  /** True while a background refresh is in flight (shell already visible). */
+  hydrating: boolean
+  /** True after at least one successful live refresh this session. */
+  hydrated: boolean
 
   setAccounts: (accounts: MinecraftAccount[], activeAccountId: string | null) => void
   setSettings: (settings: LauncherSettings) => void
@@ -44,6 +53,9 @@ type AppState = {
   showToast: (type: Toast['type'], message: string) => void
   clearToast: () => void
   setLoading: (v: boolean) => void
+  /** Critical path: accounts + settings + instances (parallel). */
+  refreshCore: () => Promise<void>
+  /** Full refresh (core + running). Prefer refreshCore on boot. */
   refreshAll: () => Promise<void>
   refreshRunning: () => Promise<RunningGameInfo>
   stopGame: () => Promise<void>
@@ -51,21 +63,80 @@ type AppState = {
 
 let toastSeq = 1
 
+function pickSelectedId(
+  instances: GameInstance[],
+  current: string | null,
+): string | null {
+  const lastId = loadQolPrefs().lastInstanceId
+  return (
+    (lastId && instances.some((i) => i.id === lastId) ? lastId : null) ||
+    current ||
+    instances[0]?.id ||
+    null
+  )
+}
+
+function persistCache(state: {
+  accounts: MinecraftAccount[]
+  activeAccountId: string | null
+  instances: GameInstance[]
+  settings: LauncherSettings | null
+}): void {
+  writeBootCache({
+    accounts: state.accounts,
+    activeAccountId: state.activeAccountId,
+    instances: state.instances,
+    settings: state.settings,
+  })
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
-  accounts: [],
-  activeAccountId: null,
-  settings: null,
-  instances: [],
-  selectedInstanceId: loadQolPrefs().lastInstanceId,
+  accounts: cached?.accounts ?? [],
+  activeAccountId: cached?.activeAccountId ?? null,
+  settings: cached?.settings ?? null,
+  instances: cached?.instances ?? [],
+  selectedInstanceId:
+    pickSelectedId(cached?.instances ?? [], loadQolPrefs().lastInstanceId) ??
+    loadQolPrefs().lastInstanceId,
   installProgress: null,
   downloadProgress: null,
   running: IDLE_RUNNING,
   toast: null,
-  loading: true,
+  // Only block UI when cold start with nothing to show
+  loading: !cached,
+  hydrating: false,
+  hydrated: false,
 
-  setAccounts: (accounts, activeAccountId) => set({ accounts, activeAccountId }),
-  setSettings: (settings) => set({ settings }),
-  setInstances: (instances) => set({ instances }),
+  setAccounts: (accounts, activeAccountId) => {
+    set({ accounts, activeAccountId })
+    const s = get()
+    persistCache({
+      accounts,
+      activeAccountId,
+      instances: s.instances,
+      settings: s.settings,
+    })
+  },
+  setSettings: (settings) => {
+    set({ settings })
+    const s = get()
+    persistCache({
+      accounts: s.accounts,
+      activeAccountId: s.activeAccountId,
+      instances: s.instances,
+      settings,
+    })
+  },
+  setInstances: (instances) => {
+    set({ instances })
+    const s = get()
+    persistCache({
+      accounts: s.accounts,
+      activeAccountId: s.activeAccountId,
+      instances,
+      settings: s.settings,
+    })
+  },
   setSelectedInstanceId: (id) => {
     set({ selectedInstanceId: id })
     if (id) setLastInstanceId(id)
@@ -105,7 +176,40 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  refreshCore: async () => {
+    set({ hydrating: true })
+    try {
+      const [auth, settings, instances] = await Promise.all([
+        window.hive.auth.getAccounts(),
+        window.hive.settings.get(),
+        window.hive.instances.list(),
+      ])
+      const selected = pickSelectedId(instances, get().selectedInstanceId)
+      set({
+        accounts: auth.accounts,
+        activeAccountId: auth.activeAccountId,
+        settings,
+        instances,
+        selectedInstanceId: selected,
+        loading: false,
+        hydrating: false,
+        hydrated: true,
+      })
+      if (selected) setLastInstanceId(selected)
+      persistCache({
+        accounts: auth.accounts,
+        activeAccountId: auth.activeAccountId,
+        instances,
+        settings,
+      })
+    } catch (err) {
+      set({ hydrating: false, loading: false })
+      get().showToast('error', (err as Error).message || 'Failed to load launcher data')
+    }
+  },
+
   refreshAll: async () => {
+    set({ hydrating: true })
     try {
       const [auth, settings, instances, running] = await Promise.all([
         window.hive.auth.getAccounts(),
@@ -113,12 +217,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         window.hive.instances.list(),
         window.hive.mc.running().catch(() => IDLE_RUNNING),
       ])
-      const lastId = loadQolPrefs().lastInstanceId
-      const selected =
-        (lastId && instances.some((i) => i.id === lastId) ? lastId : null) ||
-        get().selectedInstanceId ||
-        instances[0]?.id ||
-        null
+      const selected = pickSelectedId(instances, get().selectedInstanceId)
       set({
         accounts: auth.accounts,
         activeAccountId: auth.activeAccountId,
@@ -126,10 +225,19 @@ export const useAppStore = create<AppState>((set, get) => ({
         instances,
         selectedInstanceId: selected,
         running,
-        // loading is cleared by App after a short min boot duration (smooth UX)
+        loading: false,
+        hydrating: false,
+        hydrated: true,
       })
       if (selected) setLastInstanceId(selected)
+      persistCache({
+        accounts: auth.accounts,
+        activeAccountId: auth.activeAccountId,
+        instances,
+        settings,
+      })
     } catch (err) {
+      set({ hydrating: false, loading: false })
       get().showToast('error', (err as Error).message || 'Failed to load launcher data')
     }
   },

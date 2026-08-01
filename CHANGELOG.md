@@ -6,6 +6,22 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [Unreleased] — fast boot + GitHub SAC reputation path
+
+### Changed
+- **Faster load**: shell paints immediately from a local boot cache; cold start no longer waits on a minimum splash timer.
+- **Route code-splitting** for Browse, Instances, Admin, Settings, partners, etc. so first paint stays light.
+- **Deferred chrome network** (partners, featured packs, partner news badges, running-game poll) until after first paint.
+- **System fonts first**; Inter webfont loads optional so boot does not wait on Google Fonts.
+- **Instance folder migration** skips work when folders are already human-readable.
+- **GitHub-only Windows / SAC strategy** (no cert, no Azure, no Store dependency):
+  - CI builds **unsigned** installers but still stamps PE **version metadata** (rcedit) — do not disable `signAndEditExecutable` for unsigned builds.
+  - `packElevateHelper: false` to avoid an extra elevation helper binary.
+  - **Hash freeze** kept; release notes + `docs/GITHUB-SAC.md` document reputation rules (no packers, no force-rebuild).
+  - Honest docs: SAC Enforcement cannot be “evaded” for cold unsigned EXEs; SmartScreen “Run anyway” vs hard block explained.
+
+---
+
 ## [2.5.3] — 2026-07-25
 
 ### Changed

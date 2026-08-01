@@ -1243,7 +1243,7 @@ app.on('second-instance', () => {
 })
 
 app.whenReady().then(() => {
-  // Defer migration so the window can open immediately (large legacy copies can block)
+  // userData path must be set before any service reads disk (usually a no-op after first run)
   try {
     const migration = migrateToHiveLauncher()
     if (migration.migrated) {
@@ -1253,6 +1253,7 @@ app.whenReady().then(() => {
     console.warn('[EG Launcher] Migration error (continuing):', err)
   }
 
+  // Register IPC then open the window as soon as possible
   registerIpc()
   createWindow()
 
