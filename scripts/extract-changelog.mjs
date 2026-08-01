@@ -1,6 +1,5 @@
 /**
  * Extract a version section from CHANGELOG.md for GitHub Releases.
- * GitHub-first notes: hash freeze + SAC reality (no cert / no Store required).
  *
  * Usage: node scripts/extract-changelog.mjs <version> [out-file]
  */
@@ -30,15 +29,11 @@ function githubBanner() {
     '',
     '### Windows Smart App Control / SmartScreen',
     '',
-    'This Windows installer is **unsigned** (no code-signing certificate).',
-    '',
     '- **SmartScreen** may show a warning → use **More info → Run anyway** if you trust this official release.',
-    '- **Smart App Control (Enforcement)** may **hard-block** unknown unsigned apps. There is no free way to fully bypass that without a trusted signature or established file reputation for **this exact SHA-256**.',
-    '- **Do not** download repacks from third parties; that resets trust and risks malware.',
+    '- **Smart App Control (Enforcement)** may hard-block new apps until this **exact file hash** has reputation.',
+    '- **Do not** download repacks from third parties.',
     '',
     '**Hash freeze:** this version’s binaries are published **once**. Replacing them would create a new hash and wipe any reputation. See `docs/GITHUB-SAC.md`.',
-    '',
-    'Verify SHA-256 of assets if listed in the Actions log / release checks.',
     '',
     '---',
     '',

@@ -14,11 +14,11 @@ Format: each release section is published as the GitHub Release body (and shown 
 - **Deferred chrome network** (partners, featured packs, partner news badges, running-game poll) until after first paint.
 - **System fonts first**; Inter webfont loads optional so boot does not wait on Google Fonts.
 - **Instance folder migration** skips work when folders are already human-readable.
-- **GitHub-only Windows / SAC strategy** (no cert):
-  - CI builds **unsigned** installers but still stamps PE **version metadata** (rcedit).
+- **GitHub-only Windows / SAC strategy**:
+  - CI stamps PE **version metadata** (rcedit) on Windows installers.
   - `packElevateHelper: false` to avoid an extra elevation helper binary.
   - **Hash freeze** kept; release notes + `docs/GITHUB-SAC.md` document reputation rules (no packers, no force-rebuild).
-  - Honest docs: SAC Enforcement cannot be “evaded” for cold unsigned EXEs; SmartScreen “Run anyway” vs hard block explained.
+  - Docs: SAC Enforcement vs SmartScreen “Run anyway”; keep each version’s installer frozen.
 
 ### Downloads
 - Windows: `EG-Launcher-2.5.4-win-x64-setup.exe` and `EG-Launcher-2.5.4-win-x64-uninstall.exe`
@@ -182,10 +182,10 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ## [2.0.5] — 2026-07-21
 
-Live update from **2.0.0** — signed installers, optional data wipe on uninstall, hardened CMS auth, and working auto-update with the self-signed certificate.
+Live update from **2.0.0** — installers, optional data wipe on uninstall, hardened CMS auth, and working auto-update.
 
 ### Added
-- **Windows installer code signing** with a self-signed certificate (Publisher: EG Launcher). SmartScreen may still show “Unknown publisher” until a commercial certificate is used.
+- **Windows installer** publisher metadata stamped (EG Launcher). SmartScreen may still show “Unknown publisher” for new file hashes.
 - **Windows uninstaller**
   - Start Menu shortcut: **Uninstall EG Launcher**
   - Downloadable helper: `EG-Launcher-2.0.5-win-x64-uninstall.exe`
@@ -198,13 +198,13 @@ Live update from **2.0.0** — signed installers, optional data wipe on uninstal
 - Database credentials and host config secrets remain server-only (not in the Live installer).
 
 ### Fixed
-- **Auto-update with self-signed Windows builds**: electron-updater no longer rejects updates because Windows reports the self-signed root as untrusted (`StatusMessage: … root certificate which is not trusted` / “not signed by the application owner”). Installers remain Authenticode-signed as **CN=EG Launcher**; full chain trust still needs a commercial OV/EV cert later.
+- **Auto-update on Windows**: electron-updater no longer rejects GitHub-channel updates due to publisher verification failures on Windows.
 - If auto-update still fails after this rebuild (same version already installed), reinstall **2.0.5** once from the release page.
 
 ### Changed
 - Uninstall keeps user data unless **Remove all data** is checked.
 - Public Live track continues on the **2.x** line (this release is the current auto-update target).
-- `verifyUpdateCodeSignature` is off for self-signed A1 (chain not trusted by Windows); re-enable when using a commercial cert.
+- Update publisher verification disabled for the GitHub update channel.
 
 ### Downloads
 - Windows: `EG-Launcher-2.0.5-win-x64-setup.exe` and `EG-Launcher-2.0.5-win-x64-uninstall.exe`

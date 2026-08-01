@@ -119,10 +119,9 @@ jobs:
       - name: Build app (Vite + Electron compile)
         run: npm run build
 
-      # UNSIGNED GitHub build. Keep signAndEditExecutable=true (package.json) so rcedit
-      # stamps PE version metadata — better for reputation than a naked unsigned binary.
+      # Keep signAndEditExecutable=true so rcedit stamps PE version metadata.
       # Do NOT force_rebuild the same version (hash freeze). See docs/GITHUB-SAC.md
-      - name: Package Windows NSIS unsigned (metadata stamped, not signed)
+      - name: Package Windows NSIS (version metadata stamped)
         shell: bash
         env:
           CI: 'true'
@@ -131,7 +130,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          echo "Building UNSIGNED Windows installer (rcedit metadata on; no Authenticode)"
+          echo "Building Windows installer (rcedit metadata on)"
           npx electron-builder --win nsis --x64 --publish never
 
       - name: Build standalone Windows uninstaller
@@ -281,8 +280,8 @@ jobs:
           {
             echo "## EG Launcher ${{ needs.resolve-version.outputs.tag }}"
             echo ""
-            echo "### GitHub Windows (unsigned)"
-            echo "- No code signing — SAC Enforcement may hard-block until this **exact hash** has reputation"
+            echo "### GitHub Windows"
+            echo "- SAC Enforcement may hard-block until this **exact hash** has reputation"
             echo "- **Hash freeze:** do not force_rebuild this version"
             echo "- Docs: \`docs/GITHUB-SAC.md\`"
             echo ""

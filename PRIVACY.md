@@ -183,7 +183,7 @@ We may update this policy by editing `PRIVACY.md` in the repository and changing
 - **GitHub Issues:** https://github.com/YourLovelyFox/eg-launcher/issues  
 - **Repository:** https://github.com/YourLovelyFox/eg-launcher  
 
-For SignPath, certificate authorities, or app stores that require a privacy policy URL, use:
+For partners or app stores that require a privacy policy URL, use:
 
 **https://github.com/YourLovelyFox/eg-launcher/blob/master/PRIVACY.md**
 

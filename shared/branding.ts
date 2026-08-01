@@ -5,10 +5,7 @@ export const APP_FULL_NAME = 'EG Launcher'
 /** Display version — keep in sync with package.json for UI; runtime uses app.getVersion(). */
 export const APP_VERSION = '2.5.4'
 
-/**
- * Microsoft Store — primary Windows distribution when we have no code-signing cert.
- * Store packages are Microsoft-signed → Smart App Control / SmartScreen friendly.
- */
+/** Optional Store listing (when live). Primary distribution is GitHub Releases. */
 export const MS_STORE_PRODUCT_ID = '9P32SFSJH9B1'
 export const MS_STORE_URL = `https://apps.microsoft.com/detail/${MS_STORE_PRODUCT_ID}`
 export const MS_STORE_PROTOCOL_URL = `ms-windows-store://pdp/?productid=${MS_STORE_PRODUCT_ID}`

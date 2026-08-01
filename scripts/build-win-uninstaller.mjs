@@ -6,7 +6,7 @@
  *   node scripts/build-win-uninstaller.mjs
  *   node scripts/build-win-uninstaller.mjs --version 2.0.0
  *
- * Signs with CSC_LINK / certs/ if available (same as the installer).
+ * Optional post-process via CSC_LINK / local tools if present.
  */
 import { spawnSync } from 'child_process'
 import fs from 'fs'
@@ -109,7 +109,7 @@ function findSigntool() {
 function signFile(filePath) {
   const csc = loadCsc()
   if (!csc) {
-    console.log('[uninstaller] No cert — leaving unsigned')
+    console.log('[uninstaller] Leaving PE as built (no post-process sign)')
     return
   }
   const signtool = findSigntool()

@@ -1,6 +1,6 @@
 # GitHub Releases (primary distribution)
 
-Windows + Linux installers ship from **GitHub Releases**. No code-signing certificate is used.
+Windows + Linux installers ship from **GitHub Releases**.
 
 SAC / reputation rules for the Windows setup: **[GITHUB-SAC.md](./GITHUB-SAC.md)**.
 
@@ -12,12 +12,10 @@ SAC / reputation rules for the Windows setup: **[GITHUB-SAC.md](./GITHUB-SAC.md)
 
 On tag `v*` (or manual run):
 
-1. Build Windows NSIS setup + uninstaller (**unsigned**, with version metadata via rcedit)  
+1. Build Windows NSIS setup + uninstaller (with version metadata via rcedit)  
 2. Build Linux AppImage  
 3. Publish release + changelog  
 4. **Hash freeze** — existing assets for that tag are not replaced unless `force_rebuild=true`
-
-You do **not** need any `EG_CSC_*` secrets.
 
 ---
 
@@ -76,4 +74,4 @@ Output: `release/EG-Launcher-*-win-x64-setup.exe`
 
 **Smart App Control blocked it**
 
-> SAC Enforcement blocks many unsigned apps until that exact file has reputation. Options: set Smart App Control to Off/Evaluation in Windows Security (your choice), or wait for reputation on this release hash. We do not ship tools that disable SAC for you. Details: docs/GITHUB-SAC.md
+> SAC Enforcement blocks many new apps until that exact file has reputation. Options: set Smart App Control to Off/Evaluation in Windows Security (your choice), or wait for reputation on this release hash. We do not ship tools that disable SAC for you. Details: docs/GITHUB-SAC.md
