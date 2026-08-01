@@ -16,6 +16,12 @@ release
 admin.local.json
 **/eg-launcher-github-token.txt
 **/eg-launcher-admin-password.txt
+resources/eg-gate/*.secret
+**/eg-gate.secret
+
+# Local pack/forge test scratch
+tmp-bees*
+tmp-forge*
 
 # Self-signed code signing (A1) — private key never in git
 certs/
