@@ -6,6 +6,18 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.5.8] — 2026-08-01
+
+### Fixed
+- **Bee's SMP / Forge pack install**: create `launcher_profiles.json` stub so Forge `--installClient` works (was failing with "run the launcher first").
+- Clearer errors when pack download or .mrpack extract fails.
+
+### Downloads
+- Windows: `EG-Launcher-2.5.8-win-x64-setup.exe` and `EG-Launcher-2.5.8-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.8-linux-x86_64.AppImage`
+
+---
+
 ## [2.5.7] â€” 2026-08-01
 
 ### Fixed
