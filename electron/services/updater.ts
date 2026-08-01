@@ -117,8 +117,8 @@ export function initAutoUpdater(win: BrowserWindow | null) {
   try {
     autoUpdater.autoDownload = false
     autoUpdater.autoInstallOnAppQuit = true
-    // All 2.x builds are pre-release (Beta) for now — still receive beta updates
-    autoUpdater.allowPrerelease = IS_PRE_RELEASE
+    // Full GitHub releases only (prerelease flag on GitHub breaks update discovery)
+    autoUpdater.allowPrerelease = false
     autoUpdater.allowDowngrade = false
     // Differential packages often hang or corrupt on Windows — full download is safer
     autoUpdater.disableDifferentialDownload = true

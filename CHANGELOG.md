@@ -10,6 +10,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ### Fixed
 - **Sidebar logo size**: `brand-mark-img` no longer sets `width/height: 100%` on the same element as `brand-mark`, which made the EG mark fill the whole sidebar. Brand **32px**, boot **64px**.
+- **GitHub Releases**: no longer marked as Pre-release (broke in-app update check / `latest.yml`).
 
 ### Downloads
 - Windows: `EG-Launcher-2.5.7-win-x64-setup.exe` and `EG-Launcher-2.5.7-win-x64-uninstall.exe`

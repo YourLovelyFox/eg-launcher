@@ -12,16 +12,16 @@ export const MS_STORE_PROTOCOL_URL = `ms-windows-store://pdp/?productid=${MS_STO
 export const GITHUB_RELEASES_URL = 'https://github.com/YourLovelyFox/eg-launcher/releases/latest'
 
 /**
- * All current public builds are pre-release (Beta) until a stable channel is announced.
- * Used for UI badges and electron-updater allowPrerelease.
+ * GitHub Releases are full (non-prerelease) so electron-updater / latest.yml work.
+ * Keep false — do not mark GitHub releases as Pre-release.
  */
-export const IS_PRE_RELEASE = true
-export const RELEASE_CHANNEL = 'beta' as const
-export const RELEASE_CHANNEL_LABEL = 'Beta'
-/** e.g. "v2.5.3 · Beta" */
+export const IS_PRE_RELEASE = false
+export const RELEASE_CHANNEL = 'stable' as const
+export const RELEASE_CHANNEL_LABEL = 'Stable'
+/** e.g. "v2.5.7" */
 export function formatAppVersion(version: string = APP_VERSION): string {
   const v = version.startsWith('v') ? version : `v${version}`
-  return IS_PRE_RELEASE ? `${v} · ${RELEASE_CHANNEL_LABEL}` : v
+  return v
 }
 
 import { resolveCmsApiBase } from './cmsApi'
