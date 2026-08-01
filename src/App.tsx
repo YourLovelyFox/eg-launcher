@@ -69,8 +69,8 @@ function ColdBootScreen({ phase }: { phase: number }) {
           src={appIcon}
           alt=""
           className="boot-mark boot-mark-img boot-pulse"
-          width={72}
-          height={72}
+          width={64}
+          height={64}
           draggable={false}
         />
         <div className="boot-text">
