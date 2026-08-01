@@ -6,6 +6,19 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.5.5] — 2026-08-01
+
+### Changed
+- **App icon**: full-bleed tile (no white corner triangles); multi-size PNGs + ICO rebuilt; larger sidebar/boot marks.
+- **Offline Accounts CMS status**: distinguish real CMS downtime from staff session errors (false “unreachable”).
+- Health check uses `offline_auth.php?action=status` with clearer detail.
+
+### Downloads
+- Windows: `EG-Launcher-2.5.5-win-x64-setup.exe` and `EG-Launcher-2.5.5-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.5-linux-x86_64.AppImage`
+
+---
+
 ## [2.5.4] — 2026-08-01
 
 ### Changed
