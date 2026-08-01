@@ -9,10 +9,15 @@ type OfflineUserRow = {
   createdAt: string
 }
 
+type CmsBanner =
+  | { kind: 'ok'; label: string }
+  | { kind: 'warn'; label: string }
+  | { kind: 'err'; label: string }
+
 export function AdminOfflinePanel({ session }: { session: string }) {
   const { showToast } = useAppStore()
   const [users, setUsers] = useState<OfflineUserRow[]>([])
-  const [remoteSynced, setRemoteSynced] = useState(false)
+  const [banner, setBanner] = useState<CmsBanner>({ kind: 'warn', label: 'Checking CMS…' })
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
 
@@ -24,12 +29,34 @@ export function AdminOfflinePanel({ session }: { session: string }) {
     try {
       const res = await window.hive.admin.listOfflineUsers(session)
       if (!res.ok) {
+        setUsers([])
+        setBanner({
+          kind: 'err',
+          label: res.cmsOnline === false ? res.error : `CMS list failed: ${res.error}`,
+        })
         showToast('error', res.error)
         return
       }
       setUsers(res.users)
-      setRemoteSynced(res.remoteSynced)
+      if (!res.cmsOnline) {
+        setBanner({ kind: 'err', label: res.error || 'CMS offline or unreachable' })
+      } else if (res.remoteSynced) {
+        setBanner({
+          kind: 'ok',
+          label: `CMS connected · ${res.userCount ?? res.users.length} offline user(s)`,
+        })
+      } else {
+        setBanner({
+          kind: 'warn',
+          label:
+            res.error ||
+            `CMS online (${res.userCount ?? 0} accounts on server) but staff list failed — re-sign in under Staff`,
+        })
+        if (res.error) showToast('error', res.error)
+      }
     } catch (err) {
+      setUsers([])
+      setBanner({ kind: 'err', label: (err as Error).message })
       showToast('error', (err as Error).message)
     } finally {
       setLoading(false)
@@ -43,7 +70,6 @@ export function AdminOfflinePanel({ session }: { session: string }) {
   async function createUser() {
     setBusy(true)
     try {
-      // Staff may create offline accounts live (quota 3); news/partners still need verification.
       const res = await window.hive.admin.createOfflineUser(session, newUser, newPass)
       if (!res.ok) {
         showToast('error', res.error)
@@ -56,11 +82,13 @@ export function AdminOfflinePanel({ session }: { session: string }) {
       try {
         const me = await window.hive.admin.staffMe()
         if (me?.staff) {
-          // nudge UI consumers via toast if near quota
           const used = me.staff.offlineUsed ?? 0
           const quota = me.staff.offlineQuota ?? 3
           if (me.staff.role === 'staff' && used + 1 >= quota) {
-            showToast('success', res.message + ` · offline quota ${Math.min(used + 1, quota)}/${quota}`)
+            showToast(
+              'success',
+              res.message + ` · offline quota ${Math.min(used + 1, quota)}/${quota}`,
+            )
           }
         }
       } catch {
@@ -91,6 +119,13 @@ export function AdminOfflinePanel({ session }: { session: string }) {
     }
   }
 
+  const bannerColor =
+    banner.kind === 'ok'
+      ? 'var(--green)'
+      : banner.kind === 'warn'
+        ? 'var(--amber)'
+        : 'var(--red)'
+
   return (
     <div>
       <div className="panel" style={{ marginBottom: 16 }}>
@@ -100,8 +135,8 @@ export function AdminOfflinePanel({ session }: { session: string }) {
           <strong>Account → Offline login</strong>. Staff accounts can create up to{' '}
           <strong>3 offline users</strong> each (live, no approval). Admins have no limit.
         </p>
-        <p className="muted" style={{ marginBottom: 12 }}>
-          CMS: {remoteSynced ? 'connected' : 'unreachable'}
+        <p className="muted" style={{ marginBottom: 12, color: bannerColor }}>
+          {banner.label}
         </p>
         <div className="form-grid">
           <div className="form-row">
@@ -144,20 +179,25 @@ export function AdminOfflinePanel({ session }: { session: string }) {
         </div>
         {users.length === 0 ? (
           <div className="empty" style={{ padding: 24, marginTop: 12 }}>
-            <h3>No offline users yet</h3>
-            <p>Create offline users here. Players can only log in with accounts you create.</p>
+            <h3>No offline users loaded</h3>
+            <p>
+              If CMS is connected and the list is empty, create a user above. If you see a staff
+              session warning, sign out and sign back in under Staff.
+            </p>
           </div>
         ) : (
           <div className="list" style={{ marginTop: 12 }}>
             {users.map((u) => (
               <div key={u.id} className="list-item">
                 <div className="grow">
-                  <div className="title">{u.username}</div>
-                  <div className="sub mono">{u.uuid}</div>
-                  <div className="sub">Created {new Date(u.createdAt).toLocaleString()}</div>
+                  <div className="title">{u.displayName || u.username}</div>
+                  <div className="sub mono">
+                    {u.username} · {u.uuid}
+                  </div>
                 </div>
                 <button
-                  className="btn btn-danger"
+                  type="button"
+                  className="btn btn-ghost"
                   disabled={busy}
                   onClick={() => removeUser(u.id, u.username)}
                 >

@@ -194,6 +194,10 @@ export async function cmsRequest<T extends CmsJson = CmsJson>(options: {
 
       if (res.status >= 400) {
         const err = sanitizeCmsError(String(json.error || `HTTP ${res.status}`))
+        // Auth / client errors: CMS is reachable — do not thrash fallback hosts
+        if (res.status === 401 || res.status === 403 || res.status === 400 || res.status === 409) {
+          throw new Error(err)
+        }
         if (res.status === 404) {
           lastErr = new Error(err)
           continue
@@ -202,18 +206,33 @@ export async function cmsRequest<T extends CmsJson = CmsJson>(options: {
       }
       return json as T
     } catch (err) {
-      lastErr = new Error(sanitizeCmsError((err as Error).message))
+      const msg = sanitizeCmsError((err as Error).message)
+      lastErr = new Error(msg)
+      // Do not try alternate bases for auth/session failures
+      if (/staff login|admin login|session expired|not signed in|not authenticated/i.test(msg)) {
+        throw lastErr
+      }
       continue
     }
   }
 
-  throw lastErr || new Error('CMS request failed')
+  throw lastErr || new Error('CMS offline or unreachable')
 }
 
 /** Never surface legacy CMS API-key wording to the UI. */
 function sanitizeCmsError(msg: string): string {
   if (/api key|admin key|cms key|admin_api_key|X-EG-Admin-Key/i.test(msg)) {
-    return 'Staff login required. Open Settings → Staff and sign in (sessions last 5 minutes).'
+    return 'Staff login required. Open Settings → Staff and sign in again.'
+  }
+  if (
+    /ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|network|getaddrinfo|UNABLE_TO_VERIFY|CERT_|TLS|SSL|self.signed|issuer/i.test(
+      msg,
+    )
+  ) {
+    return 'CMS offline or unreachable'
+  }
+  if (/timed out|timeout/i.test(msg)) {
+    return 'CMS offline or unreachable (timeout)'
   }
   return msg
 }

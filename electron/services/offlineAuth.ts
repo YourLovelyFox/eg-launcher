@@ -7,8 +7,10 @@ import {
   cmsDeleteOfflineUser,
   cmsListOfflineUsersAdmin,
   cmsOfflineLogin,
+  cmsOfflinePublicStatus,
   loadOfflineAuthFromDb,
 } from './db/authRepo'
+import { getStaffSessionToken } from './staffSession'
 import { loadSettings, saveSettings } from './settings'
 import {
   getAccounts,
@@ -125,16 +127,65 @@ export async function loginOfflineAccount(
   return { ok: true, account: { ...account, accessToken: '***' } }
 }
 
-export async function listOfflineUsersAdmin(): Promise<{
-  ok: true
-  users: Array<Omit<OfflineAuthUser, 'passwordHash'>>
-  unlockPasswordConfigured: boolean
-  remoteSynced: boolean
-}> {
+/**
+ * Staff Offline Accounts panel.
+ * Distinguishes real CMS downtime from expired staff session / auth errors.
+ */
+export async function listOfflineUsersAdmin(): Promise<
+  | {
+      ok: true
+      users: Array<Omit<OfflineAuthUser, 'passwordHash'>>
+      unlockPasswordConfigured: boolean
+      remoteSynced: boolean
+      cmsOnline: boolean
+      userCount: number
+      error?: string
+    }
+  | { ok: false; error: string; cmsOnline: boolean }
+> {
+  // 1) Public probe — proves the CMS host + offline_auth.php + DB are up
+  let publicStatus: { unlockConfigured: boolean; userCount: number } | null = null
   try {
-    return await cmsListOfflineUsersAdmin()
-  } catch {
-    return { ok: true, users: [], unlockPasswordConfigured: false, remoteSynced: false }
+    const st = await cmsOfflinePublicStatus()
+    publicStatus = { unlockConfigured: st.unlockConfigured, userCount: st.userCount }
+  } catch (err) {
+    return {
+      ok: false,
+      error: (err as Error).message || 'CMS offline or unreachable',
+      cmsOnline: false,
+    }
+  }
+
+  // 2) Staff list — needs X-EG-Session from staff login
+  if (!getStaffSessionToken()) {
+    return {
+      ok: true,
+      users: [],
+      unlockPasswordConfigured: publicStatus.unlockConfigured,
+      remoteSynced: false,
+      cmsOnline: true,
+      userCount: publicStatus.userCount,
+      error: 'Staff session missing — sign in again under Settings → Staff',
+    }
+  }
+
+  try {
+    const listed = await cmsListOfflineUsersAdmin(getStaffSessionToken())
+    return {
+      ...listed,
+      userCount: listed.users.length,
+    }
+  } catch (err) {
+    const msg = (err as Error).message || 'Failed to list offline users'
+    return {
+      ok: true,
+      users: [],
+      unlockPasswordConfigured: publicStatus.unlockConfigured,
+      remoteSynced: false,
+      cmsOnline: true,
+      userCount: publicStatus.userCount,
+      error: msg,
+    }
   }
 }
 

@@ -28,11 +28,29 @@ export async function deletePartnerAuth(_id: string): Promise<void> {
   /* written with partners.php delete */
 }
 
+/** Public offline status (no staff session). Throws if CMS cannot be reached. */
+export async function cmsOfflinePublicStatus(): Promise<{
+  ok: boolean
+  unlockConfigured: boolean
+  userCount: number
+}> {
+  const st = await cmsRequest<{
+    ok?: boolean
+    unlockConfigured?: boolean
+    userCount?: number
+    error?: string
+  }>({ path: 'offline_auth.php?action=status' })
+  if (st.error) throw new Error(st.error)
+  return {
+    ok: Boolean(st.ok ?? true),
+    unlockConfigured: Boolean(st.unlockConfigured),
+    userCount: typeof st.userCount === 'number' ? st.userCount : 0,
+  }
+}
+
 export async function loadOfflineAuthFromDb(): Promise<OfflineAuthFile> {
   try {
-    const st = await cmsRequest<{ unlockConfigured?: boolean }>({
-      path: 'offline_auth.php?action=status',
-    })
+    const st = await cmsOfflinePublicStatus()
     return {
       version: 1,
       unlockPasswordHash: st.unlockConfigured ? 'configured' : null,
@@ -108,11 +126,13 @@ export async function cmsOfflineLogin(
   }
 }
 
-export async function cmsListOfflineUsersAdmin(): Promise<{
+export async function cmsListOfflineUsersAdmin(sessionToken?: string | null): Promise<{
   ok: true
   users: Array<Omit<OfflineAuthUser, 'passwordHash'>>
   unlockPasswordConfigured: boolean
   remoteSynced: boolean
+  cmsOnline: true
+  userCount: number
 }> {
   const r = await cmsRequest<{
     users?: Array<{
@@ -123,18 +143,26 @@ export async function cmsListOfflineUsersAdmin(): Promise<{
       createdAt: string
     }>
     unlockPasswordConfigured?: boolean
-  }>({ path: 'offline_auth.php?action=list', admin: true })
+  }>({
+    path: 'offline_auth.php?action=list',
+    admin: true,
+    // Prefer explicit staff token when provided; httpClient also falls back to stored session
+    sessionToken: sessionToken || undefined,
+  })
+  const users = (r.users || []).map((u) => ({
+    id: u.id,
+    username: u.username,
+    uuid: u.uuid,
+    displayName: u.displayName,
+    createdAt: u.createdAt,
+  }))
   return {
     ok: true,
-    users: (r.users || []).map((u) => ({
-      id: u.id,
-      username: u.username,
-      uuid: u.uuid,
-      displayName: u.displayName,
-      createdAt: u.createdAt,
-    })),
+    users,
     unlockPasswordConfigured: Boolean(r.unlockPasswordConfigured),
     remoteSynced: true,
+    cmsOnline: true,
+    userCount: users.length,
   }
 }
 

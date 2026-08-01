@@ -114,11 +114,12 @@ export async function getAdminHealthSnapshot(): Promise<AdminHealthSnapshot> {
         unlockConfigured?: boolean
         userCount?: number
         error?: string
-      }>({ path: 'offline_auth.php' })
+      }>({ path: 'offline_auth.php?action=status' })
       if (r.error) return { ok: false, detail: r.error }
+      if (r.ok === false) return { ok: false, detail: 'status not ok' }
       return {
         ok: true,
-        detail: `offline users: ${r.userCount ?? 0}`,
+        detail: `users=${r.userCount ?? 0} · unlock=${r.unlockConfigured ? 'set' : 'none'} · public status OK`,
       }
     }),
   )

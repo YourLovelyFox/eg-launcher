@@ -446,8 +446,11 @@ const api = {
           }>
           unlockPasswordConfigured: boolean
           remoteSynced: boolean
+          cmsOnline: boolean
+          userCount: number
+          error?: string
         }
-      | { ok: false; error: string }
+      | { ok: false; error: string; cmsOnline?: boolean }
     > => {
       return ipcRenderer.invoke('admin:listOfflineUsers', sessionToken)
     },
