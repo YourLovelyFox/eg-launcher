@@ -3,7 +3,7 @@ export const APP_NAME = 'EG'
 export const APP_TAGLINE = 'Launcher'
 export const APP_FULL_NAME = 'EG Launcher'
 /** Display version — keep in sync with package.json for UI; runtime uses app.getVersion(). */
-export const APP_VERSION = '2.5.6'
+export const APP_VERSION = '2.5.7'
 
 /** Optional Store listing (when live). Primary distribution is GitHub Releases. */
 export const MS_STORE_PRODUCT_ID = '9P32SFSJH9B1'
@@ -93,6 +93,28 @@ export const PARTNERS = {
       '3dskinlayers', // 3D Skin Layers
       'zoomify', // Zoomify
     ],
+    modrinthPackSlug: null,
+    iconUrl: null,
+    discordUrl: null,
+  },
+  /**
+   * Official EG Forge Server — only accepts this launcher (EG Gate mod + shared secret).
+   * Default address is local dedicated server; change serverAddress when you host publicly.
+   */
+  egForge: {
+    id: 'eg-forge',
+    title: 'EG Forge Server',
+    menuLabel: 'EG Forge',
+    description:
+      'Official EG Launcher Forge server (Minecraft 1.20.1). Other launchers are rejected by the EG Gate mod.',
+    gameVersion: '1.20.1',
+    loader: 'forge',
+    serverAddress: 'localhost',
+    serverName: 'EG Forge Server',
+    instanceName: 'EG Forge Server',
+    newsTag: 'EGForge',
+    newsUsername: 'EGForge',
+    defaultMods: [],
     modrinthPackSlug: null,
     iconUrl: null,
     discordUrl: null,

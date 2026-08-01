@@ -1,6 +1,6 @@
 {
   "name": "eg-launcher",
-  "version": "2.5.6",
+  "version": "2.5.7",
   "description": "EG Launcher — Minecraft mods via Modrinth, with permanent Bee's SMP pack support.",
   "main": "dist-electron/main.js",
   "author": "EG Launcher",
@@ -42,6 +42,11 @@
       {
         "from": "build/icon.png",
         "to": "icon.png"
+      },
+      {
+        "from": "resources/eg-gate",
+        "to": "eg-gate",
+        "filter": ["**/*"]
       }
     ],
     "files": [
