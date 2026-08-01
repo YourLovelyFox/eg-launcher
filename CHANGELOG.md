@@ -6,6 +6,17 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.5.6] — 2026-08-01
+
+### Changed
+- **In-app icon size**: sidebar and boot splash marks reduced so the full-bleed asset matches prior UI scale.
+
+### Downloads
+- Windows: `EG-Launcher-2.5.6-win-x64-setup.exe` and `EG-Launcher-2.5.6-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.6-linux-x86_64.AppImage`
+
+---
+
 ## [2.5.5] — 2026-08-01
 
 ### Changed
