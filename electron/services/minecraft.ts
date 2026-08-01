@@ -28,6 +28,7 @@ import {
   resolveJavaForGame,
 } from './java'
 import { loadSettings } from './settings'
+import { getEgGateToken } from './egGate'
 
 const MOJANG_MANIFEST = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'
 const FABRIC_META = 'https://meta.fabricmc.net/v2'
@@ -672,9 +673,21 @@ async function installModLoaderViaInstaller(
   await downloadToFile(installerUrl, installerPath)
 
   const gameDir = path.dirname(getVersionsDir())
+  // Modern Forge/NeoForge installers refuse --installClient unless a launcher profile
+  // file exists ("you need to run the launcher first"). Prism/MultiMC-style stub.
+  ensureLauncherProfilesStub(gameDir)
+
   onProgress(0.4, 'Running installer (this may take a minute)…')
 
-  await runJavaJar(javaPath, installerPath, ['--installClient', gameDir], gameDir)
+  try {
+    await runJavaJar(javaPath, installerPath, ['--installClient', gameDir], gameDir)
+  } catch (err) {
+    const msg = (err as Error).message || String(err)
+    throw new Error(
+      `${loader} installer failed for ${gameVersion}/${loaderVersion}. ${msg}\n` +
+        `Need Java 17+ (Java 21 recommended). Check Settings → Java path.`,
+    )
+  }
 
   onProgress(1, 'Loader installed')
 
@@ -710,6 +723,40 @@ function copyDirRecursive(src: string, dest: string) {
   }
 }
 
+/**
+ * Stub `launcher_profiles.json` so Forge's --installClient accepts the game dir.
+ * Safe to re-run; never overwrites a non-empty profile set from a prior install.
+ */
+function ensureLauncherProfilesStub(gameDir: string): void {
+  ensureDir(gameDir)
+  const profilePath = path.join(gameDir, 'launcher_profiles.json')
+  if (fs.existsSync(profilePath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(profilePath, 'utf-8')) as {
+        profiles?: Record<string, unknown>
+      }
+      if (existing && typeof existing === 'object') return
+    } catch {
+      /* rewrite corrupt file */
+    }
+  }
+  const stub = {
+    profiles: {
+      eg: {
+        name: 'EG Launcher',
+        type: 'custom',
+        created: new Date().toISOString(),
+        lastUsed: new Date().toISOString(),
+        icon: 'Grass',
+      },
+    },
+    selectedProfile: 'eg',
+    clientToken: '00000000000000000000000000000000',
+    launcherVersion: { name: 'EGLauncher', format: 21 },
+  }
+  fs.writeFileSync(profilePath, JSON.stringify(stub, null, 2), 'utf-8')
+}
+
 function runJavaJar(
   javaPath: string,
   jarPath: string,
@@ -722,14 +769,21 @@ function runJavaJar(
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
+    let out = ''
     let err = ''
+    child.stdout?.on('data', (d) => {
+      out += d.toString()
+    })
     child.stderr?.on('data', (d) => {
       err += d.toString()
     })
     child.on('error', reject)
     child.on('close', (code) => {
       if (code === 0) resolve()
-      else reject(new Error(`Installer failed (code ${code}): ${err.slice(-500)}`))
+      else {
+        const combined = `${err}\n${out}`.trim()
+        reject(new Error(`Installer failed (code ${code}): ${combined.slice(-800)}`))
+      }
     })
   })
 }
@@ -1152,6 +1206,11 @@ export async function launchInstance(
   jvmArgs.push(`-Dio.netty.native.workdir=${nativesDir}`)
   jvmArgs.push(`-Dminecraft.launcher.brand=EGLauncher`)
   jvmArgs.push(`-Dminecraft.launcher.version=1.0.0`)
+  // EG Gate: shared secret so EG Forge Server can verify this process is EG Launcher
+  const gateToken = getEgGateToken()
+  if (gateToken) {
+    jvmArgs.push(`-Deg.gate.token=${gateToken}`)
+  }
 
   const rawJvm = filterJvmArgsForJava(flattenArgs(versionJson.arguments?.jvm), javaMajor)
   let hasCp = false

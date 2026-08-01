@@ -396,18 +396,32 @@ export async function installFeaturedPack(
 
   const cacheDir = path.join(getDataRoot(), 'pack-cache', slug)
   ensureDir(cacheDir)
-  const mrpackPath = path.join(cacheDir, file.filename.replace(/[<>:"|?*]/g, '_'))
+  // Avoid apostrophes/spaces breaking Windows extract shells
+  const safeName = file.filename.replace(/[<>:"|?*']/g, '_').replace(/\s+/g, '_')
+  const mrpackPath = path.join(cacheDir, safeName)
 
   emit('download-pack', 0.05, `Downloading ${file.filename} (${Math.round(file.size / 1e6)} MB)…`)
-  await downloadFile(file.url, mrpackPath, (downloaded, total) => {
-    const t = total || file.size || 1
-    emit('download-pack', 0.05 + (downloaded / t) * 0.25, `Downloading pack… ${Math.round((downloaded / t) * 100)}%`)
-  })
+  try {
+    await downloadFile(file.url, mrpackPath, (downloaded, total) => {
+      const t = total || file.size || 1
+      emit(
+        'download-pack',
+        0.05 + (downloaded / t) * 0.25,
+        `Downloading pack… ${Math.round((downloaded / t) * 100)}%`,
+      )
+    })
+  } catch (err) {
+    throw new Error(`Failed to download pack: ${(err as Error).message}`)
+  }
 
   const extractDir = path.join(cacheDir, `extract-${version.id}`)
   emit('extract', 0.32, 'Extracting .mrpack…')
   if (fs.existsSync(extractDir)) fs.rmSync(extractDir, { recursive: true, force: true })
-  await extractZip(mrpackPath, extractDir)
+  try {
+    await extractZip(mrpackPath, extractDir)
+  } catch (err) {
+    throw new Error(`Failed to extract .mrpack: ${(err as Error).message}`)
+  }
 
   const indexPath = path.join(extractDir, 'modrinth.index.json')
   if (!fs.existsSync(indexPath)) {
