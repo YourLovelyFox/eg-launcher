@@ -6,7 +6,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [Unreleased] — fast boot + GitHub SAC reputation path
+## [2.5.4] — 2026-08-01
 
 ### Changed
 - **Faster load**: shell paints immediately from a local boot cache; cold start no longer waits on a minimum splash timer.
@@ -14,11 +14,15 @@ Format: each release section is published as the GitHub Release body (and shown 
 - **Deferred chrome network** (partners, featured packs, partner news badges, running-game poll) until after first paint.
 - **System fonts first**; Inter webfont loads optional so boot does not wait on Google Fonts.
 - **Instance folder migration** skips work when folders are already human-readable.
-- **GitHub-only Windows / SAC strategy** (no cert, no Azure, no Store dependency):
-  - CI builds **unsigned** installers but still stamps PE **version metadata** (rcedit) — do not disable `signAndEditExecutable` for unsigned builds.
+- **GitHub-only Windows / SAC strategy** (no cert):
+  - CI builds **unsigned** installers but still stamps PE **version metadata** (rcedit).
   - `packElevateHelper: false` to avoid an extra elevation helper binary.
   - **Hash freeze** kept; release notes + `docs/GITHUB-SAC.md` document reputation rules (no packers, no force-rebuild).
   - Honest docs: SAC Enforcement cannot be “evaded” for cold unsigned EXEs; SmartScreen “Run anyway” vs hard block explained.
+
+### Downloads
+- Windows: `EG-Launcher-2.5.4-win-x64-setup.exe` and `EG-Launcher-2.5.4-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.4-linux-x86_64.AppImage`
 
 ---
 
