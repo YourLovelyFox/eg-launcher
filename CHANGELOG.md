@@ -6,6 +6,17 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.5.11] — 2026-08-02
+
+### Fixed
+- **Forge crash** `Modules _1._20._1 and minecraft export package…`: do not put the vanilla `1.20.1.jar` on the classpath for Forge/NeoForge (it conflicted with Forge's `minecraft` module and broke mods like Pipez).
+
+### Downloads
+- Windows: `EG-Launcher-2.5.11-win-x64-setup.exe` and `EG-Launcher-2.5.11-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.11-linux-x86_64.AppImage`
+
+---
+
 ## [2.5.10] — 2026-08-02
 
 ### Fixed

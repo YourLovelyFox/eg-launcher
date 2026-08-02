@@ -1572,6 +1572,28 @@ function applyReplacements(value: string, map: Record<string, string>): string {
   return out
 }
 
+/**
+ * True for modern Forge / NeoForge launches (BootstrapLauncher / ModLauncher).
+ * These provide the `minecraft` module via client-extra + libraries — the raw
+ * versions/1.20.1/1.20.1.jar must NOT also be on the classpath or Java dies with:
+ *   Modules _1._20._1 and minecraft export package net.minecraft... to module …
+ */
+function isForgeFamilyLaunch(versionJson: VersionJson, versionId: string): boolean {
+  const main = (versionJson.mainClass || '').toLowerCase()
+  if (main.includes('bootstraplauncher') || main.includes('modlauncher')) return true
+  const id = versionId.toLowerCase()
+  if (id.includes('forge') || id.includes('neoforge')) return true
+  // Game args used by FML
+  const game = versionJson.arguments?.game || []
+  for (const a of game) {
+    if (typeof a === 'string' && (a === 'forgeclient' || a === 'forgeclientdev' || a === '--fml.forgeVersion')) {
+      return true
+    }
+    if (typeof a === 'string' && a.startsWith('--fml.')) return true
+  }
+  return false
+}
+
 function buildClasspathEntries(versionJson: VersionJson, versionId: string): string[] {
   const entries: string[] = []
   const seen = new Set<string>()
@@ -1588,16 +1610,25 @@ function buildClasspathEntries(versionJson: VersionJson, versionId: string): str
     }
   }
 
-  // Client jar (vanilla) — always required
+  const forgeFamily = isForgeFamilyLaunch(versionJson, versionId)
   const vanillaId = versionJson.inheritsFrom || versionJson.id || versionId
   const clientJar = path.join(getVersionsDir(), vanillaId, `${vanillaId}.jar`)
-  if (fs.existsSync(clientJar) && !seen.has(clientJar)) {
+
+  // Vanilla / Fabric need the client jar on the classpath.
+  // Forge/NeoForge must omit it — installer already produced the minecraft module jars.
+  if (!forgeFamily && fs.existsSync(clientJar) && !seen.has(clientJar)) {
+    seen.add(clientJar)
     entries.push(clientJar)
   }
 
-  // Some loaders ship their own version jar
+  // Fabric (and similar) may ship a version jar; Forge profiles usually do not.
   const selfJar = path.join(getVersionsDir(), versionId, `${versionId}.jar`)
-  if (fs.existsSync(selfJar) && selfJar !== clientJar && !seen.has(selfJar)) {
+  if (
+    !forgeFamily &&
+    fs.existsSync(selfJar) &&
+    selfJar !== clientJar &&
+    !seen.has(selfJar)
+  ) {
     entries.push(selfJar)
   }
 
