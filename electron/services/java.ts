@@ -1,14 +1,36 @@
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import fs from 'fs'
+import http from 'http'
 import https from 'https'
 import path from 'path'
 import { promisify } from 'util'
 import { ensureDir, getDataRoot } from '../paths'
 
 const execFileAsync = promisify(execFile)
-const USER_AGENT = 'EGLauncher/1.0.0'
+const USER_AGENT = 'EGLauncher/1.0.0 (https://github.com/YourLovelyFox/eg-launcher)'
 const JAVA_RUNTIME_INDEX =
   'https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json'
+
+/**
+ * Same source Modrinth App uses for "Install recommended" Java:
+ * Azul Zulu metadata API → single JRE zip (not Mojang multi-file runtime).
+ * @see https://github.com/modrinth/code packages/app-lib/src/api/jre.rs
+ */
+function azulOs(): string {
+  if (process.platform === 'win32') return 'windows'
+  if (process.platform === 'darwin') return 'macos'
+  return 'linux'
+}
+
+function azulArch(): string {
+  if (process.arch === 'arm64') return 'aarch64'
+  if (process.arch === 'ia32') return 'x86'
+  return 'x64'
+}
+
+function javaBinName(): string {
+  return process.platform === 'win32' ? 'java.exe' : 'java'
+}
 
 export type JavaInstall = {
   path: string
@@ -225,7 +247,11 @@ function httpGetJson<T>(url: string): Promise<T> {
   })
 }
 
-function downloadFile(url: string, dest: string): Promise<void> {
+function downloadFile(
+  url: string,
+  dest: string,
+  onProgress?: (downloaded: number, total: number) => void,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     ensureDir(path.dirname(dest))
     if (fs.existsSync(dest) && fs.statSync(dest).size > 0) {
@@ -234,40 +260,236 @@ function downloadFile(url: string, dest: string): Promise<void> {
     }
     const temp = `${dest}.part`
     const go = (requestUrl: string, left = 8) => {
-      https
-        .get(requestUrl, { headers: { 'User-Agent': USER_AGENT } }, (res) => {
-          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && left > 0) {
-            go(new URL(res.headers.location, requestUrl).toString(), left - 1)
-            return
-          }
-          if (res.statusCode && res.statusCode >= 400) {
-            reject(new Error(`Download failed ${res.statusCode}: ${requestUrl}`))
-            res.resume()
-            return
-          }
-          const file = fs.createWriteStream(temp)
-          res.pipe(file)
-          file.on('finish', () => {
-            file.close(() => {
-              try {
-                fs.renameSync(temp, dest)
-              } catch {
-                fs.copyFileSync(temp, dest)
-                try {
-                  fs.unlinkSync(temp)
-                } catch {
-                  // ignore
-                }
-              }
-              resolve()
-            })
-          })
-          file.on('error', reject)
+      const lib = requestUrl.startsWith('https') ? https : http
+      const req = lib.get(requestUrl, { headers: { 'User-Agent': USER_AGENT } }, (res) => {
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && left > 0) {
+          res.resume()
+          go(new URL(res.headers.location, requestUrl).toString(), left - 1)
+          return
+        }
+        if (res.statusCode && res.statusCode >= 400) {
+          reject(new Error(`Download failed (${res.statusCode})`))
+          res.resume()
+          return
+        }
+        const total = Number(res.headers['content-length'] || 0)
+        let downloaded = 0
+        const file = fs.createWriteStream(temp)
+        res.on('data', (chunk: Buffer) => {
+          downloaded += chunk.length
+          onProgress?.(downloaded, total)
         })
-        .on('error', reject)
+        res.pipe(file)
+        file.on('finish', () => {
+          file.close(() => {
+            try {
+              fs.renameSync(temp, dest)
+            } catch {
+              fs.copyFileSync(temp, dest)
+              try {
+                fs.unlinkSync(temp)
+              } catch {
+                // ignore
+              }
+            }
+            resolve()
+          })
+        })
+        file.on('error', reject)
+      })
+      req.on('error', reject)
+      req.setTimeout(180_000, () => req.destroy(new Error('Download timed out')))
     }
     go(url)
   })
+}
+
+function isOptionalMojangJavaFile(rel: string): boolean {
+  const n = rel.replace(/\\/g, '/').toLowerCase()
+  // Policy / legal / man pages — Mojang CDN sometimes 403s these; JRE still runs without them
+  return (
+    n.includes('/conf/security/policy/') ||
+    n.includes('/legal/') ||
+    n.endsWith('.policy') ||
+    n.endsWith('/readme') ||
+    n.endsWith('.txt') && n.includes('license')
+  )
+}
+
+async function extractZipArchive(zipPath: string, destDir: string): Promise<void> {
+  ensureDir(destDir)
+  if (process.platform === 'win32') {
+    await new Promise<void>((resolve, reject) => {
+      const ps = [
+        "$ErrorActionPreference = 'Stop'",
+        "Add-Type -AssemblyName System.IO.Compression.FileSystem",
+        "$zipPath = $env:EG_ZIP_PATH",
+        "$destDir = $env:EG_DEST_DIR",
+        "if (Test-Path -LiteralPath $destDir) { Remove-Item -LiteralPath $destDir -Recurse -Force }",
+        "New-Item -ItemType Directory -Force -Path $destDir | Out-Null",
+        "[System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $destDir)",
+      ].join('; ')
+      const child = spawn(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps],
+        {
+          windowsHide: true,
+          env: { ...process.env, EG_ZIP_PATH: zipPath, EG_DEST_DIR: destDir },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      )
+      let err = ''
+      child.stderr?.on('data', (d) => {
+        err += d.toString()
+      })
+      child.on('error', reject)
+      child.on('close', (code) => {
+        if (code === 0) resolve()
+        else reject(new Error(`Zip extract failed: ${err.trim().slice(-300) || code}`))
+      })
+    })
+  } else {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn('unzip', ['-o', zipPath, '-d', destDir], { stdio: 'ignore' })
+      child.on('error', reject)
+      child.on('close', (code) => {
+        if (code === 0) resolve()
+        else reject(new Error('unzip failed'))
+      })
+    })
+  }
+}
+
+function findJavaBinaryUnder(root: string): string | null {
+  const bin = javaBinName()
+  const direct = path.join(root, 'bin', bin)
+  if (fs.existsSync(direct)) return direct
+
+  // Zip root is usually one folder: zulu21.x.x-ca-jre.../bin/java
+  try {
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      const p = path.join(root, entry.name, 'bin', bin)
+      if (fs.existsSync(p)) return p
+      // macOS: Contents/Home/bin/java
+      const mac = path.join(root, entry.name, 'Contents', 'Home', 'bin', bin)
+      if (fs.existsSync(mac)) return mac
+    }
+  } catch {
+    // ignore
+  }
+  return null
+}
+
+type AzulPackage = {
+  download_url: string
+  name: string
+  java_version?: number[]
+}
+
+/**
+ * Download a portable Azul Zulu JRE — same approach as Modrinth App auto-install.
+ * One zip, no Mojang multi-file CDN (avoids intermittent 403 on policy files).
+ */
+export async function ensureAzulZuluJava(
+  major: number,
+  onProgress?: (message: string, ratio: number) => void,
+): Promise<JavaInstall> {
+  const runtimeRoot = path.join(getDataRoot(), 'java', `zulu-${major}`)
+  const existing = findJavaBinaryUnder(runtimeRoot)
+  if (existing) {
+    const version = (await getJavaVersion(existing)) || `zulu-${major}`
+    const maj = parseJavaMajor(version) || major
+    if (maj >= major) {
+      return { path: existing, version, major: maj }
+    }
+  }
+
+  const os = azulOs()
+  const arch = azulArch()
+  const metaUrl =
+    `https://api.azul.com/metadata/v1/zulu/packages?` +
+    `arch=${encodeURIComponent(arch)}` +
+    `&java_version=${major}` +
+    `&os=${encodeURIComponent(os)}` +
+    `&archive_type=zip` +
+    `&javafx_bundled=false` +
+    `&java_package_type=jre` +
+    `&latest=true` +
+    `&page_size=1`
+
+  onProgress?.(`Fetching Java ${major} package (Azul Zulu / Modrinth-style)…`, 0.02)
+  const packages = await httpGetJson<AzulPackage[]>(metaUrl)
+  const pkg = packages?.[0]
+  if (!pkg?.download_url) {
+    throw new Error(
+      `No Azul Zulu JRE for Java ${major} (${os}/${arch}). Try another version or set Java in Settings.`,
+    )
+  }
+
+  ensureDir(runtimeRoot)
+  const zipName = (pkg.name || `zulu-${major}.zip`).replace(/[<>:"|?*]/g, '_')
+  const zipPath = path.join(getDataRoot(), 'java', '_cache', zipName)
+  ensureDir(path.dirname(zipPath))
+
+  onProgress?.(`Downloading ${zipName}…`, 0.05)
+  await downloadFile(pkg.download_url, zipPath, (downloaded, total) => {
+    if (!total) return
+    onProgress?.(
+      `Downloading Java ${major}… ${Math.round((downloaded / total) * 100)}%`,
+      0.05 + (downloaded / total) * 0.7,
+    )
+  })
+
+  onProgress?.(`Extracting Java ${major}…`, 0.78)
+  // Extract into a temp folder then move contents to runtimeRoot
+  const extractTmp = path.join(getDataRoot(), 'java', `_extract-${major}-${Date.now()}`)
+  try {
+    await extractZipArchive(zipPath, extractTmp)
+    // Wipe previous install
+    if (fs.existsSync(runtimeRoot)) {
+      fs.rmSync(runtimeRoot, { recursive: true, force: true })
+    }
+    ensureDir(runtimeRoot)
+    // Move extracted root into runtimeRoot
+    const kids = fs.readdirSync(extractTmp)
+    if (kids.length === 1) {
+      const only = path.join(extractTmp, kids[0])
+      if (fs.statSync(only).isDirectory()) {
+        fs.renameSync(only, path.join(runtimeRoot, kids[0]))
+      } else {
+        fs.renameSync(only, path.join(runtimeRoot, kids[0]))
+      }
+    } else {
+      for (const k of kids) {
+        fs.renameSync(path.join(extractTmp, k), path.join(runtimeRoot, k))
+      }
+    }
+  } finally {
+    try {
+      fs.rmSync(extractTmp, { recursive: true, force: true })
+    } catch {
+      // ignore
+    }
+  }
+
+  const javaPath = findJavaBinaryUnder(runtimeRoot)
+  if (!javaPath) {
+    throw new Error(`Java ${major} extracted but ${javaBinName()} was not found under ${runtimeRoot}`)
+  }
+
+  // Make executable on Unix
+  if (process.platform !== 'win32') {
+    try {
+      fs.chmodSync(javaPath, 0o755)
+    } catch {
+      // ignore
+    }
+  }
+
+  const version = (await getJavaVersion(javaPath)) || `zulu-${major}`
+  onProgress?.(`Java ${version} ready`, 1)
+  return { path: javaPath, version, major: parseJavaMajor(version) || major }
 }
 
 export function componentForMajor(major: number): string {
@@ -319,13 +541,16 @@ export async function ensureMojangJavaRuntime(
 
   ensureDir(runtimeRoot)
   let done = 0
-  const concurrency = 8
+  const concurrency = 6
   let cursor = 0
+  const softFails: string[] = []
+  let hardFail: Error | null = null
 
   async function worker() {
     while (cursor < fileEntries.length) {
+      if (hardFail) return
       const i = cursor++
-      const [rel, info] = fileEntries[i]
+      const [rel, info] = fileEntries[i]!
       const dest = path.join(runtimeRoot, rel.replace(/\//g, path.sep))
       try {
         await downloadFile(info.downloads.raw.url, dest)
@@ -337,7 +562,13 @@ export async function ensureMojangJavaRuntime(
           }
         }
       } catch (err) {
-        throw new Error(`Failed downloading ${rel}: ${(err as Error).message}`)
+        const msg = (err as Error).message || String(err)
+        if (isOptionalMojangJavaFile(rel) || /403|404/.test(msg)) {
+          softFails.push(`${rel}: ${msg}`)
+        } else {
+          hardFail = new Error(`Failed downloading ${rel}: ${msg}`)
+          return
+        }
       }
       done++
       if (done % 10 === 0 || done === fileEntries.length) {
@@ -350,6 +581,7 @@ export async function ensureMojangJavaRuntime(
   }
 
   await Promise.all(Array.from({ length: concurrency }, () => worker()))
+  if (hardFail) throw hardFail
 
   // Create directories that were only listed as type directory (optional)
   for (const [rel, info] of files) {
@@ -359,17 +591,25 @@ export async function ensureMojangJavaRuntime(
   }
 
   if (!fs.existsSync(javaPath)) {
-    throw new Error(`Java runtime installed but ${javaPath} is missing`)
+    throw new Error(
+      `Java runtime incomplete (${javaPath} missing). Soft skips: ${softFails.slice(0, 3).join('; ')}`,
+    )
   }
 
-  const version = (await getJavaVersion(javaPath)) || meta.version?.name || component
+  // Accept install if java runs even if some policy files 403'd
+  const version = await getJavaVersion(javaPath)
+  if (!version) {
+    throw new Error(`Java binary present but not runnable at ${javaPath}`)
+  }
   onProgress?.(`Java ${version} ready`, 1)
   return { path: javaPath, version, major: parseJavaMajor(version) }
 }
 
 /**
  * Resolve a Java install that satisfies the required major version.
- * Downloads Mojang runtime automatically when needed.
+ * Auto-downloads when needed:
+ *  1) Azul Zulu JRE (same method as Modrinth App)
+ *  2) Mojang multi-file runtime (fallback)
  */
 export async function resolveJavaForGame(
   requiredMajor: number,
@@ -390,13 +630,31 @@ export async function resolveJavaForGame(
   const local = await findJavaForMajor(requiredMajor)
   if (local) return local
 
-  // Auto-fetch Mojang runtime
-  const component = componentForMajor(requiredMajor)
+  // Prefer exact major for auto-install (21 for 1.20.x packs, etc.)
+  const targetMajor = requiredMajor >= 25 ? 25 : requiredMajor >= 21 ? 21 : requiredMajor >= 17 ? 17 : 8
+
   onProgress?.(
-    `Minecraft needs Java ${requiredMajor}+. Downloading official runtime…`,
+    `Minecraft needs Java ${requiredMajor}+. Downloading Azul Zulu JRE (Modrinth-style)…`,
     0,
   )
-  return ensureMojangJavaRuntime(component, onProgress)
+  try {
+    return await ensureAzulZuluJava(targetMajor, onProgress)
+  } catch (azulErr) {
+    onProgress?.(
+      `Azul download failed, trying Mojang runtime… (${(azulErr as Error).message})`,
+      0.05,
+    )
+    try {
+      const component = componentForMajor(requiredMajor)
+      return await ensureMojangJavaRuntime(component, onProgress)
+    } catch (mojangErr) {
+      throw new Error(
+        `Could not auto-install Java ${requiredMajor}+.\n` +
+          `Azul/Zulu: ${(azulErr as Error).message}\n` +
+          `Mojang: ${(mojangErr as Error).message}`,
+      )
+    }
+  }
 }
 
 /** JVM flags that need a minimum Java major version */

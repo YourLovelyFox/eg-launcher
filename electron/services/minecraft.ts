@@ -23,7 +23,6 @@ import {
 } from '../paths'
 import {
   filterJvmArgsForJava,
-  findJava,
   parseJavaMajor,
   resolveJavaForGame,
 } from './java'
@@ -59,12 +58,9 @@ type VersionJson = {
   inheritsFrom?: string
 }
 
-function requiredJavaMajor(versionJson: VersionJson, gameVersion: string): number {
-  if (versionJson.javaVersion?.majorVersion) {
-    return versionJson.javaVersion.majorVersion
-  }
-  // Heuristics when metadata is missing
-  const id = gameVersion || versionJson.id || ''
+/** Minimum Java major for a Minecraft version id (when version JSON is unavailable). */
+export function requiredJavaMajorForGameVersion(gameVersion: string): number {
+  const id = gameVersion || ''
   // New year-based versions: 25.x / 26.x → Java 25
   if (/^\d{2}\.\d+/.test(id) && !id.startsWith('1.')) {
     const year = Number(id.split('.')[0])
@@ -74,10 +70,17 @@ function requiredJavaMajor(versionJson: VersionJson, gameVersion: string): numbe
   const m = id.match(/^1\.(\d+)/)
   if (m) {
     const minor = Number(m[1])
-    if (minor >= 20) return 21 // 1.20.5+ ideally 21; safe default
+    if (minor >= 20) return 21 // 1.20.5+ ideally 21; safe default for 1.20.x
     if (minor >= 17) return 17
   }
   return 17
+}
+
+function requiredJavaMajor(versionJson: VersionJson, gameVersion: string): number {
+  if (versionJson.javaVersion?.majorVersion) {
+    return versionJson.javaVersion.majorVersion
+  }
+  return requiredJavaMajorForGameVersion(gameVersion || versionJson.id || '')
 }
 
 type Rule = {
@@ -558,6 +561,22 @@ export async function installInstanceRuntime(
 
   emit('prepare', 0.02, 'Preparing installation…')
 
+  // Ensure Java exists before loaders/client work (Forge installer + future tools)
+  const settings = loadSettings()
+  const needMajor = requiredJavaMajorForGameVersion(instance.gameVersion)
+  try {
+    await resolveJavaForGame(
+      needMajor,
+      settings.javaPath || undefined,
+      (message, ratio) => emit('java', 0.02 + ratio * 0.05, message),
+    )
+  } catch (err) {
+    throw new Error(
+      `Java ${needMajor}+ is required. ${(err as Error).message}. ` +
+        `Check your network or set a Java path in Settings.`,
+    )
+  }
+
   let versionId = instance.gameVersion
   let versionJson: VersionJson
 
@@ -641,11 +660,24 @@ async function installModLoaderViaInstaller(
   onProgress: (p: number, msg: string) => void,
 ): Promise<string> {
   const settings = loadSettings()
-  let javaPath = settings.javaPath
-  if (!javaPath) {
-    const found = await findJava()
-    if (!found) throw new Error('Java not found. Install Java 17+ and set the path in Settings.')
-    javaPath = found.path
+  // Forge/NeoForge installer needs a real JDK/JRE — auto-download Mojang runtime if missing
+  const needMajor = requiredJavaMajorForGameVersion(gameVersion)
+  onProgress(0.02, `Checking Java ${needMajor}+…`)
+  let javaPath: string
+  try {
+    const resolved = await resolveJavaForGame(
+      needMajor,
+      settings.javaPath || undefined,
+      (message, ratio) => {
+        onProgress(0.02 + Math.min(ratio, 1) * 0.12, message)
+      },
+    )
+    javaPath = resolved.path
+  } catch (err) {
+    throw new Error(
+      `Could not install Java ${needMajor}+ automatically. ${(err as Error).message}. ` +
+        `You can also set a Java path in Settings.`,
+    )
   }
   // Prefer java.exe for installer console output
   if (process.platform === 'win32' && /javaw\.exe$/i.test(javaPath)) {
@@ -669,7 +701,7 @@ async function installModLoaderViaInstaller(
   ensureDir(installerDir)
   const installerPath = path.join(installerDir, path.basename(installerUrl))
 
-  onProgress(0.1, 'Downloading installer…')
+  onProgress(0.18, 'Downloading installer…')
   await downloadToFile(installerUrl, installerPath)
 
   const gameDir = path.dirname(getVersionsDir())
@@ -685,7 +717,7 @@ async function installModLoaderViaInstaller(
     const msg = (err as Error).message || String(err)
     throw new Error(
       `${loader} installer failed for ${gameVersion}/${loaderVersion}. ${msg}\n` +
-        `Need Java 17+ (Java 21 recommended). Check Settings → Java path.`,
+        `Java used: ${javaPath}. Try Install again or pick another Java in Settings.`,
     )
   }
 
@@ -769,20 +801,33 @@ function runJavaJar(
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
+    // Keep only a ring buffer — Forge dumps hundreds of KB of "Patching…" noise
+    const MAX = 12_000
     let out = ''
     let err = ''
-    child.stdout?.on('data', (d) => {
-      out += d.toString()
-    })
-    child.stderr?.on('data', (d) => {
-      err += d.toString()
-    })
+    const append = (buf: { v: string }, chunk: string) => {
+      buf.v += chunk
+      if (buf.v.length > MAX) buf.v = buf.v.slice(-MAX)
+    }
+    const outB = { v: '' }
+    const errB = { v: '' }
+    child.stdout?.on('data', (d) => append(outB, d.toString()))
+    child.stderr?.on('data', (d) => append(errB, d.toString()))
     child.on('error', reject)
     child.on('close', (code) => {
+      out = outB.v
+      err = errB.v
       if (code === 0) resolve()
       else {
-        const combined = `${err}\n${out}`.trim()
-        reject(new Error(`Installer failed (code ${code}): ${combined.slice(-800)}`))
+        // Prefer real error lines over "Patching net/minecraft/..." spam
+        const combined = `${err}\n${out}`
+        const interesting = combined
+          .split(/\r?\n/)
+          .filter((l) => /error|exception|failed|cannot|unable|refused/i.test(l))
+          .slice(-12)
+          .join('\n')
+        const snippet = (interesting || combined).trim().slice(-800)
+        reject(new Error(`Installer failed (code ${code}): ${snippet || 'no output'}`))
       }
     })
   })
@@ -816,23 +861,33 @@ async function extractNatives(versionJson: VersionJson, versionId: string) {
 async function extractZip(zipPath: string, destDir: string): Promise<void> {
   if (process.platform === 'win32') {
     await new Promise<void>((resolve) => {
-      const ps = `
-        Add-Type -AssemblyName System.IO.Compression.FileSystem;
-        $zip = [System.IO.Compression.ZipFile]::OpenRead('${zipPath.replace(/'/g, "''")}');
-        foreach ($entry in $zip.Entries) {
-          if ($entry.FullName -match 'META-INF') { continue }
-          $target = Join-Path '${destDir.replace(/'/g, "''")}' $entry.FullName
-          $dir = Split-Path $target -Parent
-          if (!(Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-          if ($entry.FullName.EndsWith('/')) { continue }
-          [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $target, $true)
-        }
-        $zip.Dispose()
-      `
-      const child = spawn('powershell.exe', ['-NoProfile', '-Command', ps], {
-        windowsHide: true,
-        stdio: 'ignore',
-      })
+      // Paths via env — avoids PowerShell parse errors on apostrophes (Bee's SMP)
+      const ps = [
+        "$ErrorActionPreference = 'Stop'",
+        "Add-Type -AssemblyName System.IO.Compression.FileSystem",
+        "$zipPath = $env:EG_ZIP_PATH",
+        "$destDir = $env:EG_DEST_DIR",
+        "if (!(Test-Path -LiteralPath $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }",
+        "$zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)",
+        "foreach ($entry in $zip.Entries) {",
+        "  if ($entry.FullName -match 'META-INF') { continue }",
+        "  $target = Join-Path $destDir $entry.FullName",
+        "  $dir = Split-Path $target -Parent",
+        "  if (!(Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }",
+        "  if ($entry.FullName.EndsWith('/')) { continue }",
+        "  [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $target, $true)",
+        "}",
+        "$zip.Dispose()",
+      ].join('; ')
+      const child = spawn(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps],
+        {
+          windowsHide: true,
+          env: { ...process.env, EG_ZIP_PATH: zipPath, EG_DEST_DIR: destDir },
+          stdio: 'ignore',
+        },
+      )
       child.on('error', () => resolve())
       child.on('close', () => resolve())
     })

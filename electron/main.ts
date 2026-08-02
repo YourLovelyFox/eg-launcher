@@ -68,7 +68,7 @@ import {
   upsertPartnerConfig,
 } from './services/partnerConfig'
 import { requireAdmin } from './services/admin'
-import { installModWithDependencies } from './services/modInstall'
+import { installModWithDependencies, installModsBatch } from './services/modInstall'
 import {
   getProject,
   getProjectVersions,
@@ -338,7 +338,48 @@ function registerIpc() {
 
   // Instances
   ipcMain.handle('instances:list', () => listInstances())
-  ipcMain.handle('instances:get', (_e, id: string) => getInstance(id))
+  ipcMain.handle('instances:get', async (_e, id: string) => {
+    const inst = getInstance(id)
+    if (!inst) return null
+    if (inst.mods.length === 0) return inst
+
+    const hasLocal = inst.mods.some((m) => /^(local|import|disk)-/i.test(m.projectId || ''))
+    const needsIcons = inst.mods.some(
+      (m) =>
+        m.projectId &&
+        !/^(local|import|disk)-/i.test(m.projectId) &&
+        (!m.iconUrl || !m.title || m.title === m.projectId || m.slug === m.projectId),
+    )
+    if (!hasLocal && !needsIcons) return inst
+
+    try {
+      const modrinth = await import('./services/modrinth')
+      // Prefer fast batch project meta when ids are already known (no jar hashing)
+      let mods = inst.mods
+      if (needsIcons) {
+        mods = await modrinth.enrichModsWithProjectMeta(mods)
+      }
+      // Only hash jars for remaining synthetic local-* ids (expensive)
+      if (hasLocal || mods.some((m) => /^(local|import|disk)-/i.test(m.projectId || ''))) {
+        const modsDir = getInstanceModsDir(inst.id)
+        mods = await modrinth.repairInstalledModsMeta(mods, modsDir)
+      }
+      const changed = mods.some((m, i) => {
+        const o = inst.mods[i]
+        return (
+          !o ||
+          m.title !== o.title ||
+          m.iconUrl !== o.iconUrl ||
+          m.slug !== o.slug ||
+          m.projectId !== o.projectId
+        )
+      })
+      if (!changed) return { ...inst, mods }
+      return updateInstance(inst.id, { mods })
+    } catch {
+      return inst
+    }
+  })
   ipcMain.handle(
     'instances:create',
     (
@@ -552,8 +593,14 @@ function registerIpc() {
   ipcMain.handle('modrinth:project', async (_e, id: string) => getProject(id))
   ipcMain.handle(
     'modrinth:versions',
-    async (_e, id: string, gameVersion?: string, loader?: string) =>
-      getProjectVersions(id, gameVersion, loader),
+    async (_e, id: string, gameVersion?: string, loader?: string) => {
+      try {
+        return await getProjectVersions(id, gameVersion, loader)
+      } catch {
+        // Never surface stack traces for missing/local mods — return empty version list
+        return []
+      }
+    },
   )
   ipcMain.handle('modrinth:version', async (_e, versionId: string) => getVersion(versionId))
 
@@ -581,6 +628,48 @@ function registerIpc() {
       const mainFailed = result.failed.find((f) => f.projectId === payload.projectId)
       if (mainFailed && !result.installed.some((i) => i.projectId === payload.projectId)) {
         throw new Error(mainFailed.error)
+      }
+
+      return {
+        ...result.instance,
+        _installSummary: {
+          installed: result.installed,
+          skipped: result.skipped,
+          failed: result.failed,
+        },
+      }
+    },
+  )
+
+  /** Bulk update/install many mods as one parallel job ("Update all"). */
+  ipcMain.handle(
+    'modrinth:installModsBatch',
+    async (
+      _e,
+      payload: {
+        instanceId: string
+        mods: Array<{ projectId: string; versionId: string }>
+      },
+    ) => {
+      const settings = loadSettings()
+      const result = await installModsBatch({
+        instanceId: payload.instanceId,
+        mods: payload.mods || [],
+        resolveDependencies: settings.resolveDependencies !== false,
+        concurrency: 6,
+        onProgress: (progress) => {
+          sendProgress('modrinth:downloadProgress', progress)
+        },
+      })
+
+      if (result.installed.length === 0 && result.failed.length > 0) {
+        const first = result.failed[0]?.error || 'Batch update failed'
+        const rateLimited = result.failed.some((f) => /429|rate limit/i.test(f.error || ''))
+        throw new Error(
+          rateLimited
+            ? `Modrinth rate limit hit while preparing updates. Wait a few seconds and try Update all again. (${first})`
+            : first,
+        )
       }
 
       return {

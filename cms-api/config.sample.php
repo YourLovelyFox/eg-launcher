@@ -32,8 +32,10 @@ return [
     'rate_limit_max' => 12,
     'rate_limit_window' => 300,
 
-    // First Staff Menu admin account (created only when staff_users table is empty).
-    // If staff_bootstrap_pass is empty, first 16 chars of admin_api_key are used once.
-    'staff_bootstrap_user' => 'admin',
+    // Optional one-time Staff Menu seed (ONLY when staff_users is empty).
+    // Leave both empty after first login — manage staff only in MariaDB / Staff UI.
+    // Never hardcode real passwords in the public repo; set these only on the server.
+    // Minimum password length: 8. No fallback from admin_api_key.
+    'staff_bootstrap_user' => '',
     'staff_bootstrap_pass' => '',
 ];

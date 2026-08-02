@@ -17,12 +17,22 @@ import {
   writeJsonFile,
 } from '../paths'
 import { createInstance, getInstance, listInstances, updateInstance } from './instances'
-import { downloadFile, getProject, getProjectVersions, getVersion, pickPrimaryFile } from './modrinth'
+import {
+  downloadFile,
+  enrichModsWithProjectMeta,
+  getProject,
+  getProjectVersions,
+  getVersion,
+  getVersionsByHashes,
+  pickPrimaryFile,
+} from './modrinth'
+import type { InstalledMod } from '../../shared/types'
 import { installInstanceRuntime } from './minecraft'
 import { getActiveAccountSecret } from './auth'
 import { isOfflineAccount } from './offlineAuth'
 import { loadSettings } from './settings'
 import { formatMbLabel, getSystemMemoryInfo } from './systemMemory'
+import { scanModsFromDisk } from './egpack'
 
 export type FeaturedPackState = {
   slug: string
@@ -297,32 +307,50 @@ type MrpackIndex = {
   dependencies: Record<string, string>
 }
 
+/**
+ * Extract a zip without embedding paths in the PowerShell command string.
+ * Paths with apostrophes (e.g. Bee's SMP) used to break -Command scripts and spam
+ * huge red parse errors into the parent console.
+ */
 async function extractZip(zipPath: string, destDir: string): Promise<void> {
-  ensureDir(destDir)
+  ensureDir(path.dirname(destDir))
   if (process.platform === 'win32') {
     await new Promise<void>((resolve, reject) => {
-      const ps = `
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        if (Test-Path '${destDir.replace(/'/g, "''")}') {
-          Remove-Item -Recurse -Force '${destDir.replace(/'/g, "''")}'
-        }
-        [System.IO.Compression.ZipFile]::ExtractToDirectory(
-          '${zipPath.replace(/'/g, "''")}',
-          '${destDir.replace(/'/g, "''")}'
-        )
-      `
-      const child = spawn('powershell.exe', ['-NoProfile', '-Command', ps], {
-        windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      })
+      // Paths via env vars — no quote escaping, no console spam from parse failures
+      const ps = [
+        "$ErrorActionPreference = 'Stop'",
+        "Add-Type -AssemblyName System.IO.Compression.FileSystem",
+        "$zipPath = $env:EG_ZIP_PATH",
+        "$destDir = $env:EG_DEST_DIR",
+        "if (-not (Test-Path -LiteralPath $zipPath)) { throw \"Zip not found: $zipPath\" }",
+        "if (Test-Path -LiteralPath $destDir) { Remove-Item -LiteralPath $destDir -Recurse -Force }",
+        "New-Item -ItemType Directory -Force -Path $destDir | Out-Null",
+        "[System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $destDir)",
+      ].join('; ')
+      const child = spawn(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps],
+        {
+          windowsHide: true,
+          env: { ...process.env, EG_ZIP_PATH: zipPath, EG_DEST_DIR: destDir },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      )
       let err = ''
+      let out = ''
+      child.stdout?.on('data', (d) => {
+        out += d.toString()
+      })
       child.stderr?.on('data', (d) => {
         err += d.toString()
       })
       child.on('error', reject)
       child.on('close', (code) => {
         if (code === 0) resolve()
-        else reject(new Error(`Extract failed: ${err.slice(-400)}`))
+        else {
+          const msg = (err || out || `exit ${code}`).trim().slice(-500)
+          reject(new Error(`Extract failed: ${msg}`))
+        }
       })
     })
   } else {
@@ -466,9 +494,12 @@ export async function installFeaturedPack(
       ) || null
   }
 
+  // Prefer branded title; folder id is sanitized (no apostrophes) by createInstance
+  const displayName = FEATURED_PACK.title || project.title || slug
+
   if (!instance) {
     instance = createInstance({
-      name: project.title || FEATURED_PACK.title,
+      name: displayName,
       gameVersion: mcVersion,
       loader,
       loaderVersion,
@@ -478,11 +509,11 @@ export async function installFeaturedPack(
       gameVersion: mcVersion,
       loader,
       loaderVersion,
-      name: project.title || instance.name,
+      name: displayName,
     })
   }
 
-  // Clear old mods folder on reinstall/update
+  // Clear old mods folder + metadata on reinstall/update (avoid stale "121 mods" with empty disk)
   const modsDir = getInstanceModsDir(instance.id)
   if (fs.existsSync(modsDir)) {
     for (const f of fs.readdirSync(modsDir)) {
@@ -494,33 +525,50 @@ export async function installFeaturedPack(
     }
   }
   ensureDir(modsDir)
+  instance = updateInstance(instance.id, { mods: [] })
 
   // Download pack files (mods, resourcepacks, etc.)
-  const clientFiles = index.files.filter((f) => {
-    const client = f.env?.client
-    return client !== 'unsupported'
-  })
+  // Match importPackFile / Modrinth App: client !== 'unsupported' (missing env = include)
+  const clientFiles = (index.files || []).filter((f) => f.env?.client !== 'unsupported')
 
   emit('files', 0.4, `Downloading ${clientFiles.length} pack files…`)
   let done = 0
-  const concurrency = 6
+  let skippedNoUrl = 0
+  // Slightly lower concurrency reduces CDN resets that abort mid-pack
+  const concurrency = 4
   let cursor = 0
   const gameDir = getInstanceDir(instance.id)
+  let fatalError: Error | null = null
 
   async function worker() {
     while (cursor < clientFiles.length) {
+      if (fatalError) return
       const i = cursor++
-      const entry = clientFiles[i]
-      const dest = path.join(gameDir, entry.path.replace(/\//g, path.sep))
-      const url = entry.downloads?.[0]
+      const entry = clientFiles[i]!
+      // Normalize paths: strip leading ./ or / so files land under gameDir (mods/, config/, …)
+      const rel = entry.path
+        .replace(/\\/g, '/')
+        .replace(/^\.?\//, '')
+        .replace(/^\/+/, '')
+      if (!rel || rel.includes('..')) {
+        fatalError = new Error(`Invalid pack path: ${entry.path}`)
+        return
+      }
+      const dest = path.join(gameDir, ...rel.split('/'))
+      const url = entry.downloads?.find((u) => typeof u === 'string' && u.length > 0)
       if (!url) {
+        // No CDN URL — file may live only under overrides/ (handled below)
+        skippedNoUrl++
         done++
         continue
       }
       try {
         await downloadFile(url, dest)
       } catch (err) {
-        throw new Error(`Failed ${entry.path}: ${(err as Error).message}`)
+        fatalError = new Error(
+          `Failed to download ${path.basename(entry.path)}: ${(err as Error).message}`,
+        )
+        return
       }
       done++
       if (done % 5 === 0 || done === clientFiles.length) {
@@ -533,9 +581,12 @@ export async function installFeaturedPack(
     }
   }
 
-  await Promise.all(Array.from({ length: concurrency }, () => worker()))
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, Math.max(clientFiles.length, 1)) }, () => worker()),
+  )
+  if (fatalError) throw fatalError
 
-  // Overrides
+  // Overrides (bundled jars/configs that are not CDN index downloads)
   const overridesDir = path.join(extractDir, 'overrides')
   if (fs.existsSync(overridesDir)) {
     emit('overrides', 0.78, 'Applying overrides…')
@@ -544,6 +595,79 @@ export async function installFeaturedPack(
   const clientOverrides = path.join(extractDir, 'client-overrides')
   if (fs.existsSync(clientOverrides)) {
     copyDirRecursive(clientOverrides, gameDir)
+  }
+
+  // Register mods in instance metadata (UI lists instance.mods — not only files on disk).
+  // Prefer real Modrinth project/version ids from pack file hashes so update checks work
+  // and we never query /project/local-… (404 spam).
+  emit('mods', 0.8, 'Registering installed mods…')
+  const hashToFile = new Map<string, { path: string; fileName: string }>()
+  for (const f of clientFiles) {
+    const rel = f.path.replace(/\\/g, '/').replace(/^\.?\//, '')
+    if (!rel.startsWith('mods/') || !rel.toLowerCase().endsWith('.jar')) continue
+    const sha1 = f.hashes?.sha1
+    if (!sha1) continue
+    const fileName = rel.split('/').pop() || rel
+    hashToFile.set(sha1.toLowerCase(), { path: rel, fileName })
+  }
+
+  let byHash: Awaited<ReturnType<typeof getVersionsByHashes>> = {}
+  const hashList = [...hashToFile.keys()]
+  if (hashList.length > 0) {
+    emit('mods', 0.81, `Resolving ${hashList.length} mods on Modrinth…`)
+    try {
+      byHash = await getVersionsByHashes(hashList, 'sha1')
+    } catch {
+      byHash = {}
+    }
+  }
+
+  const metaFromPack: InstalledMod[] = []
+  for (const [sha1, meta] of hashToFile) {
+    const ver = byHash[sha1] || byHash[sha1.toLowerCase()]
+    const fileName = meta.fileName
+    if (ver?.project_id && ver?.id) {
+      // Prefer human version name from Modrinth; title/icon filled in batch below
+      metaFromPack.push({
+        projectId: ver.project_id,
+        versionId: ver.id,
+        slug: ver.project_id,
+        title: ver.name || fileName.replace(/\.jar$/i, ''),
+        iconUrl: null,
+        fileName,
+        versionNumber: ver.version_number || 'unknown',
+        loaders: (ver.loaders as string[])?.length ? (ver.loaders as string[]) : [loader],
+        gameVersions: ver.game_versions?.length ? ver.game_versions : [mcVersion],
+        enabled: true,
+        downloadedAt: new Date().toISOString(),
+      })
+    }
+  }
+
+  const scanned = scanModsFromDisk(instance.id, metaFromPack)
+  emit('mods', 0.84, 'Fetching mod names & icons…')
+  let enriched = scanned.map((m) => ({
+    ...m,
+    loaders: m.loaders?.length ? m.loaders : [loader],
+    gameVersions: m.gameVersions?.length ? m.gameVersions : [mcVersion],
+  }))
+  try {
+    enriched = await enrichModsWithProjectMeta(enriched)
+  } catch {
+    // offline / rate limit — keep filename titles
+  }
+  instance = updateInstance(instance.id, { mods: enriched })
+
+  const expectedModPaths = clientFiles.filter((f) => {
+    const p = f.path.replace(/\\/g, '/').replace(/^\.?\//, '')
+    return p.startsWith('mods/') && p.toLowerCase().endsWith('.jar')
+  }).length
+  const jarOnDisk = scanned.length
+
+  if (jarOnDisk === 0 && (expectedModPaths > 0 || clientFiles.length > 0)) {
+    throw new Error(
+      `No mod jars found after install. Index listed ${clientFiles.length} client files (${expectedModPaths} under mods/), skipped without URL: ${skippedNoUrl}. Try Install again, or import the .mrpack from Instances.`,
+    )
   }
 
   // Install loader / vanilla runtime
@@ -564,7 +688,11 @@ export async function installFeaturedPack(
   }
   savePackStore(store)
 
-  emit('done', 1, `${project.title} ${version.version_number} ready`)
+  emit(
+    'done',
+    1,
+    `${project.title} ${version.version_number} ready (${jarOnDisk} mods)`,
+  )
   return {
     instance: getInstance(instance.id) || instance,
     versionNumber: version.version_number,

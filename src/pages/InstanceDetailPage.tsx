@@ -50,6 +50,10 @@ export function InstanceDetailPage() {
   const [exportModalOpen, setExportModalOpen] = useState(false)
   const [updateMap, setUpdateMap] = useState<Record<string, ModUpdateInfo>>({})
   const [checkingUpdates, setCheckingUpdates] = useState(false)
+  const [updateCheckProgress, setUpdateCheckProgress] = useState<{
+    done: number
+    total: number
+  } | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [updatingAll, setUpdatingAll] = useState(false)
   const [backups, setBackups] = useState<InstanceBackupInfo[]>([])
@@ -211,16 +215,25 @@ export function InstanceDetailPage() {
     const inst = target ?? instance
     if (!inst || inst.mods.length === 0) {
       setUpdateMap({})
+      setUpdateCheckProgress(null)
       return
     }
     setCheckingUpdates(true)
+    setUpdateCheckProgress({ done: 0, total: inst.mods.length })
     try {
-      const map = await checkModsUpdates(inst.mods, inst.gameVersion, inst.loader)
+      const map = await checkModsUpdates(
+        inst.mods,
+        inst.gameVersion,
+        inst.loader,
+        4,
+        (done, total) => setUpdateCheckProgress({ done, total }),
+      )
       setUpdateMap(map)
     } catch (err) {
       showToast('error', (err as Error).message)
     } finally {
       setCheckingUpdates(false)
+      setUpdateCheckProgress(null)
     }
   }
 
@@ -362,36 +375,45 @@ export function InstanceDetailPage() {
   }
 
   async function updateAll() {
-    if (updatesAvailable.length === 0) return
+    if (updatesAvailable.length === 0 || !instance) return
+    const batch = updatesAvailable
+      .filter((u) => u.latestVersionId)
+      .map((u) => ({
+        projectId: u.projectId,
+        versionId: u.latestVersionId as string,
+      }))
+    if (batch.length === 0) return
+
     setUpdatingAll(true)
     cancelUpdateAllRef.current = false
     setCancelUpdateAll(false)
-    let ok = 0
+    setUpdatingId(null)
     try {
-      for (const info of updatesAvailable) {
-        if (cancelUpdateAllRef.current) {
-          showToast('info', `Update all cancelled after ${ok} mod${ok === 1 ? '' : 's'}`)
-          break
-        }
-        if (!info.latestVersionId) continue
-        setUpdatingId(info.projectId)
-        try {
-          await window.hive.modrinth.installMod({
-            instanceId: instance!.id,
-            projectId: info.projectId,
-            versionId: info.latestVersionId,
-          })
-          ok++
-        } catch (err) {
-          showToast('error', (err as Error).message)
-        }
-      }
+      const result = await window.hive.modrinth.installModsBatch({
+        instanceId: instance.id,
+        mods: batch,
+      })
       const updated = await reload()
       await refreshAll()
       await refreshUpdateChecks(updated)
-      if (ok > 0 && !cancelUpdateAllRef.current) {
-        showToast('success', `Updated ${ok} mod${ok === 1 ? '' : 's'}`)
+
+      const ok = result._installSummary?.installed.filter((i) => !i.isDependency).length ?? 0
+      const deps = result._installSummary?.installed.filter((i) => i.isDependency).length ?? 0
+      const fail = result._installSummary?.failed.length ?? 0
+      const parts: string[] = []
+      if (ok > 0) parts.push(`Updated ${ok} mod${ok === 1 ? '' : 's'}`)
+      if (deps > 0) parts.push(`${deps} dependenc${deps === 1 ? 'y' : 'ies'}`)
+      if (fail > 0) parts.push(`${fail} failed`)
+      if (parts.length) {
+        showToast(fail > 0 && ok === 0 ? 'error' : fail > 0 ? 'info' : 'success', parts.join(' · '))
+      } else {
+        showToast('info', 'All selected mods were already up to date')
       }
+      if (fail > 0 && result._installSummary?.failed[0]) {
+        showToast('error', result._installSummary.failed[0].error)
+      }
+    } catch (err) {
+      showToast('error', (err as Error).message)
     } finally {
       setUpdatingId(null)
       setUpdatingAll(false)
@@ -749,7 +771,9 @@ export function InstanceDetailPage() {
                 {updatesAvailable.length > 0
                   ? ` · ${updatesAvailable.length} update${updatesAvailable.length === 1 ? '' : 's'} available`
                   : checkingUpdates
-                    ? ' · checking for updates…'
+                    ? updateCheckProgress && updateCheckProgress.total > 0
+                      ? ` · checking updates ${updateCheckProgress.done}/${updateCheckProgress.total}…`
+                      : ' · checking for updates…'
                     : instance.mods.length > 0
                       ? ' · all up to date'
                       : ''}
@@ -782,7 +806,11 @@ export function InstanceDetailPage() {
                   onClick={() => refreshUpdateChecks()}
                   disabled={checkingUpdates || updatingAll || !!updatingId}
                 >
-                  {checkingUpdates ? 'Checking…' : 'Check updates'}
+                  {checkingUpdates
+                    ? updateCheckProgress && updateCheckProgress.total > 0
+                      ? `Checking ${updateCheckProgress.done}/${updateCheckProgress.total}…`
+                      : 'Checking…'
+                    : 'Check updates'}
                 </button>
               )}
               {updatesAvailable.length > 0 && (
@@ -790,23 +818,12 @@ export function InstanceDetailPage() {
                   className="btn btn-primary"
                   onClick={() => void updateAll()}
                   disabled={updatingAll || !!updatingId || checkingUpdates}
+                  title="Download every available update in parallel as one job"
                 >
                   <IconDownload />
                   {updatingAll
-                    ? `Updating…`
+                    ? `Updating all (${updatesAvailable.length})…`
                     : `Update all (${updatesAvailable.length})`}
-                </button>
-              )}
-              {updatingAll && (
-                <button
-                  className="btn btn-danger"
-                  type="button"
-                  onClick={() => {
-                    cancelUpdateAllRef.current = true
-                    setCancelUpdateAll(true)
-                  }}
-                >
-                  {cancelUpdateAll ? 'Cancelling…' : 'Cancel'}
                 </button>
               )}
               <Link className="btn btn-primary" to={`/browse?instance=${instance.id}`}>

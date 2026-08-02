@@ -29,7 +29,7 @@ import type {
 import { ensureDir, getDataRoot, getInstanceDir, getInstanceModsDir } from '../paths'
 import { createInstance, getInstance, updateInstance } from './instances'
 import { installInstanceRuntime } from './minecraft'
-import { downloadFile, getVersion, pickPrimaryFile } from './modrinth'
+import { downloadFile, enrichModsWithProjectMeta, getVersion, pickPrimaryFile } from './modrinth'
 
 export const EGPACK_EXT = '.egpack'
 export const MRPACK_EXT = '.mrpack'
@@ -638,7 +638,11 @@ function readJsonSafe<T>(file: string): T | null {
   }
 }
 
-function scanModsFromDisk(instanceId: string, metaMods: InstalledMod[] | undefined): InstalledMod[] {
+/** Scan instance mods/ folder into InstalledMod records (UI + launch metadata). */
+export function scanModsFromDisk(
+  instanceId: string,
+  metaMods: InstalledMod[] | undefined,
+): InstalledMod[] {
   const modsDir = getInstanceModsDir(instanceId)
   if (!fs.existsSync(modsDir)) return metaMods || []
 
@@ -809,14 +813,18 @@ export async function importPackFile(
       copyDirRecursive(clientOverrides, gameDir)
     }
 
-    const mods = scanModsFromDisk(instance.id, metaMods)
-    instance = updateInstance(instance.id, {
-      mods: mods.map((m) => ({
-        ...m,
-        loaders: m.loaders?.length ? m.loaders : [loader],
-        gameVersions: m.gameVersions?.length ? m.gameVersions : [gameVersion],
-      })),
-    })
+    let mods = scanModsFromDisk(instance.id, metaMods).map((m) => ({
+      ...m,
+      loaders: m.loaders?.length ? m.loaders : [loader],
+      gameVersions: m.gameVersions?.length ? m.gameVersions : [gameVersion],
+    }))
+    try {
+      emit(onProgress, 'mods', 0.74, 'Fetching mod names & icons…')
+      mods = await enrichModsWithProjectMeta(mods)
+    } catch {
+      // keep filename titles if Modrinth is unreachable
+    }
+    instance = updateInstance(instance.id, { mods })
 
     if (options?.installRuntime !== false) {
       emit(onProgress, 'runtime', 0.78, `Installing ${loader} ${gameVersion}…`)

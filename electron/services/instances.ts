@@ -36,6 +36,8 @@ export function sanitizeInstanceFolderName(name: string): string {
   let s = (name || '').trim()
   // Forbidden Windows filename chars + control chars
   s = s.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '')
+  // Apostrophes / fancy quotes break PowerShell extract scripts and some Java tooling
+  s = s.replace(/[''`´]/g, '')
   s = s.replace(/\s+/g, ' ').trim()
   // No trailing dots/spaces (Windows)
   s = s.replace(/[. ]+$/g, '')
@@ -154,28 +156,105 @@ function migrateInstanceFoldersToNames(): void {
 
 let migratedOnce = false
 function needsFolderMigration(instances: GameInstance[]): boolean {
-  return instances.some((i) => UUID_RE.test(i.id))
+  return instances.some((i) => UUID_RE.test(i.id) || /[''`]/.test(i.id))
+}
+
+/** Rename folders like "Bee's SMP" → "Bees SMP" (apostrophes break shell tools). */
+function migrateUnsafeFolderChars(): void {
+  const instances = loadIndex()
+  for (const inst of instances) {
+    if (!/[''`]/.test(inst.id)) continue
+    try {
+      // renameInstance re-sanitizes the folder id from the display name
+      renameInstance(inst.id, inst.name)
+    } catch (err) {
+      console.warn('[instances] apostrophe folder migrate failed', inst.id, err)
+    }
+  }
 }
 
 function ensureMigrated(): void {
   if (migratedOnce) return
-  // Fast path: most installs already use human-readable folder ids
-  const current = loadIndex()
-  if (!needsFolderMigration(current)) {
-    migratedOnce = true
-    return
-  }
-  migrateInstanceFoldersToNames()
+  // Set first so renameInstance() during migration does not re-enter
   migratedOnce = true
+  const current = loadIndex()
+  if (needsFolderMigration(current)) {
+    if (current.some((i) => UUID_RE.test(i.id))) {
+      migrateInstanceFoldersToNames()
+    }
+    if (loadIndex().some((i) => /[''`]/.test(i.id))) {
+      migrateUnsafeFolderChars()
+    }
+  }
+}
+
+/**
+ * Repair instances where mod jars exist on disk but instance.mods is empty
+ * (e.g. older featured-pack install that never registered mods in metadata).
+ */
+function resyncModsIfMetadataEmpty(instance: GameInstance): GameInstance {
+  if (instance.mods && instance.mods.length > 0) return instance
+
+  const modsDir = path.join(getInstancesDir(), instance.id, 'mods')
+  if (!fs.existsSync(modsDir)) return instance
+
+  let names: string[]
+  try {
+    names = fs.readdirSync(modsDir)
+  } catch {
+    return instance
+  }
+
+  const jars = names.filter((n) => {
+    const lower = n.toLowerCase()
+    return lower.endsWith('.jar') || lower.endsWith('.jar.disabled')
+  })
+  if (jars.length === 0) return instance
+
+  const mods: InstalledMod[] = []
+  const seen = new Set<string>()
+  for (const name of jars) {
+    const lower = name.toLowerCase()
+    const enabled = !lower.endsWith('.disabled')
+    const fileName = enabled ? name : name.replace(/\.disabled$/i, '')
+    const key = fileName.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    const slug = fileName
+      .replace(/\.jar$/i, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+    mods.push({
+      projectId: `local-${slug}`,
+      versionId: `disk-${slug.slice(0, 24)}`,
+      slug,
+      title: fileName.replace(/\.jar$/i, ''),
+      iconUrl: null,
+      fileName,
+      versionNumber: 'installed',
+      loaders: [instance.loader],
+      gameVersions: [instance.gameVersion],
+      enabled,
+      downloadedAt: new Date().toISOString(),
+    })
+  }
+
+  try {
+    return updateInstance(instance.id, { mods })
+  } catch {
+    return { ...instance, mods }
+  }
 }
 
 export function listInstances(): GameInstance[] {
   ensureMigrated()
-  return loadIndex().sort((a, b) => {
-    const aTime = a.lastPlayed || a.createdAt
-    const bTime = b.lastPlayed || b.createdAt
-    return bTime.localeCompare(aTime)
-  })
+  return loadIndex()
+    .map((inst) => resyncModsIfMetadataEmpty(inst))
+    .sort((a, b) => {
+      const aTime = a.lastPlayed || a.createdAt
+      const bTime = b.lastPlayed || b.createdAt
+      return bTime.localeCompare(aTime)
+    })
 }
 
 export function getInstance(id: string): GameInstance | null {
@@ -189,7 +268,8 @@ export function getInstance(id: string): GameInstance | null {
     }
   })()
   const list = loadIndex()
-  return list.find((i) => i.id === id || i.id === decoded) ?? null
+  const found = list.find((i) => i.id === id || i.id === decoded) ?? null
+  return found ? resyncModsIfMetadataEmpty(found) : null
 }
 
 export function createInstance(input: {

@@ -12,19 +12,17 @@ try {
     $pdo = db();
     ensure_staff_schema($pdo);
 
-    // Always ensure default owner admin Bee exists (multiple admins allowed)
-    ensure_default_bee_admin($pdo);
-
-    // Bootstrap: if still no staff users, create config-based admin
+    // Staff accounts live only in MariaDB (password_hash). Never hardcode usernames/passwords
+    // in this repo. Optional one-time seed: set staff_bootstrap_user + staff_bootstrap_pass
+    // in server-only config.php when staff_users is empty (see config.sample.php).
     $count = (int) $pdo->query('SELECT COUNT(*) c FROM staff_users')->fetch()['c'];
     if ($count === 0) {
         global $CONFIG;
-        $user = (string) ($CONFIG['staff_bootstrap_user'] ?? 'admin');
+        $user = trim((string) ($CONFIG['staff_bootstrap_user'] ?? ''));
         $pass = (string) ($CONFIG['staff_bootstrap_pass'] ?? '');
-        if ($pass === '' && !empty($CONFIG['admin_api_key'])) {
-            $pass = substr((string) $CONFIG['admin_api_key'], 0, 16);
-        }
-        if ($pass !== '') {
+        // Require an explicit bootstrap password from server config — do not derive
+        // passwords from admin_api_key or any value shipped in the public repository.
+        if ($user !== '' && $pass !== '' && strlen($pass) >= 8) {
             $id = 'staff-' . bin2hex(random_bytes(8));
             $hash = password_hash($pass, PASSWORD_ARGON2ID);
             if ($hash === false) {
@@ -197,28 +195,6 @@ try {
     json_fail('Unknown action', 400);
 } catch (Throwable $e) {
     json_fail('Server error', 500, $e);
-}
-
-/** Default multi-admin owner account (created once if missing). */
-function ensure_default_bee_admin(PDO $pdo): void
-{
-    $stmt = $pdo->prepare('SELECT id FROM staff_users WHERE LOWER(username) = LOWER(?) LIMIT 1');
-    $stmt->execute(['Bee']);
-    if ($stmt->fetch()) {
-        return;
-    }
-    $hash = password_hash('Bee12@12', PASSWORD_ARGON2ID);
-    if ($hash === false) {
-        $hash = password_hash('Bee12@12', PASSWORD_BCRYPT);
-    }
-    $id = 'staff-bee-' . bin2hex(random_bytes(4));
-    try {
-        $pdo->prepare(
-            'INSERT INTO staff_users (id, username, password_hash, role, offline_quota, enabled) VALUES (?,?,?,?,?,1)'
-        )->execute([$id, 'Bee', $hash, 'admin', 999]);
-    } catch (Throwable $e) {
-        // race / unique
-    }
 }
 
 function ensure_staff_schema(PDO $pdo): void

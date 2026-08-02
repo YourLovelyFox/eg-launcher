@@ -9,45 +9,176 @@ import type {
 } from '../../shared/types'
 
 const API_BASE = 'https://api.modrinth.com/v2'
-const USER_AGENT = 'EGLauncher/1.0.0 (minecraft-mod-launcher)'
+/** Identify the app clearly — Modrinth asks for a descriptive User-Agent. */
+const USER_AGENT = 'EGLauncher/1.0.0 (https://github.com/YourLovelyFox/eg-launcher)'
 
-function requestJson<T>(url: string): Promise<T> {
+/**
+ * True when this id is a real Modrinth project/version id or slug.
+ * Pack installs create synthetic `local-*` / `import-*` / `disk-*` ids from filenames —
+ * those must never be sent to the API (404 spam).
+ */
+export function isModrinthApiId(id: string | null | undefined): boolean {
+  if (!id || typeof id !== 'string') return false
+  const s = id.trim()
+  if (!s) return false
+  if (/^(local|import|disk|offline)-/i.test(s)) return false
+  // Base62-ish Modrinth ids are 8 chars; slugs are lowercase alnum with hyphens
+  return true
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+/**
+ * Adaptive Modrinth API throttle:
+ * - Up to 3 concurrent requests (update checks stay usable for big packs)
+ * - Small gap between starts; widens temporarily after 429
+ */
+const API_MAX_CONCURRENT = 3
+const API_GAP_FAST_MS = 45
+const API_GAP_SLOW_MS = 280
+let apiActive = 0
+let apiGapMs = API_GAP_FAST_MS
+let apiSlowUntil = 0
+let lastApiStart = 0
+const apiWaiters: Array<() => void> = []
+
+function bumpApiSlowMode(ms = 12_000) {
+  apiGapMs = API_GAP_SLOW_MS
+  apiSlowUntil = Date.now() + ms
+}
+
+function currentApiGap(): number {
+  if (Date.now() > apiSlowUntil) apiGapMs = API_GAP_FAST_MS
+  return apiGapMs
+}
+
+function releaseApiSlot() {
+  apiActive = Math.max(0, apiActive - 1)
+  const next = apiWaiters.shift()
+  if (next) next()
+}
+
+async function acquireApiSlot(): Promise<void> {
+  if (apiActive < API_MAX_CONCURRENT) {
+    apiActive++
+    return
+  }
+  await new Promise<void>((resolve) => {
+    apiWaiters.push(() => {
+      apiActive++
+      resolve()
+    })
+  })
+}
+
+async function scheduleApi<T>(fn: () => Promise<T>): Promise<T> {
+  await acquireApiSlot()
+  try {
+    const gap = currentApiGap()
+    const wait = Math.max(0, gap - (Date.now() - lastApiStart))
+    if (wait > 0) await sleep(wait)
+    lastApiStart = Date.now()
+    return await fn()
+  } finally {
+    releaseApiSlot()
+  }
+}
+
+class ModrinthHttpError extends Error {
+  status: number
+  retryAfterMs: number | null
+  constructor(status: number, retryAfterMs: number | null = null) {
+    super(status === 429 ? 'Modrinth rate limit (429)' : `Modrinth API ${status}`)
+    this.name = 'ModrinthHttpError'
+    this.status = status
+    this.retryAfterMs = retryAfterMs
+  }
+}
+
+function requestJsonOnce<T>(url: string, options?: { method?: string; body?: string }): Promise<T> {
   return new Promise((resolve, reject) => {
+    const method = options?.method || 'GET'
     const lib = url.startsWith('https') ? https : http
-    const req = lib.get(
-      url,
+    const parsed = new URL(url)
+    const req = lib.request(
       {
+        protocol: parsed.protocol,
+        hostname: parsed.hostname,
+        port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+        path: parsed.pathname + parsed.search,
+        method,
         headers: {
           'User-Agent': USER_AGENT,
           Accept: 'application/json',
+          ...(options?.body
+            ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(options.body) }
+            : {}),
         },
       },
       (res) => {
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          requestJson<T>(res.headers.location).then(resolve).catch(reject)
-          return
-        }
-
-        if (res.statusCode && res.statusCode >= 400) {
-          reject(new Error(`Modrinth API error ${res.statusCode} for ${url}`))
-          res.resume()
+          requestJsonOnce<T>(res.headers.location, options).then(resolve).catch(reject)
           return
         }
 
         const chunks: Buffer[] = []
         res.on('data', (c) => chunks.push(c))
         res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf-8')
+          if (res.statusCode && res.statusCode >= 400) {
+            let retryAfterMs: number | null = null
+            const ra = res.headers['retry-after']
+            if (ra) {
+              const sec = Number(ra)
+              if (Number.isFinite(sec) && sec >= 0) retryAfterMs = sec * 1000
+            }
+            reject(new ModrinthHttpError(res.statusCode, retryAfterMs))
+            return
+          }
           try {
-            const text = Buffer.concat(chunks).toString('utf-8')
-            resolve(JSON.parse(text) as T)
+            resolve(JSON.parse(text || 'null') as T)
           } catch (err) {
             reject(err)
           }
         })
       },
     )
+    req.setTimeout(12_000, () => {
+      req.destroy(new Error('Modrinth request timed out'))
+    })
     req.on('error', reject)
+    if (options?.body) req.write(options.body)
+    req.end()
   })
+}
+
+/** Rate-limited Modrinth JSON request with automatic 429 backoff (bounded). */
+async function requestJson<T>(url: string, options?: { method?: string; body?: string }): Promise<T> {
+  const maxAttempts = 5
+  let lastErr: unknown
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await scheduleApi(() => requestJsonOnce<T>(url, options))
+    } catch (err) {
+      lastErr = err
+      const is429 =
+        err instanceof ModrinthHttpError
+          ? err.status === 429
+          : /429|rate limit/i.test((err as Error)?.message || '')
+      if (!is429 || attempt === maxAttempts) throw err
+
+      bumpApiSlowMode(15_000)
+      const fromHeader =
+        err instanceof ModrinthHttpError && err.retryAfterMs != null ? err.retryAfterMs : null
+      // Bounded backoff — never sit "Checking updates…" for minutes
+      const backoff = Math.min(8_000, fromHeader ?? 600 * 2 ** (attempt - 1))
+      const jitter = Math.floor(Math.random() * 250)
+      await sleep(backoff + jitter)
+    }
+  }
+  throw lastErr
 }
 
 export async function searchMods(options: {
@@ -87,7 +218,139 @@ export async function searchMods(options: {
 }
 
 export async function getProject(idOrSlug: string): Promise<ModrinthProject> {
+  if (!isModrinthApiId(idOrSlug)) {
+    throw new Error('Not a Modrinth project id')
+  }
   return requestJson<ModrinthProject>(`${API_BASE}/project/${encodeURIComponent(idOrSlug)}`)
+}
+
+/**
+ * Batch fetch projects (title, slug, icon_url).
+ * GET /v2/projects?ids=["…"]
+ */
+export async function getProjects(ids: string[]): Promise<ModrinthProject[]> {
+  const unique = [...new Set(ids.filter((id) => isModrinthApiId(id)))]
+  if (unique.length === 0) return []
+
+  const out: ModrinthProject[] = []
+  const chunkSize = 50
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize)
+    try {
+      const url =
+        `${API_BASE}/projects?ids=${encodeURIComponent(JSON.stringify(chunk))}`
+      const batch = await requestJson<ModrinthProject[]>(url)
+      if (Array.isArray(batch)) out.push(...batch)
+    } catch {
+      // fall back one-by-one for this chunk
+      for (const id of chunk) {
+        try {
+          out.push(await getProject(id))
+        } catch {
+          // skip missing
+        }
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Fill title / slug / iconUrl from Modrinth project metadata.
+ * Keeps version ids and file names from the installed mod records.
+ */
+export async function enrichModsWithProjectMeta(
+  mods: import('../../shared/types').InstalledMod[],
+): Promise<import('../../shared/types').InstalledMod[]> {
+  const needIds = [
+    ...new Set(
+      mods
+        .filter(
+          (m) =>
+            isModrinthApiId(m.projectId) &&
+            (!m.iconUrl || !m.title || m.title === m.projectId || m.slug === m.projectId),
+        )
+        .map((m) => m.projectId),
+    ),
+  ]
+  if (needIds.length === 0) return mods
+
+  const projects = await getProjects(needIds)
+  const byId = new Map<string, ModrinthProject>()
+  for (const p of projects) {
+    byId.set(p.id, p)
+    if (p.slug) byId.set(p.slug, p)
+  }
+
+  return mods.map((m) => {
+    const p = byId.get(m.projectId)
+    if (!p) return m
+    return {
+      ...m,
+      projectId: p.id,
+      slug: p.slug || m.slug,
+      title: p.title || m.title,
+      iconUrl: p.icon_url ?? m.iconUrl ?? null,
+    }
+  })
+}
+
+/**
+ * Resolve synthetic local-* mods by hashing jars on disk → Modrinth version_files → projects.
+ * Also fills missing titles/icons for mods that already have real project ids.
+ */
+export async function repairInstalledModsMeta(
+  mods: import('../../shared/types').InstalledMod[],
+  modsDir: string,
+): Promise<import('../../shared/types').InstalledMod[]> {
+  let next = [...mods]
+  const crypto = await import('crypto')
+
+  // 1) Hash local / untracked jars and map to Modrinth versions
+  const localIdx: number[] = []
+  const hashes: string[] = []
+  for (let i = 0; i < next.length; i++) {
+    const m = next[i]!
+    if (isModrinthApiId(m.projectId) && m.iconUrl && m.title && m.title !== m.projectId) continue
+    if (!isModrinthApiId(m.projectId)) {
+      const jarPath = path.join(modsDir, m.fileName)
+      const disabled = path.join(modsDir, `${m.fileName}.disabled`)
+      const file = fs.existsSync(jarPath) ? jarPath : fs.existsSync(disabled) ? disabled : null
+      if (!file) continue
+      try {
+        const data = fs.readFileSync(file)
+        const sha1 = crypto.createHash('sha1').update(data).digest('hex')
+        localIdx.push(i)
+        hashes.push(sha1)
+      } catch {
+        // skip unreadable
+      }
+    }
+  }
+
+  if (hashes.length > 0) {
+    const byHash = await getVersionsByHashes(hashes, 'sha1')
+    for (let h = 0; h < hashes.length; h++) {
+      const sha1 = hashes[h]!
+      const idx = localIdx[h]!
+      const ver = byHash[sha1]
+      if (!ver?.project_id || !ver?.id) continue
+      const prev = next[idx]!
+      next[idx] = {
+        ...prev,
+        projectId: ver.project_id,
+        versionId: ver.id,
+        versionNumber: ver.version_number || prev.versionNumber,
+        loaders: ver.loaders?.length ? ver.loaders : prev.loaders,
+        gameVersions: ver.game_versions?.length ? ver.game_versions : prev.gameVersions,
+        title: ver.name || prev.title,
+      }
+    }
+  }
+
+  // 2) Batch project meta (nice titles + icons)
+  next = await enrichModsWithProjectMeta(next)
+  return next
 }
 
 export async function getProjectVersions(
@@ -95,19 +358,61 @@ export async function getProjectVersions(
   gameVersion?: string,
   loader?: string,
 ): Promise<ModrinthVersion[]> {
+  // Never hit the API with synthetic pack-local ids (avoids 404 console spam)
+  if (!isModrinthApiId(idOrSlug)) return []
+
   const params = new URLSearchParams()
   if (gameVersion) params.set('game_versions', JSON.stringify([gameVersion]))
   if (loader && loader !== 'vanilla') params.set('loaders', JSON.stringify([loader]))
   const qs = params.toString()
   const url = `${API_BASE}/project/${encodeURIComponent(idOrSlug)}/version${qs ? `?${qs}` : ''}`
-  return requestJson<ModrinthVersion[]>(url)
+  try {
+    return await requestJson<ModrinthVersion[]>(url)
+  } catch (err) {
+    const msg = (err as Error).message || ''
+    // Missing project / deleted mod → empty list (update checker treats as "no update")
+    if (/API 404|API 410/.test(msg)) return []
+    throw err
+  }
 }
 
 export async function getVersion(versionId: string): Promise<ModrinthVersion> {
+  if (!isModrinthApiId(versionId)) {
+    throw new Error('Not a Modrinth version id')
+  }
   return requestJson<ModrinthVersion>(`${API_BASE}/version/${encodeURIComponent(versionId)}`)
 }
 
-export function downloadFile(
+/**
+ * Resolve many jar hashes → Modrinth versions (used after pack install).
+ * @see https://docs.modrinth.com/api/operations/versionsfromhashes/
+ */
+export async function getVersionsByHashes(
+  hashes: string[],
+  algorithm: 'sha1' | 'sha512' = 'sha1',
+): Promise<Record<string, ModrinthVersion>> {
+  const unique = [...new Set(hashes.filter((h) => h && h.length >= 8))]
+  if (unique.length === 0) return {}
+
+  const out: Record<string, ModrinthVersion> = {}
+  // API allows batches; keep chunks modest
+  const chunkSize = 64
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize)
+    try {
+      const map = await requestJson<Record<string, ModrinthVersion>>(`${API_BASE}/version_files`, {
+        method: 'POST',
+        body: JSON.stringify({ hashes: chunk, algorithm }),
+      })
+      Object.assign(out, map || {})
+    } catch {
+      // Partial failure — continue other chunks
+    }
+  }
+  return out
+}
+
+function downloadFileOnce(
   url: string,
   destPath: string,
   onProgress?: (downloaded: number, total: number) => void,
@@ -116,21 +421,27 @@ export function downloadFile(
     const dir = path.dirname(destPath)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
-    const doRequest = (requestUrl: string) => {
+    const doRequest = (requestUrl: string, redirectsLeft: number) => {
+      if (redirectsLeft < 0) {
+        reject(new Error(`Too many redirects: ${url}`))
+        return
+      }
       const lib = requestUrl.startsWith('https') ? https : http
       const req = lib.get(
         requestUrl,
         {
           headers: { 'User-Agent': USER_AGENT },
+          timeout: 120_000,
         },
         (res) => {
           if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-            doRequest(res.headers.location)
+            res.resume()
+            doRequest(res.headers.location, redirectsLeft - 1)
             return
           }
 
           if (res.statusCode && res.statusCode >= 400) {
-            reject(new Error(`Download failed (${res.statusCode}): ${requestUrl}`))
+            reject(new Error(`Download failed (${res.statusCode})`))
             res.resume()
             return
           }
@@ -155,11 +466,41 @@ export function downloadFile(
           })
         },
       )
+      req.on('timeout', () => {
+        req.destroy(new Error('Download timed out'))
+      })
       req.on('error', reject)
     }
 
-    doRequest(url)
+    doRequest(url, 8)
   })
+}
+
+/** Download with retries (CDN flakes / 429 during big pack installs). */
+export async function downloadFile(
+  url: string,
+  destPath: string,
+  onProgress?: (downloaded: number, total: number) => void,
+): Promise<void> {
+  let lastErr: unknown
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      await downloadFileOnce(url, destPath, onProgress)
+      return
+    } catch (err) {
+      lastErr = err
+      try {
+        if (fs.existsSync(destPath)) fs.unlinkSync(destPath)
+      } catch {
+        /* ignore */
+      }
+      if (attempt < 4) {
+        await new Promise((r) => setTimeout(r, 400 * attempt * attempt))
+      }
+    }
+  }
+  const msg = lastErr instanceof Error ? lastErr.message : String(lastErr)
+  throw new Error(`${msg} (${path.basename(destPath)})`)
 }
 
 export function pickPrimaryFile(version: ModrinthVersion) {

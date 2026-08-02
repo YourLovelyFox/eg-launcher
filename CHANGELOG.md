@@ -6,7 +6,23 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.5.8] � 2026-08-01
+## [2.5.9] — 2026-08-02
+
+### Fixed
+- **Featured pack install**: register mods after install; resolve real Modrinth names/icons from jar hashes.
+- **Update all**: parallel bulk downloads with stable progress; rate-limit safe Modrinth API usage.
+- **Java auto-install**: Azul Zulu JRE (Modrinth-style) with Mojang runtime fallback; no manual Java required for Forge install.
+- **Update checks**: no longer hang on large packs; skip synthetic `local-*` mod ids (no API 404 spam).
+- **Instance folders**: strip apostrophes from folder names (fixes PowerShell extract issues for Bee's SMP).
+- **Staff CMS**: remove hardcoded default admin password from source; bootstrap only via server config.
+
+### Downloads
+- Windows: `EG-Launcher-2.5.9-win-x64-setup.exe` and `EG-Launcher-2.5.9-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.9-linux-x86_64.AppImage`
+
+---
+
+## [2.5.8] — 2026-08-01
 
 ### Fixed
 - **Bee's SMP / Forge pack install**: create `launcher_profiles.json` stub so Forge `--installClient` works (was failing with "run the launcher first").

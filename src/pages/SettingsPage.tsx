@@ -92,7 +92,10 @@ export function SettingsPage() {
   async function detectJava() {
     const found = await window.hive.java.find()
     if (!found) {
-      showToast('error', 'No Java installation found. Install Java 17+ or 21.')
+      showToast(
+        'error',
+        'No system Java found yet. Install a pack or press Play — EG downloads Mojang Java automatically.',
+      )
       return
     }
     setForm((f) => (f ? { ...f, javaPath: found.path } : f))
@@ -129,8 +132,9 @@ export function SettingsPage() {
       <div className="panel">
         <h2>Java</h2>
         <p className="hint">
-          Minecraft 1.20.5+ needs Java 21. Versions 25.x / 26.x need Java 25. If a version needs a
-          newer Java, EG Launcher can download Mojang&apos;s official runtime automatically on Play.
+          Minecraft 1.20.5+ needs Java 21. Versions 25.x / 26.x need Java 25. If Java is missing or
+          too old, EG Launcher downloads Mojang&apos;s official runtime automatically on{' '}
+          <strong>Install</strong> and <strong>Play</strong> (no manual setup required).
         </p>
         <div className="form-grid">
           <div className="form-row">

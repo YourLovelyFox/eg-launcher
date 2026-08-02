@@ -217,6 +217,24 @@ const api = {
         }
       }
     > => ipcRenderer.invoke('modrinth:installMod', payload),
+    /** Parallel bulk update — one job for all selected mods. */
+    installModsBatch: (payload: {
+      instanceId: string
+      mods: Array<{ projectId: string; versionId: string }>
+    }): Promise<
+      GameInstance & {
+        _installSummary?: {
+          installed: Array<{
+            projectId: string
+            title: string
+            versionNumber: string
+            isDependency: boolean
+          }>
+          skipped: Array<{ projectId: string; title: string; reason: string }>
+          failed: Array<{ projectId: string; title?: string; error: string }>
+        }
+      }
+    > => ipcRenderer.invoke('modrinth:installModsBatch', payload),
     onDownloadProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
       const listener = (_: unknown, event: ProgressEvent) => cb(event)
       ipcRenderer.on('modrinth:downloadProgress', listener)

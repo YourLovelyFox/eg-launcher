@@ -11,11 +11,18 @@ export type ModUpdateInfo = {
   error?: string
 }
 
+/** Synthetic ids from pack disk-scan — not real Modrinth projects. */
+export function isLocalOnlyModId(id: string | null | undefined): boolean {
+  if (!id) return true
+  return /^(local|import|disk|offline)-/i.test(id.trim())
+}
+
 export async function fetchLatestCompatibleVersion(
   projectId: string,
   gameVersion?: string,
   loader?: LoaderType | string,
 ): Promise<ModrinthVersion | null> {
+  if (isLocalOnlyModId(projectId)) return null
   const list = await window.hive.modrinth.versions(
     projectId,
     gameVersion,
@@ -29,6 +36,16 @@ export async function checkModUpdate(
   gameVersion?: string,
   loader?: LoaderType | string,
 ): Promise<ModUpdateInfo> {
+  if (isLocalOnlyModId(mod.projectId)) {
+    return {
+      projectId: mod.projectId,
+      hasUpdate: false,
+      latestVersionId: null,
+      latestVersionNumber: null,
+      installedVersionId: mod.versionId,
+      installedVersionNumber: mod.versionNumber,
+    }
+  }
   try {
     const latest = await fetchLatestCompatibleVersion(mod.projectId, gameVersion, loader)
     if (!latest) {
@@ -66,20 +83,50 @@ export async function checkModsUpdates(
   mods: InstalledMod[],
   gameVersion?: string,
   loader?: LoaderType | string,
-  concurrency = 6,
+  concurrency = 4,
+  onProgress?: (done: number, total: number) => void,
 ): Promise<Record<string, ModUpdateInfo>> {
   const result: Record<string, ModUpdateInfo> = {}
-  let cursor = 0
 
-  async function worker() {
-    while (cursor < mods.length) {
-      const i = cursor++
-      const mod = mods[i]
-      result[mod.projectId] = await checkModUpdate(mod, gameVersion, loader)
+  // Local / synthetic mods never hit the API
+  const remote: InstalledMod[] = []
+  for (const mod of mods) {
+    if (isLocalOnlyModId(mod.projectId)) {
+      result[mod.projectId] = {
+        projectId: mod.projectId,
+        hasUpdate: false,
+        latestVersionId: null,
+        latestVersionNumber: null,
+        installedVersionId: mod.versionId,
+        installedVersionNumber: mod.versionNumber,
+      }
+    } else {
+      remote.push(mod)
     }
   }
 
-  await Promise.all(Array.from({ length: Math.min(concurrency, mods.length || 1) }, () => worker()))
+  const total = remote.length
+  if (total === 0) {
+    onProgress?.(0, 0)
+    return result
+  }
+
+  let cursor = 0
+  let finished = 0
+
+  async function worker() {
+    while (cursor < remote.length) {
+      const i = cursor++
+      const mod = remote[i]!
+      result[mod.projectId] = await checkModUpdate(mod, gameVersion, loader)
+      finished++
+      onProgress?.(finished, total)
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, remote.length) }, () => worker()),
+  )
   return result
 }
 
