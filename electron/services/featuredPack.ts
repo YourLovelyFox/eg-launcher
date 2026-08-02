@@ -33,6 +33,7 @@ import { isOfflineAccount } from './offlineAuth'
 import { loadSettings } from './settings'
 import { formatMbLabel, getSystemMemoryInfo } from './systemMemory'
 import { scanModsFromDisk } from './egpack'
+import { sanitizeInstanceMods } from './modSanitize'
 
 export type FeaturedPackState = {
   slug: string
@@ -372,6 +373,15 @@ function copyDirRecursive(src: string, dest: string) {
     const d = path.join(dest, entry.name)
     if (entry.isDirectory()) copyDirRecursive(s, d)
     else {
+      // Never drop archives into mods/ — not loadable as Forge mods (pack sometimes ships mods.zip)
+      const destNorm = dest.replace(/\\/g, '/').toLowerCase()
+      const name = entry.name.toLowerCase()
+      if (
+        destNorm.endsWith('/mods') &&
+        (name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.7z'))
+      ) {
+        continue
+      }
       ensureDir(path.dirname(d))
       fs.copyFileSync(s, d)
     }
@@ -657,6 +667,18 @@ export async function installFeaturedPack(
     // offline / rate limit — keep filename titles
   }
   instance = updateInstance(instance.id, { mods: enriched })
+
+  // Bee's SMP (and some packs) ship Fabric API / loose zips that crash Forge
+  emit('mods', 0.86, 'Checking mods for loader compatibility…')
+  const cleaned = sanitizeInstanceMods(instance.id, loader)
+  if (cleaned.quarantined.length > 0) {
+    // Drop quarantined jars from instance metadata
+    const qset = new Set(cleaned.quarantined.map((n) => n.toLowerCase()))
+    const kept = (getInstance(instance.id)?.mods || []).filter(
+      (m) => !qset.has(m.fileName.toLowerCase()),
+    )
+    instance = updateInstance(instance.id, { mods: kept })
+  }
 
   const expectedModPaths = clientFiles.filter((f) => {
     const p = f.path.replace(/\\/g, '/').replace(/^\.?\//, '')

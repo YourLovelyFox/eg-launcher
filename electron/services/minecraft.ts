@@ -28,6 +28,7 @@ import {
 } from './java'
 import { loadSettings } from './settings'
 import { getEgGateToken } from './egGate'
+import { sanitizeInstanceMods } from './modSanitize'
 
 const MOJANG_MANIFEST = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'
 const FABRIC_META = 'https://meta.fabricmc.net/v2'
@@ -711,8 +712,10 @@ async function installModLoaderViaInstaller(
 
   onProgress(0.4, 'Running installer (this may take a minute)…')
 
+  // Run installer with cwd = installer folder so forge-*.jar.log does not litter eg-data root
+  const installerCwd = path.dirname(installerPath)
   try {
-    await runJavaJar(javaPath, installerPath, ['--installClient', gameDir], gameDir)
+    await runJavaJar(javaPath, installerPath, ['--installClient', gameDir], installerCwd)
   } catch (err) {
     const msg = (err as Error).message || String(err)
     throw new Error(
@@ -1187,6 +1190,21 @@ export async function launchInstance(
   ensureDir(path.join(gameDir, 'mods'))
   ensureDir(path.join(gameDir, 'logs'))
 
+  // Quarantine Fabric-only jars / loose zips that cause silent Forge crashes
+  const sanitize = sanitizeInstanceMods(instance.id, instance.loader)
+  if (sanitize.quarantined.length > 0) {
+    try {
+      fs.appendFileSync(
+        path.join(gameDir, 'logs', 'eg-launch.log'),
+        `\n[sanitize] quarantined: ${sanitize.quarantined.join(', ')}\n` +
+          sanitize.warnings.map((w) => `[sanitize] ${w}`).join('\n') +
+          '\n',
+      )
+    } catch {
+      // ignore
+    }
+  }
+
   const classpathEntries = buildClasspathEntries(versionJson, versionId)
   if (classpathEntries.length < 5) {
     return {
@@ -1425,23 +1443,36 @@ export async function launchInstance(
       if (runningGame === child) clearRunningState()
     })
 
-    // Wait briefly — if Java dies immediately, report the real error
-    const early = await waitForEarlyExit(child, 4000)
+    // Forge + heavy packs can take a while to fail — wait longer than vanilla
+    const earlyMs = instance.loader === 'forge' || instance.loader === 'neoforge' ? 12_000 : 5_000
+    const early = await waitForEarlyExit(child, earlyMs)
     if (early.exited) {
-      const logTail = readLogTail(logPath, 2500)
+      const logTail = readLogTail(logPath, 4000)
       clearRunningState()
+      const sanitizeHint =
+        sanitize.quarantined.length > 0
+          ? `\n\nAlso moved ${sanitize.quarantined.length} incompatible file(s) out of mods/ (see mods/_disabled_incompatible).`
+          : ''
       return {
         success: false,
-        message: `Minecraft exited immediately (code ${early.code}).\n\n${logTail || 'No log output. Check Java version (need 21 for 1.21.x).'}\n\nFull log: ${logPath}`,
+        message:
+          `Minecraft exited immediately (code ${early.code}).\n\n` +
+          `${logTail || 'No log output yet. Common causes: bad mods, wrong Java, missing install.'}\n\n` +
+          `Full log: ${logPath}` +
+          sanitizeHint,
       }
     }
 
     // Don't keep the parent waiting; allow child to outlive IPC but keep handles for tracking
     child.unref()
 
+    const sanitizeMsg =
+      sanitize.quarantined.length > 0
+        ? ` Moved ${sanitize.quarantined.length} incompatible mod(s) to mods/_disabled_incompatible.`
+        : ''
     return {
       success: true,
-      message: `Minecraft started (PID ${child.pid}). If no window appears, check ${logPath}`,
+      message: `Minecraft started (PID ${child.pid}).${sanitizeMsg} If the window closes with no error, open: ${logPath}`,
       pid: child.pid,
     }
   } catch (err) {

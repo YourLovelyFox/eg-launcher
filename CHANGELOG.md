@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to **EG Launcher** are documented here.
 
@@ -6,7 +6,19 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.5.9] — 2026-08-02
+## [2.5.10] — 2026-08-02
+
+### Fixed
+- **Silent Forge crash**: quarantine Fabric-only jars (e.g. fabric-api) and loose `.zip` files in `mods/` before launch; pack overrides no longer copy archives into `mods/`.
+- **Launch errors**: longer early-exit detection for Forge packs; clearer log tail when the game dies immediately.
+- **Data folder clutter**: Forge installer log written under `versions/_installers/` instead of the eg-data root.
+
+### Downloads
+- Windows: `EG-Launcher-2.5.10-win-x64-setup.exe` and `EG-Launcher-2.5.10-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.10-linux-x86_64.AppImage`
+
+---
+## [2.5.9] â€” 2026-08-02
 
 ### Fixed
 - **Featured pack install**: register mods after install; resolve real Modrinth names/icons from jar hashes.
@@ -22,7 +34,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.5.8] — 2026-08-01
+## [2.5.8] â€” 2026-08-01
 
 ### Fixed
 - **Bee's SMP / Forge pack install**: create `launcher_profiles.json` stub so Forge `--installClient` works (was failing with "run the launcher first").
@@ -34,7 +46,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.5.7] — 2026-08-01
+## [2.5.7] â€” 2026-08-01
 
 ### Fixed
 - **Sidebar logo size**: `brand-mark-img` no longer sets `width/height: 100%` on the same element as `brand-mark`, which made the EG mark fill the whole sidebar. Brand **32px**, boot **64px**.
@@ -46,7 +58,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.5.6] — 2026-08-01
+## [2.5.6] â€” 2026-08-01
 
 ### Changed
 - **In-app icon size**: sidebar and boot splash marks reduced so the full-bleed asset matches prior UI scale.
@@ -57,11 +69,11 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.5.5] — 2026-08-01
+## [2.5.5] â€” 2026-08-01
 
 ### Changed
 - **App icon**: full-bleed tile (no white corner triangles); multi-size PNGs + ICO rebuilt; larger sidebar/boot marks.
-- **Offline Accounts CMS status**: distinguish real CMS downtime from staff session errors (false “unreachable”).
+- **Offline Accounts CMS status**: distinguish real CMS downtime from staff session errors (false â€œunreachableâ€).
 - Health check uses `offline_auth.php?action=status` with clearer detail.
 
 ### Downloads
@@ -70,7 +82,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.5.4] — 2026-08-01
+## [2.5.4] â€” 2026-08-01
 
 ### Changed
 - **Faster load**: shell paints immediately from a local boot cache; cold start no longer waits on a minimum splash timer.
@@ -82,7 +94,7 @@ Format: each release section is published as the GitHub Release body (and shown 
   - CI stamps PE **version metadata** (rcedit) on Windows installers.
   - `packElevateHelper: false` to avoid an extra elevation helper binary.
   - **Hash freeze** kept; release notes + `docs/GITHUB-SAC.md` document reputation rules (no packers, no force-rebuild).
-  - Docs: SAC Enforcement vs SmartScreen “Run anyway”; keep each version’s installer frozen.
+  - Docs: SAC Enforcement vs SmartScreen â€œRun anywayâ€; keep each versionâ€™s installer frozen.
 
 ### Downloads
 - Windows: `EG-Launcher-2.5.4-win-x64-setup.exe` and `EG-Launcher-2.5.4-win-x64-uninstall.exe`
@@ -90,12 +102,12 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.5.3] — 2026-07-25
+## [2.5.3] â€” 2026-07-25
 
 ### Changed
 - **Pre-release (Beta) labeling** on all current 2.x builds: sidebar badge, boot screen, Settings version line.
 - GitHub Releases for 2.x marked as **pre-release**; in-app updater allows beta channel updates.
-- CI release titles use “EG Launcher x.y.z (Beta)”.
+- CI release titles use â€œEG Launcher x.y.z (Beta)â€.
 
 ### Downloads
 - Windows: `EG-Launcher-2.5.3-win-x64-setup.exe` and `EG-Launcher-2.5.3-win-x64-uninstall.exe`
@@ -103,7 +115,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.5.2] — 2026-07-25
+## [2.5.2] â€” 2026-07-25
 
 ### Changed
 - Smoother boot: progress bar, staged loading labels, short minimum splash, fade-in into the app shell.
@@ -116,7 +128,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.5.1] — 2026-07-25
+## [2.5.1] â€” 2026-07-25
 
 ### Changed
 - **Ads banner disabled** until Google AdSense site approval. The launcher shows no ad strip and no placeholder.
@@ -127,18 +139,18 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.5.0] — 2026-07-24
+## [2.5.0] â€” 2026-07-24
 
 ### Added
 - **`.egpack` export/import**: export instances as EG pack files (Modrinth-compatible structure); import **`.egpack`** and **`.mrpack`**.
-- **Export options UI** (Modrinth App–style list): pack name, summary, per-file/folder selection with sizes, Recommended / All / None.
+- **Export options UI** (Modrinth Appâ€“style list): pack name, summary, per-file/folder selection with sizes, Recommended / All / None.
 - **Google AdSense** live unit in the launcher (hosted `ad-unit.php` iframe).
 - Staff **AdSense settings** (client + slot) and PayPal remove-ads.
 - Site verification helpers (`index.php` AdSense snippet + `ads.txt` on CMS host).
 - Staff sessions store **login time, last seen, and IP** in MariaDB; idle TTL slides from `last_seen_at`.
 
 ### Changed
-- **Ads: AdSense only** — house ads and EG creative carousel removed from the launcher.
+- **Ads: AdSense only** â€” house ads and EG creative carousel removed from the launcher.
 - Staff idle session **30 minutes** (was 5); local session rehydrates after main-process restart.
 - PayPal checkout allowed via external open (`paypal.com`) + local checkout URL fallback.
 - Modern rounded scrollbar styling app-wide.
@@ -146,7 +158,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 - Launcher CSP allows framing CMS ad units (`frame-src https:`).
 
 ### Fixed
-- “Unknown action” when saving AdSense (CMS `ads.php` deploy with `network` / `save_network`).
+- â€œUnknown actionâ€ when saving AdSense (CMS `ads.php` deploy with `network` / `save_network`).
 - Ad unit `ERR_BLOCKED_BY_CSP` / iframe blocked (`X-Frame-Options: DENY` from bootstrap; parent CSP).
 - Session expired errors when Staff UI token and main-process memory session diverged.
 
@@ -156,10 +168,10 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.4.0] — 2026-07-24
+## [2.4.0] â€” 2026-07-24
 
 ### Added
-- **Staff Menu** in Settings → Staff: CMS multi-admin sign-in (session token only; no local unlock password or launcher CMS key prompts).
+- **Staff Menu** in Settings â†’ Staff: CMS multi-admin sign-in (session token only; no local unlock password or launcher CMS key prompts).
 - **Staff roles & verification queue**: approvals for offline accounts and related staff workflows.
 - **CMS featured modpacks** managed from Admin / Staff panels.
 - **Ads banner** with PayPal Friends & Family checkout (monthly sponsor flow).
@@ -179,18 +191,18 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.3.0] — 2026-07-23
+## [2.3.0] â€” 2026-07-23
 
 ### Added
 - **Automatic update checks every 5 minutes** (packaged builds). When a new version is found, the launcher shows the update dialog, a toast, and a system notification. Download still requires your confirmation.
 
 ### Changed
-- **Offline login always available** on Account → Offline login (no Settings unlock password, no hidden offline mode).
-- Only Admins can create offline users (Admin → Offline); players cannot register accounts themselves.
+- **Offline login always available** on Account â†’ Offline login (no Settings unlock password, no hidden offline mode).
+- Only Admins can create offline users (Admin â†’ Offline); players cannot register accounts themselves.
 
 ### Also includes (from 2.0.9)
 - **Account submenu**: Microsoft login and Offline login tabs.
-- **CMS partner icons**: images stored in MariaDB and served via PHP (`partners.php?img=…`).
+- **CMS partner icons**: images stored in MariaDB and served via PHP (`partners.php?img=â€¦`).
 - Admin partner **Save** stays on the edit form.
 
 ### Downloads
@@ -199,15 +211,15 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.0.9] — 2026-07-23
+## [2.0.9] â€” 2026-07-23
 
 ### Changed
-- **Offline login always available** on Account → Offline login (no Settings unlock password, no hidden offline mode).
-- Only Admins can create offline users (Admin → Offline); players cannot register accounts themselves.
+- **Offline login always available** on Account â†’ Offline login (no Settings unlock password, no hidden offline mode).
+- Only Admins can create offline users (Admin â†’ Offline); players cannot register accounts themselves.
 
 ### Added
 - **Account submenu**: Microsoft login and Offline login tabs.
-- **CMS partner icons**: images stored in MariaDB and served via PHP (`partners.php?img=…`) when static file hosting is unavailable.
+- **CMS partner icons**: images stored in MariaDB and served via PHP (`partners.php?img=â€¦`) when static file hosting is unavailable.
 - Admin partner **Save** stays on the edit form instead of returning to the partners list.
 
 ### Downloads
@@ -216,7 +228,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.0.8] — 2026-07-23
+## [2.0.8] â€” 2026-07-23
 
 ### Added
 - **Join server**: partner pages can launch Minecraft and auto-connect to the partner address (`--quickPlayMultiplayer`), and keep `servers.dat` in sync.
@@ -231,7 +243,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.0.7] — 2026-07-21
+## [2.0.7] â€” 2026-07-21
 
 ### Fixed
 - **Partner news multi-login sync**: when one partner account deletes or publishes a post, other logged-in sessions for the same partner refresh the public list and the editor within a few seconds (no logout required).
@@ -244,16 +256,16 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
-## [2.0.5] — 2026-07-21
+## [2.0.5] â€” 2026-07-21
 
-Live update from **2.0.0** — installers, optional data wipe on uninstall, hardened CMS auth, and working auto-update.
+Live update from **2.0.0** â€” installers, optional data wipe on uninstall, hardened CMS auth, and working auto-update.
 
 ### Added
-- **Windows installer** publisher metadata stamped (EG Launcher). SmartScreen may still show “Unknown publisher” for new file hashes.
+- **Windows installer** publisher metadata stamped (EG Launcher). SmartScreen may still show â€œUnknown publisherâ€ for new file hashes.
 - **Windows uninstaller**
   - Start Menu shortcut: **Uninstall EG Launcher**
   - Downloadable helper: `EG-Launcher-2.0.5-win-x64-uninstall.exe`
-  - Uninstall wizard checkbox: **Remove all data** — optional wipe of settings, accounts, instances, mods, and cache (**unchecked by default**)
+  - Uninstall wizard checkbox: **Remove all data** â€” optional wipe of settings, accounts, instances, mods, and cache (**unchecked by default**)
 
 ### Security
 - Partner / offline / unlock passwords use strong server-side hashing (Argon2id or bcrypt), with automatic upgrade from older hashes on next login.
@@ -276,7 +288,7 @@ Live update from **2.0.0** — installers, optional data wipe on uninstall, hard
 
 ---
 
-## [2.0.0] — 2026-07-21
+## [2.0.0] â€” 2026-07-21
 
 ### Added
 - **Private CMS** for launcher news, partner news, partner accounts, and offline accounts (stored server-side; not in public repository files).
@@ -300,10 +312,10 @@ Live update from **2.0.0** — installers, optional data wipe on uninstall, hard
 
 ---
 
-## [1.0.9] — 2026-07-21
+## [1.0.9] â€” 2026-07-21
 
 ### Added
-- **System RAM detection**: the launcher reads total PC memory and caps Maximum RAM so the OS keeps headroom (50% on ≤12 GB systems, 75% on 14–16 GB+).
+- **System RAM detection**: the launcher reads total PC memory and caps Maximum RAM so the OS keeps headroom (50% on â‰¤12 GB systems, 75% on 14â€“16 GB+).
 - **Bee's SMP requirements**: needs at least **12 GB** system RAM to install; recommended **8 GB** allocated to play when the PC can provide it.
 - On **12 GB** PCs (where max allocation is ~6 GB), install is allowed with a clear **low-memory warning** before play.
 - Bee's SMP requires a **paid Microsoft Minecraft account** to install or launch.
@@ -317,14 +329,14 @@ Live update from **2.0.0** — installers, optional data wipe on uninstall, hard
 
 ---
 
-## [1.0.8] — 2026-07-21
+## [1.0.8] â€” 2026-07-21
 
 ### Changed
 - Dev Admin news editor: removed **Link (optional)** field (posts no longer store an external URL).
 
 ---
 
-## [1.0.7] — 2026-07-21
+## [1.0.7] â€” 2026-07-21
 
 ### Added
 - **CMS-driven Partners**: sidebar partners load from `news/partners-config.json` (create/edit/delete in Dev Admin).
@@ -343,7 +355,7 @@ Live update from **2.0.0** — installers, optional data wipe on uninstall, hard
 
 ---
 
-## [1.0.6] — 2026-07-20
+## [1.0.6] â€” 2026-07-20
 
 ### Added
 - Home **News** section fed from `news/feed.json` on GitHub (auto-refresh, no app release needed for posts).
@@ -361,12 +373,12 @@ Live update from **2.0.0** — installers, optional data wipe on uninstall, hard
 
 ---
 
-## [1.0.5] — 2026-07-20
+## [1.0.5] â€” 2026-07-20
 
 ### Fixed
 - Windows freeze / **Not responding** after install and when running the launcher.
 - Auto-update freezes during check/download/install (timeouts, no differential download, quieter NSIS install).
-- Installer no longer launches the app before it fully closes (`runAfterFinish: false`) — start EG Launcher from the desktop/start menu shortcut.
+- Installer no longer launches the app before it fully closes (`runAfterFinish: false`) â€” start EG Launcher from the desktop/start menu shortcut.
 - Single-instance lock so double-starts from the installer do not stack hung windows.
 - Hardware acceleration disabled on Windows to avoid compositor hangs on some PCs.
 - Window shows only when ready (with a failsafe) so the first paint is responsive.
@@ -376,7 +388,7 @@ Live update from **2.0.0** — installers, optional data wipe on uninstall, hard
 
 ---
 
-## [1.0.4] — 2026-07-19
+## [1.0.4] â€” 2026-07-19
 
 ### Added
 - Proper **What's new** display in the update dialog (renders HTML / formatted notes).
@@ -387,7 +399,7 @@ Live update from **2.0.0** — installers, optional data wipe on uninstall, hard
 
 ---
 
-## [1.0.3] — 2026-07-19
+## [1.0.3] â€” 2026-07-19
 
 ### Fixed
 - Attempted cleanup of update dialog release notes (plain-text stripping).
@@ -397,14 +409,14 @@ Live update from **2.0.0** — installers, optional data wipe on uninstall, hard
 
 ---
 
-## [1.0.2] — 2026-07-19
+## [1.0.2] â€” 2026-07-19
 
 ### Added
 - Version bump to test **NSIS / AppImage auto-update** from 1.0.1 clients.
 
 ---
 
-## [1.0.1] — 2026-07-19
+## [1.0.1] â€” 2026-07-19
 
 ### Added
 - **Partners** menu with **Horizons SMP** (Fabric 1.21.11, default mods, server `play.horizons-smp.com`).
@@ -417,7 +429,7 @@ Live update from **2.0.0** — installers, optional data wipe on uninstall, hard
 
 ---
 
-## [1.0.0] — 2026-07-19
+## [1.0.0] â€” 2026-07-19
 
 ### Added
 - Initial public release of EG Launcher.
