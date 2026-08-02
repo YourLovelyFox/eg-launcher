@@ -6,6 +6,16 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.5.12] — 2026-08-02
+
+### Fixed
+- **Create instance**: Forge / NeoForge loader version list empty — promotions URL 404 no longer aborts listing; use Maven metadata + files.minecraftforge.net promos; fix NeoForge version prefix matching (e.g. 1.20.1 → 20.1.x).
+
+### Downloads
+- Windows: `EG-Launcher-2.5.12-win-x64-setup.exe` and `EG-Launcher-2.5.12-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.12-linux-x86_64.AppImage`
+
+---
 ## [2.5.11] — 2026-08-02
 
 ### Fixed

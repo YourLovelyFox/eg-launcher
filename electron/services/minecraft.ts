@@ -400,82 +400,117 @@ export async function listLoaderVersions(
   }
 
   if (loader === 'forge') {
-    try {
-      const meta = await httpGetJson<{
-        promos?: Record<string, string>
-      }>(`${FORGE_MAVEN}/net/minecraftforge/forge/promotions_slim.json`)
+    // promotions_slim lives on files.minecraftforge.net (maven. host 404s).
+    // Maven metadata is the reliable full list — never depend on promos alone.
+    const versions: LoaderVersionInfo[] = []
+    const seen = new Set<string>()
 
-      const recommended = meta.promos?.[`${gameVersion}-recommended`]
-      const latest = meta.promos?.[`${gameVersion}-latest`]
-      const versions: LoaderVersionInfo[] = []
-      if (recommended) {
-        versions.push({
-          id: `${gameVersion}-${recommended}`,
-          loader: 'forge',
-          gameVersion,
-          stable: true,
-        })
-      }
-      if (latest && latest !== recommended) {
-        versions.push({
-          id: `${gameVersion}-${latest}`,
-          loader: 'forge',
-          gameVersion,
-          stable: false,
-        })
-      }
-
-      try {
-        const xml = await httpGetText(
-          `${FORGE_MAVEN}/net/minecraftforge/forge/maven-metadata.xml`,
-        )
-        const matches = [...xml.matchAll(/<version>([^<]+)<\/version>/g)].map((m) => m[1])
-        const related = matches
-          .filter((v) => v.startsWith(`${gameVersion}-`))
-          .slice(-15)
-          .reverse()
-        for (const id of related) {
-          if (!versions.some((v) => v.id === id)) {
-            versions.push({ id, loader: 'forge', gameVersion, stable: false })
-          }
-        }
-      } catch {
-        // optional
-      }
-
-      return versions
-    } catch {
-      return []
+    const push = (id: string, stable: boolean) => {
+      if (!id || seen.has(id)) return
+      seen.add(id)
+      versions.push({ id, loader: 'forge', gameVersion, stable })
     }
+
+    // Optional recommended/latest badges
+    try {
+      const promoUrls = [
+        'https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json',
+        `${FORGE_MAVEN}/net/minecraftforge/forge/promotions_slim.json`,
+      ]
+      for (const url of promoUrls) {
+        try {
+          const meta = await httpGetJson<{ promos?: Record<string, string> }>(url)
+          const recommended = meta.promos?.[`${gameVersion}-recommended`]
+          const latest = meta.promos?.[`${gameVersion}-latest`]
+          if (recommended) push(`${gameVersion}-${recommended}`, true)
+          if (latest && latest !== recommended) push(`${gameVersion}-${latest}`, false)
+          break
+        } catch {
+          // try next host
+        }
+      }
+    } catch {
+      // promos optional
+    }
+
+    try {
+      const xml = await httpGetText(
+        `${FORGE_MAVEN}/net/minecraftforge/forge/maven-metadata.xml`,
+      )
+      const matches = [...xml.matchAll(/<version>([^<]+)<\/version>/g)].map((m) => m[1]!)
+      // Newest first: metadata is oldest→newest
+      const related = matches
+        .filter((v) => v.startsWith(`${gameVersion}-`))
+        .reverse()
+        .slice(0, 40)
+      for (const id of related) {
+        push(id, false)
+      }
+    } catch (err) {
+      if (versions.length === 0) {
+        throw new Error(
+          `Could not load Forge versions for ${gameVersion}: ${(err as Error).message}`,
+        )
+      }
+    }
+
+    // Mark first entry stable if promos did not
+    if (versions.length > 0 && !versions.some((v) => v.stable)) {
+      versions[0] = { ...versions[0]!, stable: true }
+    }
+    return versions
   }
 
   if (loader === 'neoforge') {
+    // NeoForge version ids look like 20.1.25 for Minecraft 1.20.1, 21.1.x for 1.21.1
+    const prefix = neoForgeVersionPrefix(gameVersion)
     try {
       const xml = await httpGetText(
         `${NEOFORGE_MAVEN}/net/neoforged/neoforge/maven-metadata.xml`,
       )
-      const matches = [...xml.matchAll(/<version>([^<]+)<\/version>/g)].map((m) => m[1])
-      const mcParts = gameVersion.replace(/^1\./, '')
+      const matches = [...xml.matchAll(/<version>([^<]+)<\/version>/g)].map((m) => m[1]!)
       const filtered = matches
-        .filter((v) => {
-          const major = gameVersion.split('.').slice(1).join('.')
-          return v.startsWith(major) || v.includes(mcParts)
-        })
-        .slice(-20)
+        .filter((v) => neoForgeMatchesGame(v, gameVersion, prefix))
         .reverse()
+        .slice(0, 40)
+
+      if (filtered.length === 0) {
+        throw new Error(`No NeoForge builds found for Minecraft ${gameVersion}`)
+      }
 
       return filtered.map((id, i) => ({
         id,
         loader: 'neoforge' as const,
         gameVersion,
-        stable: i === 0,
+        stable: i === 0 && !id.includes('beta') && !id.includes('alpha'),
       }))
-    } catch {
-      return []
+    } catch (err) {
+      throw new Error(
+        `Could not load NeoForge versions for ${gameVersion}: ${(err as Error).message}`,
+      )
     }
   }
 
   return []
+}
+
+/** Minecraft 1.20.1 → NeoForge prefix "20.1." */
+function neoForgeVersionPrefix(gameVersion: string): string {
+  const m = gameVersion.match(/^1\.(\d+)(?:\.(\d+))?/)
+  if (!m) return `${gameVersion}.`
+  const minor = m[1]!
+  const patch = m[2] ?? '0'
+  return `${minor}.${patch}.`
+}
+
+function neoForgeMatchesGame(neoVersion: string, gameVersion: string, prefix: string): boolean {
+  // Exact series: 20.1.x for 1.20.1 (not 20.10.x / 20.12.x)
+  if (neoVersion.startsWith(prefix)) return true
+  // Some betas use 20.1.x-beta
+  if (neoVersion.startsWith(prefix.replace(/\.$/, '-'))) return true
+  // Fallback: 1.20.1 in the string (rare)
+  if (neoVersion.includes(gameVersion)) return true
+  return false
 }
 
 function httpGetText(url: string): Promise<string> {
