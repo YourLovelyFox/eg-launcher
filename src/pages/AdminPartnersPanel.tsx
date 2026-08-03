@@ -270,8 +270,18 @@ export function AdminPartnersPanel({ session }: Props) {
     }
     setSaving(true)
     try {
+      // Refresh session before destructive write (avoids stale idle clock)
+      try {
+        await window.hive.admin.touchSession(session)
+      } catch {
+        /* continue — delete will re-check auth */
+      }
       const me = await window.hive.admin.staffMe()
-      if (me?.mustQueue) {
+      if (!me?.staff) {
+        showToast('error', 'Session timed out. Sign in again under Settings → Staff.')
+        return
+      }
+      if (me.mustQueue) {
         const sub = await window.hive.admin.submitApproval(session, {
           type: 'partner_delete',
           summary: `Delete partner ${p.title}`,

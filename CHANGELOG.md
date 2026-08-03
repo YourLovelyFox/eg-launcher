@@ -6,6 +6,17 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.5.13] — 2026-08-03
+
+### Fixed
+- **Staff Menu partner delete**: false “session timed out” after login — send CMS staff session as `X-EG-Session` + `Authorization: Bearer` and in JSON body; refresh session before delete; clearer Admin-role errors.
+- **CMS bootstrap**: more reliable session header parsing + body token fallback (hosts that strip custom headers).
+
+### Downloads
+- Windows: `EG-Launcher-2.5.13-win-x64-setup.exe` and `EG-Launcher-2.5.13-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.5.13-linux-x86_64.AppImage`
+
+---
 ## [2.5.12] — 2026-08-02
 
 ### Fixed

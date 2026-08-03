@@ -178,12 +178,26 @@ export async function deletePartnerConfig(
   partnerId: string,
   requireAdmin: (t: string) => boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!requireAdmin(sessionToken)) return { ok: false, error: 'Not authenticated' }
+  if (!requireAdmin(sessionToken)) {
+    return {
+      ok: false,
+      error: 'Session timed out or not signed in. Open Settings → Staff and sign in again.',
+    }
+  }
 
   try {
     await deletePartnerConfigFromDb(partnerId)
   } catch (err) {
-    return { ok: false, error: (err as Error).message }
+    const msg = (err as Error).message || 'Delete failed'
+    // Normalize CMS wording for the UI
+    if (/admin login required|session expired|not signed in|staff login/i.test(msg)) {
+      return {
+        ok: false,
+        error:
+          'Session timed out or CMS rejected the staff session. Sign out and sign in again under Settings → Staff (Admin role required to delete partners).',
+      }
+    }
+    return { ok: false, error: msg }
   }
 
   try {

@@ -225,7 +225,7 @@ export function AdminPage() {
       const left = sessionEndsAt - Date.now()
       if (left <= 0) {
         setRemainLabel('0:00')
-        void forceLogout('Signed out after 5 minutes idle. Please sign in again.')
+        void forceLogout('Session timed out. Please sign in again under Settings → Staff.')
         return
       }
       const m = Math.floor(left / 60000)
@@ -237,7 +237,7 @@ export function AdminPage() {
     return () => window.clearInterval(id)
   }, [session, sessionEndsAt, forceLogout])
 
-  // Clicks, typing, scrolling, tab switches → reset idle timer to 5 minutes
+  // Clicks, typing, scrolling, tab switches → reset idle timer (30 min staff session)
   useEffect(() => {
     if (!session) return
     let lastLocal = 0
@@ -248,7 +248,7 @@ export function AdminPage() {
       void window.hive.admin.touchSession(session).then((res) => {
         if (!res.ok) {
           if (res.error?.toLowerCase().includes('expired')) {
-            void forceLogout('Signed out after 5 minutes idle. Please sign in again.')
+            void forceLogout('Session timed out. Please sign in again under Settings → Staff.')
           }
           return
         }

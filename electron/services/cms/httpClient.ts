@@ -29,6 +29,18 @@ export function getCmsApiBase(): string {
   return resolveCmsApiBase()
 }
 
+function resolveStaffToken(explicit?: string | null): string | null {
+  const t = (explicit || '').trim()
+  if (t) return t
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getStaffSessionToken } = require('../staffSession') as typeof import('../staffSession')
+    return getStaffSessionToken()
+  } catch {
+    return null
+  }
+}
+
 function buildHeaders(options: {
   bodyStr?: string
   sessionToken?: string | null
@@ -42,22 +54,25 @@ function buildHeaders(options: {
     headers['Content-Type'] = 'application/json'
     headers['Content-Length'] = String(Buffer.byteLength(options.bodyStr))
   }
-  if (options.sessionToken) {
-    headers['X-EG-Session'] = options.sessionToken
-  } else if (options.admin) {
-    // Attach staff session when present (never use CMS API keys)
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { getStaffSessionToken } = require('../staffSession') as typeof import('../staffSession')
-      const st = getStaffSessionToken()
-      if (st) headers['X-EG-Session'] = st
-    } catch {
-      /* ignore */
-    }
+
+  // Prefer explicit token; fall back to stored CMS staff session for admin writes
+  let staffTok =
+    options.sessionToken !== undefined && options.sessionToken !== null
+      ? String(options.sessionToken).trim() || null
+      : null
+  if (!staffTok && options.admin) {
+    staffTok = resolveStaffToken(null)
   }
-  if (options.admin && !headers['X-EG-Session']) {
+
+  if (staffTok) {
+    // Send both headers: some hosts strip custom X-EG-* on POST
+    headers['X-EG-Session'] = staffTok
+    headers['Authorization'] = `Bearer ${staffTok}`
+  }
+
+  if (options.admin && !staffTok) {
     throw new Error(
-      'Session expired or not signed in. Open Settings → Staff and sign in again (idle timeout 30 minutes).',
+      'Session timed out or not signed in. Open Settings → Staff and sign in again (idle timeout 30 minutes).',
     )
   }
   return headers

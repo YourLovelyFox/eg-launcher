@@ -43,9 +43,22 @@ function json_fail(string $publicMessage, int $code = 400, ?Throwable $e = null)
     json_out(['ok' => false, 'error' => $publicMessage], $code);
 }
 
+/** Raw POST body — readable only once; cache for sessionToken fallback + json_body(). */
+function request_raw_body(): string
+{
+    static $raw = null;
+    if ($raw === null) {
+        $raw = file_get_contents('php://input');
+        if ($raw === false) {
+            $raw = '';
+        }
+    }
+    return $raw;
+}
+
 function json_body(): array
 {
-    $raw = file_get_contents('php://input') ?: '';
+    $raw = request_raw_body();
     if ($raw === '') {
         return $_POST ?: [];
     }
@@ -504,6 +517,21 @@ function header_session(): string
     if ($h !== '') {
         return trim($h);
     }
+    // Some hosts only expose custom headers via getallheaders / apache_request_headers
+    if (function_exists('getallheaders')) {
+        foreach (getallheaders() as $k => $v) {
+            if (strcasecmp((string) $k, 'X-EG-Session') === 0 && trim((string) $v) !== '') {
+                return trim((string) $v);
+            }
+        }
+    }
+    if (function_exists('apache_request_headers')) {
+        foreach (apache_request_headers() as $k => $v) {
+            if (strcasecmp((string) $k, 'X-EG-Session') === 0 && trim((string) $v) !== '') {
+                return trim((string) $v);
+            }
+        }
+    }
     $auth = $_SERVER['AUTHORIZATION'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '';
     if ($auth === '' && function_exists('apache_request_headers')) {
         $headers = apache_request_headers();
@@ -514,8 +542,29 @@ function header_session(): string
             }
         }
     }
+    if ($auth === '' && function_exists('getallheaders')) {
+        foreach (getallheaders() as $k => $v) {
+            if (strcasecmp((string) $k, 'Authorization') === 0) {
+                $auth = (string) $v;
+                break;
+            }
+        }
+    }
     if (stripos($auth, 'Bearer ') === 0) {
         return trim(substr($auth, 7));
+    }
+    // Last resort: JSON body field (launcher sends this when hosts strip custom headers)
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        $raw = request_raw_body();
+        if ($raw !== '') {
+            $data = json_decode($raw, true);
+            if (is_array($data)) {
+                $bodyTok = trim((string) ($data['sessionToken'] ?? $data['session'] ?? ''));
+                if ($bodyTok !== '') {
+                    return $bodyTok;
+                }
+            }
+        }
     }
     return '';
 }
