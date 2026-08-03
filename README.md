@@ -141,21 +141,14 @@ Useful scripts:
 
 ## Build installers locally
 
-### Windows (NSIS setup)
+### Windows (local NSIS only — not for public GitHub)
 
-Run on **Windows** (or a Windows CI runner):
+Local dev builds only. **End users must use the Microsoft Store**, not a public `setup.exe`.
 
 ```bash
 npm install
 npm run dist
 ```
-
-Output (under `release/`):
-
-- `EG-Launcher-<version>-win-x64-setup.exe`  
-- `latest.yml` (for auto-update metadata when publishing)  
-
-Uses `--publish never` for a local package only.
 
 ### Linux (AppImage)
 

@@ -85,12 +85,12 @@
     },
     "appx": {
       "identityName": "44561EpicTeamStudiosGmBH.EGLauncher",
-      "publisher": "CN=EpicTeam Studios GmbH",
-      "publisherDisplayName": "EpicTeam Studios GmbH",
+      "publisher": "CN=E5F84211-3109-40DD-A4E4-E8E7769D8658",
+      "publisherDisplayName": "EpicTeam Studios",
       "applicationId": "EGLauncher",
       "displayName": "EG Launcher",
       "backgroundColor": "#0b0e14",
-      "showNameOnTiles": "allLogos",
+      "showNameOnTiles": true,
       "setBuildNumber": true,
       "languages": [
         "en-US"
