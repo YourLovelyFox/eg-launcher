@@ -1,6 +1,5 @@
 import crypto from 'crypto'
 import path from 'path'
-import { PARTNER_LIST } from '../../shared/branding'
 import type { LoaderType, PartnerConfig } from '../../shared/types'
 import { getDataRoot, readJsonFile, writeJsonFile } from '../paths'
 import {
@@ -14,33 +13,22 @@ function cachePath(): string {
   return path.join(getDataRoot(), 'partners-config-cache.json')
 }
 
-function builtinPartners(): PartnerConfig[] {
-  return PARTNER_LIST.map((p) => ({
-    id: p.id,
-    title: p.title,
-    menuLabel: p.menuLabel,
-    description: p.description,
-    gameVersion: p.gameVersion,
-    loader: p.loader as LoaderType,
-    serverAddress: p.serverAddress,
-    serverName: p.serverName,
-    instanceName: p.instanceName,
-    newsTag: p.newsTag,
-    newsUsername: p.newsUsername || p.newsTag,
-    defaultMods: [...p.defaultMods],
-    modrinthPackSlug: p.modrinthPackSlug ?? null,
-    iconUrl: p.iconUrl ?? null,
-    discordUrl: p.discordUrl ?? null,
-    enabled: true,
-  }))
+function clearCache(): void {
+  writeJsonFile(cachePath(), { fetchedAt: new Date(0).toISOString(), partners: [] as PartnerConfig[] })
 }
 
+/**
+ * Partners come only from CMS.
+ * - Successful CMS response (including empty list) is authoritative.
+ * - Cache is a short TTL aid when force=false; never injects hardcoded brands.
+ * - No built-in Horizons / EG Forge fallback (those reappeared after delete).
+ */
 export async function fetchPartnerConfigs(force = false): Promise<PartnerConfig[]> {
   const cached = readJsonFile<{ fetchedAt: string; partners: PartnerConfig[] } | null>(
     cachePath(),
     null,
   )
-  if (!force && cached?.partners?.length) {
+  if (!force && cached && Array.isArray(cached.partners)) {
     const age = Date.now() - Date.parse(cached.fetchedAt)
     if (Number.isFinite(age) && age >= 0 && age < 8_000) {
       return cached.partners.filter((p) => p.enabled !== false)
@@ -49,19 +37,30 @@ export async function fetchPartnerConfigs(force = false): Promise<PartnerConfig[
 
   try {
     const partners = await listPartnerConfigsFromDb()
-    if (partners.length > 0) {
-      writeJsonFile(cachePath(), { fetchedAt: new Date().toISOString(), partners })
-      return partners.filter((p) => p.enabled !== false)
-    }
+    // Empty array is valid — means CMS has no partners (or all deleted).
+    writeJsonFile(cachePath(), {
+      fetchedAt: new Date().toISOString(),
+      partners: Array.isArray(partners) ? partners : [],
+    })
+    return (Array.isArray(partners) ? partners : []).filter((p) => p.enabled !== false)
   } catch (err) {
     console.warn('[partners] CMS config load failed:', (err as Error).message)
-    if (cached?.partners?.length) {
+    // Offline: serve last cache only (may be empty). Never re-inject deleted builtins.
+    if (cached && Array.isArray(cached.partners)) {
       return cached.partners.filter((p) => p.enabled !== false)
     }
+    return []
   }
+}
 
-  if (cached?.partners?.length) return cached.partners.filter((p) => p.enabled !== false)
-  return builtinPartners()
+/** Admin list: always force-refresh from CMS (no cache, no builtins). */
+export async function listPartnersForAdmin(): Promise<PartnerConfig[]> {
+  const partners = await listPartnerConfigsFromDb()
+  writeJsonFile(cachePath(), {
+    fetchedAt: new Date().toISOString(),
+    partners: Array.isArray(partners) ? partners : [],
+  })
+  return Array.isArray(partners) ? partners : []
 }
 
 export async function getPartnerConfigById(id: string): Promise<PartnerConfig | null> {
@@ -185,11 +184,13 @@ export async function deletePartnerConfig(
     }
   }
 
+  const id = (partnerId || '').trim()
+  if (!id) return { ok: false, error: 'Partner id required' }
+
   try {
-    await deletePartnerConfigFromDb(partnerId)
+    await deletePartnerConfigFromDb(id)
   } catch (err) {
     const msg = (err as Error).message || 'Delete failed'
-    // Normalize CMS wording for the UI
     if (/admin login required|session expired|not signed in|staff login/i.test(msg)) {
       return {
         ok: false,
@@ -200,21 +201,30 @@ export async function deletePartnerConfig(
     return { ok: false, error: msg }
   }
 
+  // Drop deleted id from local cache immediately so UI/sidebar cannot resurrect it
   try {
     const list = await listPartnerConfigsFromDb()
-    writeJsonFile(cachePath(), { fetchedAt: new Date().toISOString(), partners: list })
-    const feed = await fetchNews({ force: true, kind: 'partners' })
-    applyLocalFeedSnapshot(
-      JSON.stringify({
-        version: 1,
-        title: feed.title,
-        updated: feed.updated || new Date().toISOString(),
-        items: feed.items,
-      }),
-      'partners',
-    )
+    const next = (Array.isArray(list) ? list : []).filter((p) => p.id !== id)
+    writeJsonFile(cachePath(), { fetchedAt: new Date().toISOString(), partners: next })
+    try {
+      const feed = await fetchNews({ force: true, kind: 'partners' })
+      applyLocalFeedSnapshot(
+        JSON.stringify({
+          version: 1,
+          title: feed.title,
+          updated: feed.updated || new Date().toISOString(),
+          items: feed.items,
+        }),
+        'partners',
+      )
+    } catch {
+      /* news optional */
+    }
   } catch {
-    /* ignore */
+    // CMS list failed after delete — still clear local cache so partner disappears in UI
+    const cached = readJsonFile<{ partners?: PartnerConfig[] }>(cachePath(), { partners: [] })
+    const next = (cached.partners || []).filter((p) => p.id !== id)
+    writeJsonFile(cachePath(), { fetchedAt: new Date().toISOString(), partners: next })
   }
 
   return { ok: true }
@@ -224,3 +234,5 @@ export function newPartnerConfigId(title: string): string {
   const base = slugifyPartnerId(title)
   return `${base}-${crypto.randomBytes(2).toString('hex')}`
 }
+
+export { clearCache as clearPartnerConfigCache }

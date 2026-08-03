@@ -34,7 +34,7 @@ export async function deletePartnerConfigFromDb(id: string): Promise<void> {
       'Session timed out or not signed in. Open Settings → Staff and sign in again.',
     )
   }
-  await cmsRequest({
+  const r = await cmsRequest<{ ok?: boolean; error?: string; deleted?: boolean }>({
     path: 'partners.php',
     method: 'POST',
     admin: true,
@@ -46,4 +46,7 @@ export async function deletePartnerConfigFromDb(id: string): Promise<void> {
       sessionToken: staffTok,
     },
   })
+  if (r && r.ok === false) {
+    throw new Error(r.error || 'Delete failed')
+  }
 }

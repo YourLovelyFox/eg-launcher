@@ -129,11 +129,22 @@ try {
             $prev = $row->fetch();
             $pdo->prepare('DELETE FROM partner_config WHERE id = ?')->execute([$id]);
             $pdo->prepare('DELETE FROM partner_auth WHERE id = ?')->execute([$id]);
+            // Calendar events for this partner
+            try {
+                $pdo->prepare('DELETE FROM partner_events WHERE partner_id = ?')->execute([$id]);
+            } catch (Throwable $e) {
+                // table may not exist on older deploys
+            }
             if ($prev && !empty($prev['news_tag'])) {
                 $pdo->prepare('DELETE FROM news_items WHERE feed_kind = ? AND LOWER(tag) = LOWER(?)')
                     ->execute(['partners', $prev['news_tag']]);
             }
-            json_out(['ok' => true]);
+            // Always ok even if row was already gone — client must not resurrect builtins
+            json_out([
+                'ok' => true,
+                'deleted' => (bool) $prev,
+                'id' => $id,
+            ]);
         }
 
         // upsert

@@ -7,7 +7,6 @@ import {
   APP_VERSION,
   FEATURED_PACK,
   IS_PRE_RELEASE,
-  PARTNER_LIST,
   RELEASE_CHANNEL_LABEL,
 } from '../../shared/branding'
 import type { PartnerDefinition } from '../../shared/branding'
@@ -56,7 +55,8 @@ export function Layout() {
   } = useAppStore()
   const active = accounts.find((a) => a.id === activeAccountId)
   const loggedIn = Boolean(active)
-  const [partners, setPartners] = useState<PartnerDefinition[]>(() => [...PARTNER_LIST])
+  // Partners only from CMS (empty until load) — no hardcoded Horizons / EG Forge
+  const [partners, setPartners] = useState<PartnerDefinition[]>([])
   const [featured, setFeatured] = useState<Array<{ id: string; menuLabel: string; slug: string }>>([
     { id: FEATURED_PACK.id, menuLabel: FEATURED_PACK.menuLabel, slug: FEATURED_PACK.slug },
   ])

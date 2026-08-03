@@ -71,54 +71,14 @@ export type PartnerDefinition = {
   discordUrl?: string | null
 }
 
-export const PARTNERS = {
-  horizonsSmp: {
-    id: 'horizons-smp',
-    title: 'Horizons SMP',
-    menuLabel: 'Horizons SMP',
-    description:
-      'Official partner server. Fabric Minecraft with performance & QoL mods and the Horizons SMP multiplayer server ready to join.',
-    gameVersion: '1.21.11',
-    loader: 'fabric',
-    serverAddress: 'play.horizons-smp.com',
-    serverName: 'Horizons SMP',
-    instanceName: 'Horizons SMP',
-    newsTag: 'HorizonsSMP',
-    newsUsername: 'HorizonsSMP',
-    defaultMods: [
-      'sodium', // Sodium
-      'xaeros-minimap', // Xaero's Minimap
-      'xaeros-world-map', // Xaero's World Map
-      'appleskin', // AppleSkin
-      '3dskinlayers', // 3D Skin Layers
-      'zoomify', // Zoomify
-    ],
-    modrinthPackSlug: null,
-    iconUrl: null,
-    discordUrl: null,
-  },
-  /**
-   * Official EG Forge Server — only accepts this launcher (EG Gate mod + shared secret).
-   * Default address is local dedicated server; change serverAddress when you host publicly.
-   */
-  egForge: {
-    id: 'eg-forge',
-    title: 'EG Forge Server',
-    menuLabel: 'EG Forge',
-    description:
-      'Official EG Launcher Forge server (Minecraft 1.20.1). Other launchers are rejected by the EG Gate mod.',
-    gameVersion: '1.20.1',
-    loader: 'forge',
-    serverAddress: 'localhost',
-    serverName: 'EG Forge Server',
-    instanceName: 'EG Forge Server',
-    newsTag: 'EGForge',
-    newsUsername: 'EGForge',
-    defaultMods: [],
-    modrinthPackSlug: null,
-    iconUrl: null,
-    discordUrl: null,
-  },
-} as const satisfies Record<string, PartnerDefinition>
+/**
+ * Built-in partners are intentionally EMPTY.
+ * All partners (Horizons, EG Forge, custom) live in CMS only — so Staff can delete them
+ * and they do not respawn from the client binary after a successful delete.
+ *
+ * EG Gate still works for any CMS partner with id `eg-forge` / `eg-forge-server`.
+ */
+export const PARTNERS = {} as const satisfies Record<string, PartnerDefinition>
 
-export const PARTNER_LIST: PartnerDefinition[] = Object.values(PARTNERS)
+/** @deprecated Always empty — use CMS partners.php. Kept so old imports compile. */
+export const PARTNER_LIST: PartnerDefinition[] = []

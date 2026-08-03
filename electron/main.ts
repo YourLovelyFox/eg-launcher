@@ -65,6 +65,7 @@ import {
 import {
   deletePartnerConfig,
   fetchPartnerConfigs,
+  listPartnersForAdmin,
   upsertPartnerConfig,
 } from './services/partnerConfig'
 import { requireAdmin } from './services/admin'
@@ -901,7 +902,8 @@ function registerIpc() {
     ipcMain.handle('admin:mirrorPartnerAuth', async () => mirrorPartnerAuthToPublic())
     ipcMain.handle('admin:listPartners', async (_e, sessionToken: string) => {
       if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
-      const partners = await fetchPartnerConfigs(true)
+      // Pure CMS list — never inject built-in Horizons/EG Forge after delete
+      const partners = await listPartnersForAdmin()
       return { ok: true as const, partners }
     })
     ipcMain.handle(

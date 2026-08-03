@@ -282,6 +282,7 @@ export function AdminPartnersPanel({ session }: Props) {
         return
       }
       if (me.mustQueue) {
+        // Non-admin staff: partner stays until an Admin approves — do not claim deleted
         const sub = await window.hive.admin.submitApproval(session, {
           type: 'partner_delete',
           summary: `Delete partner ${p.title}`,
@@ -291,7 +292,11 @@ export function AdminPartnersPanel({ session }: Props) {
           showToast('error', sub.error)
           return
         }
-        showToast('success', sub.message || 'Delete submitted for admin verification')
+        showToast(
+          'info',
+          sub.message ||
+            'Delete queued for Admin approval — partner stays until an Admin reviews Approvals.',
+        )
         return
       }
       const res = await window.hive.admin.deletePartner(session, p.id)
@@ -299,7 +304,13 @@ export function AdminPartnersPanel({ session }: Props) {
         showToast('error', res.error || 'Delete failed')
         return
       }
-      showToast('success', 'Partner deleted')
+      // Optimistic remove so Horizons / EG Forge / any partner cannot “stick” in the list
+      setPartners((prev) => prev.filter((x) => x.id !== p.id))
+      if (mode === 'edit' && form.id === p.id) {
+        setMode('list')
+        setForm(emptyForm())
+      }
+      showToast('success', `Deleted “${p.title}”`)
       await load()
     } catch (err) {
       showToast('error', (err as Error).message || 'Delete failed')
