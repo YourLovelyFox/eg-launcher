@@ -61,6 +61,7 @@ const api = {
       | { status: 'completed'; account: MinecraftAccount }
       | { status: 'expired' }
       | { status: 'declined' }
+      | { status: 'failed'; message: string; code?: string }
     > => ipcRenderer.invoke('auth:pollDeviceCode', deviceCode),
   },
   offline: {

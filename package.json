@@ -1,6 +1,6 @@
 {
   "name": "eg-launcher",
-  "version": "2.5.13",
+  "version": "2.5.14",
   "description": "EG Launcher — Minecraft mods via Modrinth, with permanent Bee's SMP pack support.",
   "main": "dist-electron/main.js",
   "author": "EG Launcher",
@@ -26,12 +26,13 @@
     "release:check": "node scripts/check-release-assets.mjs",
     "release:notes": "node scripts/extract-changelog.mjs",
     "dist:github": "npm run dist",
-    "dist:uninstaller": "node scripts/build-win-uninstaller.mjs"
+    "dist:uninstaller": "node scripts/build-win-uninstaller.mjs",
+    "dist:store": "node scripts/run-with-env.mjs EG_MS_STORE=1 EG_ENABLE_ADMIN=0 -- npm run build:app && node scripts/run-with-env.mjs EG_MS_STORE=1 CSC_IDENTITY_AUTO_DISCOVERY=false -- npx electron-builder --win appx --x64 --publish never"
   },
   "build": {
     "appId": "com.eg.launcher",
     "productName": "EG Launcher",
-    "copyright": "Copyright © EG Launcher",
+    "copyright": "Copyright © EpicTeam Studios GmbH",
     "executableName": "EG Launcher",
     "directories": {
       "output": "release",
@@ -81,6 +82,19 @@
         }
       ],
       "artifactName": "EG-Launcher-${version}-win-${arch}-setup.${ext}"
+    },
+    "appx": {
+      "identityName": "44561EpicTeamStudiosGmBH.EGLauncher",
+      "publisher": "CN=EpicTeam Studios GmbH",
+      "publisherDisplayName": "EpicTeam Studios GmbH",
+      "applicationId": "EGLauncher",
+      "displayName": "EG Launcher",
+      "backgroundColor": "#0b0e14",
+      "showNameOnTiles": "allLogos",
+      "setBuildNumber": true,
+      "languages": [
+        "en-US"
+      ]
     },
     "nsis": {
       "oneClick": false,

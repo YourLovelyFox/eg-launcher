@@ -1,6 +1,7 @@
-import { app, BrowserWindow, Notification } from 'electron'
+import { app, BrowserWindow, Notification, shell } from 'electron'
 import { autoUpdater, type UpdateInfo, type ProgressInfo } from 'electron-updater'
-import { IS_PRE_RELEASE } from '../../shared/branding'
+import { IS_PRE_RELEASE, MS_STORE_URL } from '../../shared/branding'
+import { isMicrosoftStoreInstall, isSelfUpdateChannel } from './distribution'
 
 export type UpdateStatus =
   | { state: 'idle' }
@@ -98,16 +99,19 @@ function notesToString(notes: UpdateInfo['releaseNotes']): string | null {
 
 /**
  * Configure electron-updater for GitHub Releases (NSIS + AppImage).
+ * Microsoft Store builds: never touch autoUpdater (no app-update.yml in WindowsApps).
  * No download until the user confirms.
  */
 export function initAutoUpdater(win: BrowserWindow | null) {
   mainWindow = win
 
-  if (!app.isPackaged) {
+  if (!app.isPackaged || isMicrosoftStoreInstall() || !isSelfUpdateChannel()) {
+    // Store / unpackaged: updates via Microsoft Store or not applicable
     lastStatus = {
       state: 'unavailable',
       currentVersion: currentVersion(),
     }
+    configured = true
     return
   }
 
@@ -250,7 +254,7 @@ function notifyUpdateAvailable(version: string) {
  * Does not auto-download — user confirms in the update dialog.
  */
 export function startPeriodicUpdateChecks(): void {
-  if (!app.isPackaged) return
+  if (!isSelfUpdateChannel()) return
   if (autoCheckTimer) return
   autoCheckTimer = setInterval(() => {
     // Skip while busy or already downloaded / actively downloading
@@ -283,13 +287,21 @@ export function stopPeriodicUpdateChecks(): void {
 }
 
 export async function checkForUpdates(manual = false): Promise<UpdateStatus> {
-  if (!app.isPackaged) {
+  if (!isSelfUpdateChannel()) {
     const status: UpdateStatus = {
       state: 'unavailable',
       currentVersion: currentVersion(),
     }
     lastStatus = status
     push(status)
+    // Manual: open Store page so users can update the Store build
+    if (manual && isMicrosoftStoreInstall()) {
+      try {
+        await shell.openExternal(MS_STORE_URL)
+      } catch {
+        /* ignore */
+      }
+    }
     return status
   }
 
@@ -334,8 +346,11 @@ export async function checkForUpdates(manual = false): Promise<UpdateStatus> {
  * Progress is pushed via events so the UI stays responsive.
  */
 export async function downloadUpdate(): Promise<UpdateStatus> {
-  if (!app.isPackaged) {
-    return getUpdateStatus()
+  if (!isSelfUpdateChannel()) {
+    return {
+      state: 'unavailable',
+      currentVersion: currentVersion(),
+    }
   }
   if (downloading) return lastStatus
 
@@ -377,7 +392,7 @@ export async function downloadUpdate(): Promise<UpdateStatus> {
  * Deferred so the UI can close cleanly and Windows does not mark us "Not responding".
  */
 export function installUpdate(): void {
-  if (!app.isPackaged) return
+  if (!isSelfUpdateChannel()) return
 
   try {
     // isSilent=true avoids an interactive installer that waits on the still-running app
@@ -402,5 +417,7 @@ export function getAppVersionInfo() {
     isPackaged: app.isPackaged,
     platform: process.platform,
     arch: process.arch,
+    microsoftStore: isMicrosoftStoreInstall(),
+    selfUpdateChannel: isSelfUpdateChannel(),
   }
 }

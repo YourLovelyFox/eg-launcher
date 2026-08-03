@@ -445,6 +445,10 @@ export type UpdateStatus =
   | { state: 'error'; message: string; currentVersion: string }
 
 export type AppVersionInfo = {
+  /** True when installed from Microsoft Store / WindowsApps (MSIX) */
+  microsoftStore?: boolean
+  /** True when GitHub electron-updater is allowed */
+  selfUpdateChannel?: boolean
   version: string
   isPackaged: boolean
   platform: string

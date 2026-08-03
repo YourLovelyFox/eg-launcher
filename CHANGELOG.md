@@ -6,6 +6,23 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.5.14] — 2026-08-03
+
+### Fixed (Microsoft Store certification)
+- **Crash on launch (Store):** do not run `electron-updater` under `WindowsApps` (missing `app-update.yml`). Store builds update via Microsoft Store only.
+- **Microsoft account login:** accounts without an Xbox profile no longer surface as a raw IPC crash; clear message + open xbox.com; offline login still available.
+- **Store tile icons:** unique EG-branded AppX assets (`build/appx/*`) — product-specific tiles, not a generic default icon alone.
+- **Partners:** CMS-only partners (no hard-coded Horizons / EG Forge respawn after delete).
+
+### Store packaging
+- `npm run dist:store` builds Windows AppX; see `docs/MS-STORE.md`.
+
+### Downloads
+- Windows (GitHub): `EG-Launcher-2.5.14-win-x64-setup.exe`
+- Windows (Store): AppX / MSIX via Partner Center
+- Linux: `EG-Launcher-2.5.14-linux-x86_64.AppImage`
+
+---
 ## [2.5.13] — 2026-08-03
 
 ### Fixed

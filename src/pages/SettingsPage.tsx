@@ -248,12 +248,20 @@ export function SettingsPage() {
 
       <div className="panel">
         <h2>Updates</h2>
-        <p className="hint">
-          Updates come from <strong>GitHub Releases</strong> (Windows NSIS / Linux AppImage). Nothing
-          downloads until you confirm. SmartScreen may warn; Smart App Control Enforcement may block
-          new file hashes until reputation builds. Only install official releases from this
-          project&apos;s GitHub.
-        </p>
+        {versionInfo && 'microsoftStore' in versionInfo && (versionInfo as { microsoftStore?: boolean }).microsoftStore ? (
+          <p className="hint">
+            You installed EG Launcher from the <strong>Microsoft Store</strong>. Updates are delivered by
+            the Store only (in-app GitHub updater is disabled). Use &quot;Open Microsoft Store&quot; to check
+            for a new version.
+          </p>
+        ) : (
+          <p className="hint">
+            Updates come from <strong>GitHub Releases</strong> (Windows NSIS / Linux AppImage). Nothing
+            downloads until you confirm. SmartScreen may warn; Smart App Control Enforcement may block
+            new file hashes until reputation builds. Only install official releases from this
+            project&apos;s GitHub.
+          </p>
+        )}
         <div className="form-grid">
           <div className="form-row">
             <label>Installed version</label>
@@ -270,21 +278,39 @@ export function SettingsPage() {
                 </>
               ) : null}
               {versionInfo && !versionInfo.isPackaged ? ' (dev build — auto-update disabled)' : ''}
+              {versionInfo &&
+              'microsoftStore' in versionInfo &&
+              (versionInfo as { microsoftStore?: boolean }).microsoftStore
+                ? ' · Microsoft Store'
+                : ''}
               {versionInfo ? ` · ${versionInfo.platform}/${versionInfo.arch}` : ''}
             </div>
           </div>
           <div className="form-row">
             <label>Status</label>
             <div className="muted">
-              {updateStatus.state === 'idle' && 'Not checked yet'}
-              {updateStatus.state === 'checking' && 'Checking…'}
-              {updateStatus.state === 'unavailable' && 'Up to date'}
-              {updateStatus.state === 'available' && `Update ${updateStatus.version} available`}
-              {updateStatus.state === 'downloading' &&
-                `Downloading ${updateStatus.version}… ${Math.round(updateStatus.percent)}%`}
-              {updateStatus.state === 'ready' &&
-                `Update ${updateStatus.version} ready — restart to install`}
-              {updateStatus.state === 'error' && `Error: ${updateStatus.message}`}
+              {versionInfo &&
+              'microsoftStore' in versionInfo &&
+              (versionInfo as { microsoftStore?: boolean }).microsoftStore
+                ? 'Managed by Microsoft Store'
+                : null}
+              {!(
+                versionInfo &&
+                'microsoftStore' in versionInfo &&
+                (versionInfo as { microsoftStore?: boolean }).microsoftStore
+              ) && (
+                <>
+                  {updateStatus.state === 'idle' && 'Not checked yet'}
+                  {updateStatus.state === 'checking' && 'Checking…'}
+                  {updateStatus.state === 'unavailable' && 'Up to date'}
+                  {updateStatus.state === 'available' && `Update ${updateStatus.version} available`}
+                  {updateStatus.state === 'downloading' &&
+                    `Downloading ${updateStatus.version}… ${Math.round(updateStatus.percent)}%`}
+                  {updateStatus.state === 'ready' &&
+                    `Update ${updateStatus.version} ready — restart to install`}
+                  {updateStatus.state === 'error' && `Error: ${updateStatus.message}`}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -295,7 +321,15 @@ export function SettingsPage() {
             onClick={checkUpdates}
             disabled={checkingUpdate}
           >
-            {checkingUpdate ? 'Checking…' : 'Check for updates'}
+            {versionInfo &&
+            'microsoftStore' in versionInfo &&
+            (versionInfo as { microsoftStore?: boolean }).microsoftStore
+              ? checkingUpdate
+                ? 'Opening…'
+                : 'Open Microsoft Store'
+              : checkingUpdate
+                ? 'Checking…'
+                : 'Check for updates'}
           </button>
           {updateStatus.state === 'available' && (
             <button

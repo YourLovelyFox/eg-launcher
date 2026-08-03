@@ -272,19 +272,18 @@ function createWindow() {
     setNewsUpdateListener(null)
   })
 
-  // Init updater after the window exists; check much later so first paint is smooth
+  // Init updater after the window exists; check much later so first paint is smooth.
+  // Microsoft Store builds never run electron-updater (no app-update.yml under WindowsApps).
   mainWindow.webContents.once('did-finish-load', () => {
     try {
       initAutoUpdater(mainWindow)
     } catch (err) {
       console.warn('[updater] init on load failed', err)
     }
-    // Delayed first check — never blocks startup
     setTimeout(() => {
       checkForUpdates(false)
         .catch((err) => console.warn('[updater] startup check', err))
         .finally(() => {
-          // Then re-check every 5 minutes and notify when an update appears
           startPeriodicUpdateChecks()
         })
     }, 12_000)

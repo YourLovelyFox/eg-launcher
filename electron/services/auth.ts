@@ -316,10 +316,15 @@ async function xstsAuth(xboxToken: string) {
 
   if (!data.Token) {
     if (data.XErr === 2148916233) {
-      throw new Error('This Microsoft account has no Xbox profile. Create one at xbox.com first.')
+      // Friendly, actionable — Minecraft Java requires an Xbox profile linked to the MSA
+      throw new Error(
+        'XBOX_PROFILE_REQUIRED: This Microsoft account needs an Xbox profile before it can play Minecraft: Java Edition. Open https://xbox.com , sign in with the same account, finish creating a gamertag/profile, then try Sign in again in EG Launcher.',
+      )
     }
     if (data.XErr === 2148916238) {
-      throw new Error('This account is underage or from a banned region for Xbox Live.')
+      throw new Error(
+        'This Microsoft account cannot use Xbox Live (age restriction or region). Use a different account or complete parental setup at xbox.com, then try again.',
+      )
     }
     throw new Error(data.Message || `Xbox XSTS authorization failed${data.XErr ? ` (${data.XErr})` : ''}`)
   }
@@ -425,6 +430,7 @@ export async function pollDeviceCodeLogin(deviceCode: string): Promise<
   | { status: 'completed'; account: MinecraftAccount }
   | { status: 'expired' }
   | { status: 'declined' }
+  | { status: 'failed'; message: string; code?: string }
 > {
   if (!deviceCode) {
     throw new Error('Missing device code')
@@ -479,16 +485,27 @@ export async function pollDeviceCodeLogin(deviceCode: string): Promise<
     return { status: 'pending' }
   }
 
-  const account = await completeAuthChain(data.access_token, data.refresh_token, data.expires_in)
-  const store = loadStore()
-  const existing = store.accounts.findIndex((a) => a.id === account.id)
-  if (existing >= 0) store.accounts[existing] = account
-  else store.accounts.push(account)
-  store.activeAccountId = account.id
-  saveStore(store)
+  try {
+    const account = await completeAuthChain(data.access_token, data.refresh_token, data.expires_in)
+    const store = loadStore()
+    const existing = store.accounts.findIndex((a) => a.id === account.id)
+    if (existing >= 0) store.accounts[existing] = account
+    else store.accounts.push(account)
+    store.activeAccountId = account.id
+    saveStore(store)
 
-  return {
-    status: 'completed',
-    account: { ...account, accessToken: '***', refreshToken: undefined },
+    return {
+      status: 'completed',
+      account: { ...account, accessToken: '***', refreshToken: undefined },
+    }
+  } catch (err) {
+    // Return structured failure so renderer does not show "Error invoking remote method"
+    const raw = (err as Error).message || 'Microsoft login failed'
+    const message = raw.replace(/^XBOX_PROFILE_REQUIRED:\s*/i, '').trim()
+    return {
+      status: 'failed',
+      message,
+      code: raw.startsWith('XBOX_PROFILE_REQUIRED') ? 'XBOX_PROFILE_REQUIRED' : 'AUTH_FAILED',
+    }
   }
 }

@@ -110,6 +110,24 @@ export function AccountPage() {
           setBusy(false)
           return
         }
+        if (result.status === 'failed') {
+          setDevice(null)
+          setBusy(false)
+          const msg = result.message || 'Microsoft login failed'
+          setStatus(msg)
+          showToast('error', msg.split('\n')[0])
+          if (result.code === 'XBOX_PROFILE_REQUIRED') {
+            window.alert(
+              `${msg}\n\nOpen xbox.com, sign in with the same Microsoft account, create a gamertag/Xbox profile, then try Sign in again.\n\nOffline accounts still work for single-player / partner offline servers.`,
+            )
+            try {
+              await window.hive.shell.openExternal('https://www.xbox.com/play')
+            } catch {
+              /* ignore */
+            }
+          }
+          return
+        }
         if (result.status === 'completed') {
           const auth = await window.hive.auth.getAccounts()
           setAccounts(auth.accounts, auth.activeAccountId)
@@ -121,12 +139,28 @@ export function AccountPage() {
         }
       } catch (err) {
         if (cancelledRef.current) return
+        const msg = (err as Error).message || 'Login failed'
+        // Xbox / profile errors should not look like a crash
+        if (/Xbox profile|xbox\.com|XBOX_PROFILE|underage|Minecraft profile/i.test(msg)) {
+          setStatus(msg.replace(/^XBOX_PROFILE_REQUIRED:\s*/i, ''))
+          showToast('error', msg.split('\n')[0].replace(/^XBOX_PROFILE_REQUIRED:\s*/i, ''))
+          setBusy(false)
+          setDevice(null)
+          if (/Xbox profile|xbox\.com|XBOX_PROFILE/i.test(msg)) {
+            try {
+              await window.hive.shell.openExternal('https://www.xbox.com/play')
+            } catch {
+              /* ignore */
+            }
+          }
+          return
+        }
         if (attemptsRef.current < 3) {
           setStatus('Network hiccup — retrying…')
           poll(deviceCode, intervalSec)
           return
         }
-        showToast('error', (err as Error).message)
+        showToast('error', msg)
         setStatus('Login failed. Try again.')
         setBusy(false)
         setDevice(null)
@@ -184,6 +218,19 @@ export function AccountPage() {
           <p>
             Sign in with Microsoft, or use an offline account created by an Admin (Account → Offline
             login).
+          </p>
+          <p className="hint" style={{ marginTop: 8 }}>
+            Microsoft login needs an <strong>Xbox profile</strong> on the same account (required by
+            Minecraft: Java Edition). If sign-in fails, open{' '}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ padding: 0, verticalAlign: 'baseline', textDecoration: 'underline' }}
+              onClick={() => void window.hive.shell.openExternal('https://www.xbox.com/play')}
+            >
+              xbox.com
+            </button>
+            , create a gamertag, then try again. You can still use Offline login without Xbox.
           </p>
         </div>
       </div>
