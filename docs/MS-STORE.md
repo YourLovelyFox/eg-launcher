@@ -1,5 +1,9 @@
 # Microsoft Store (AppX / MSIX) — EG Launcher
 
+**Official Windows distribution.** Public GitHub Releases no longer ship Windows `setup.exe` (SAC). Linux AppImage remains on GitHub.
+
+Store listing: https://apps.microsoft.com/detail/9P32SFSJH9B1  
+
 ## Certification issues fixed in 2.5.14
 
 | Failure | Cause | Fix |

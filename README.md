@@ -2,19 +2,27 @@ If you wish to help me, please only do "Pull Requests" <3
 
 Support Discord server: Soon
 
-
 ### Another Warning before proceed: The app can't be run on Terminal Based OS! It Needs a Desktop env, Both on Windows and linux based OS!
 
 # EG Launcher
 
 Modern **Minecraft: Java Edition** launcher for browsing and installing mods via [Modrinth](https://modrinth.com/), managing instances, and launching the game.
 
-**Microsoft account required** — offline play is disabled.
+> ## Windows downloads from GitHub are discontinued
+>
+> **Unfortunately, the Windows `setup.exe` installers have been removed** because of **Smart App Control (SAC) / SmartScreen** reputation issues with unsigned or frequently rebuilt GitHub binaries.
+>
+> | Platform | Where to get EG Launcher |
+> | --- | --- |
+> | **Windows** | **[Microsoft Store only](https://apps.microsoft.com/detail/9P32SFSJH9B1)** — currently the supported Windows install path |
+> | **Linux** | **[GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest)** — **AppImage only** |
+>
+> Please do **not** look for or trust third-party Windows setups. Use the Store on Windows.
 
 | | |
 | --- | --- |
-| **Windows (recommended)** | [Microsoft Store](https://apps.microsoft.com/detail/9P32SFSJH9B1) |
-| **GitHub releases** | [Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest) (Linux AppImage + optional Windows setup) |
+| **Windows** | [Microsoft Store — EG Launcher](https://apps.microsoft.com/detail/9P32SFSJH9B1) |
+| **Linux** | [GitHub Releases (AppImage)](https://github.com/YourLovelyFox/eg-launcher/releases/latest) |
 | **Changelog** | [CHANGELOG.md](./CHANGELOG.md) |
 | **Privacy** | [PRIVACY.md](./PRIVACY.md) |
 | **Repo** | [YourLovelyFox/eg-launcher](https://github.com/YourLovelyFox/eg-launcher) |
@@ -25,33 +33,36 @@ Modern **Minecraft: Java Edition** launcher for browsing and installing mods via
 
 - Dark glass-style UI with instance management  
 - Browse & install mods from the **Modrinth** API (with required dependencies)  
-- **Microsoft login** (device-code flow)  
+- **Microsoft login** (device-code flow) and offline accounts where configured  
 - Java RAM settings and automatic Mojang JRE download when a version needs a newer runtime  
 - Loaders: **Vanilla**, **Fabric**, **Forge**, **NeoForge**  
 - Enable / disable / remove mods; update checks on installed mods  
 - Featured pack: **Bee's SMP** (manual install, news & changelogs from Modrinth)  
-- **Partners**: **Horizons SMP** (Fabric instance, default mods, server pre-added)  
+- **Partners** from CMS (staff-managed)  
 - **Updates**  
-  - **Microsoft Store** builds: updates via the Store  
-  - **GitHub** builds: optional in-app check against GitHub Releases (confirm before download / install)  
-  - Linux: **AppImage** from GitHub  
+  - **Windows (Microsoft Store):** updates via the Store only  
+  - **Linux (GitHub AppImage):** optional in-app updates from GitHub Releases  
 
 ---
 
 ## Download (end users)
 
-### GitHub Releases (primary)
+### Windows → Microsoft Store only
+
+**https://apps.microsoft.com/detail/9P32SFSJH9B1**
+
+GitHub no longer distributes Windows `setup.exe` files. SAC / SmartScreen blocked or reset reputation for unsigned installers after rebuilds. The Store package is the official Windows channel.
+
+### Linux → GitHub Releases (AppImage)
 
 **https://github.com/YourLovelyFox/eg-launcher/releases/latest**
 
 | Platform | File | Notes |
 | --- | --- | --- |
-| **Windows x64** | `EG-Launcher-<version>-win-x64-setup.exe` | SmartScreen may warn; SAC Enforcement may hard-block until that **exact file hash** has reputation. See [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md). |
-| **Linux x64** | `EG-Launcher-<version>-linux-*.AppImage` | Make executable and run (below). |
+| **Linux x64** | `EG-Launcher-<version>-linux-*.AppImage` | Only installer published on GitHub |
+| **Windows** | — | Use [Microsoft Store](https://apps.microsoft.com/detail/9P32SFSJH9B1) |
 
-- Ship each version **once** (hash freeze) — rebuilding the same version resets reputation.  
-- Do **not** use packers or third-party repacks.  
-- Release how-to: [docs/GITHUB-RELEASES.md](./docs/GITHUB-RELEASES.md)
+Release process (maintainers): [docs/GITHUB-RELEASES.md](./docs/GITHUB-RELEASES.md) · SAC history: [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md)
 
 ### Linux — run the AppImage
 
@@ -68,7 +79,6 @@ chmod +x EG-Launcher-*-linux-*.AppImage
 - On some distros you may need FUSE for older AppImage runtimes; modern electron-builder AppImages often work without extra packages. If it fails to start, try:  
   `./EG-Launcher-*.AppImage --appimage-extract-and-run`
 - Auto-update only runs in the **packaged** AppImage, not when running from source.
-- **Windows GitHub setup.exe** and **Store MSIX** are different install paths. Pick one; they do not share the same update channel.
 
 ---
 
@@ -123,7 +133,7 @@ Useful scripts:
 | `npm run dev` | Vite + Electron development |
 | `npm run build` | Compile renderer + Electron main |
 | `npm run typecheck` | TypeScript checks |
-| `npm run dist` | **Windows** NSIS installer → `release/` |
+| `npm run dist` | **Windows** NSIS (local/dev only — **not** published on GitHub Releases) |
 | `npm run dist:linux` | **Linux** AppImage → `release/` |
 | `npm run dist:dir` | Unpacked Windows dir build (debug) |
 
@@ -191,11 +201,12 @@ chmod +x release/EG-Launcher-*-linux-*.AppImage
 
 Workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml)
 
-Publishes:
+Public GitHub Releases should emphasize:
 
-- Windows **NSIS** setup + `latest.yml`  
 - Linux **AppImage**  
-- Release body from **[CHANGELOG.md](./CHANGELOG.md)**  
+- Release body from **[CHANGELOG.md](./CHANGELOG.md)** (includes “Windows → Store only” banner)  
+
+Windows Store packages: `npm run dist:store` → private / Partner Center (not public setup.exe).
 
 ### Automatic (tag)
 
@@ -210,9 +221,7 @@ git push origin v1.0.5
 
 1. **Actions** → **Build & Release** → **Run workflow**  
 2. Set version (e.g. `1.0.5`) or leave empty to use `package.json`  
-3. Keep **force_rebuild** off unless you intentionally want a **new file hash** for the same version (resets SmartScreen reputation)
-
-Once a version’s installers are published, CI **freezes** them by default so the SHA does not change on re-runs.
+3. Prefer publishing **Linux AppImage** only on public Releases; do not re-add Windows setup.exe for end users
 
 
 CI runs `scripts/extract-changelog.mjs` and uses that section as the GitHub Release description (shown in the in-app **What's new** update dialog).
@@ -257,7 +266,8 @@ Instances, accounts, mods, and caches live under that folder.
 - **Electron** + **Vite** + **React** + **TypeScript**  
 - Modrinth REST API v2  
 - Mojang / Fabric / Forge / NeoForge metadata  
-- `electron-updater` + GitHub Releases (NSIS + AppImage)  
+- `electron-updater` + GitHub Releases (**Linux AppImage**); Microsoft Store for Windows  
+
 
 ---
 
