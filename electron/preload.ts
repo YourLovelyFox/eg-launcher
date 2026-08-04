@@ -549,6 +549,9 @@ const api = {
             role: string
             offlineQuota: number
             offlineUsed: number
+            email?: string | null
+            emailBound?: boolean
+            mustBindEmail?: boolean
           }
           expiresAt?: number
         }
@@ -556,10 +559,45 @@ const api = {
     > => ipcRenderer.invoke('staff:login', username, password),
     staffLogout: () => ipcRenderer.invoke('staff:logout'),
     staffMe: () => ipcRenderer.invoke('staff:me'),
+    staffForgotPassword: (
+      username: string,
+    ): Promise<{ ok: true; message: string } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('staff:forgotPassword', username),
+    staffResetPassword: (
+      username: string,
+      code: string,
+      newPassword: string,
+    ): Promise<{ ok: true; message: string } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('staff:resetPassword', username, code, newPassword),
+    staffBindEmail: (
+      email: string,
+    ): Promise<
+      | {
+          ok: true
+          staff: {
+            id: string
+            username: string
+            role: string
+            offlineQuota: number
+            offlineUsed: number
+            email?: string | null
+            emailBound?: boolean
+            mustBindEmail?: boolean
+          }
+          message: string
+        }
+      | { ok: false; error: string }
+    > => ipcRenderer.invoke('staff:bindEmail', email),
     listStaffUsers: (sessionToken: string) => ipcRenderer.invoke('staff:listUsers', sessionToken),
     createStaffUser: (
       sessionToken: string,
-      input: { username: string; password: string; role: string; offlineQuota?: number },
+      input: {
+        username: string
+        password: string
+        role: string
+        offlineQuota?: number
+        email?: string
+      },
     ) => ipcRenderer.invoke('staff:createUser', sessionToken, input),
     deleteStaffUser: (sessionToken: string, id: string) =>
       ipcRenderer.invoke('staff:deleteUser', sessionToken, id),

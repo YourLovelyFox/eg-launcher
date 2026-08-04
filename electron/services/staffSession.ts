@@ -10,6 +10,11 @@ export type StaffInfo = {
   role: StaffRole
   offlineQuota: number
   offlineUsed: number
+  /** Bound recovery email (null if not set) */
+  email?: string | null
+  emailBound?: boolean
+  /** True when account must bind email before Staff/Admin features */
+  mustBindEmail?: boolean
 }
 
 /** Idle timeout: 30 minutes without activity, then re-login. */
@@ -187,9 +192,99 @@ export async function touchStaffSessionRemote(): Promise<number | null> {
   }
 }
 
+/**
+ * Request a password-reset code by Staff/Admin username.
+ * CMS always returns a generic success message (no username enumeration).
+ */
+export async function staffForgotPassword(
+  username: string,
+): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  try {
+    const r = await cmsRequest<{ ok?: boolean; message?: string; error?: string }>({
+      path: 'staff.php?action=forgot_password',
+      method: 'POST',
+      body: { username: username.trim() },
+    })
+    return {
+      ok: true,
+      message:
+        r.message ||
+        'If that account exists and has a bound email, a reset code was sent. Check your inbox (and spam).',
+    }
+  } catch (err) {
+    return { ok: false, error: sanitizeAuthError((err as Error).message) }
+  }
+}
+
+/**
+ * Complete password reset with code from email.
+ */
+export async function staffResetPassword(
+  username: string,
+  code: string,
+  newPassword: string,
+): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  try {
+    const r = await cmsRequest<{ ok?: boolean; message?: string; error?: string }>({
+      path: 'staff.php?action=reset_password',
+      method: 'POST',
+      body: {
+        username: username.trim(),
+        code: code.trim(),
+        newPassword,
+      },
+    })
+    return { ok: true, message: r.message || 'Password updated. You can sign in.' }
+  } catch (err) {
+    return { ok: false, error: sanitizeAuthError((err as Error).message) }
+  }
+}
+
+/**
+ * Bind recovery email to the signed-in staff account (required for features).
+ */
+export async function staffBindEmail(
+  email: string,
+): Promise<{ ok: true; staff: StaffInfo; message: string } | { ok: false; error: string }> {
+  const tok = getStaffSessionToken()
+  if (!tok) return { ok: false, error: 'Not signed in' }
+  try {
+    const r = await cmsRequest<{
+      ok?: boolean
+      message?: string
+      staff?: StaffInfo
+      error?: string
+    }>({
+      path: 'staff.php?action=bind_email',
+      method: 'POST',
+      sessionToken: tok,
+      body: { email: email.trim(), sessionToken: tok },
+    })
+    if (!r.staff) {
+      return { ok: false, error: r.error || 'Failed to bind email' }
+    }
+    const s = loadStaffSession()
+    const next: StaffInfo = {
+      ...r.staff,
+      offlineQuota: r.staff.offlineQuota ?? s.staff?.offlineQuota ?? 0,
+      offlineUsed: r.staff.offlineUsed ?? s.staff?.offlineUsed ?? 0,
+      emailBound: true,
+      mustBindEmail: false,
+    }
+    saveStaffSession({
+      staffSessionToken: tok,
+      staff: next,
+      expiresAt: s.expiresAt ?? Date.now() + STAFF_SESSION_TTL_MS,
+    })
+    return { ok: true, staff: next, message: r.message || 'Email bound successfully' }
+  } catch (err) {
+    return { ok: false, error: sanitizeAuthError((err as Error).message) }
+  }
+}
+
 function sanitizeAuthError(msg: string): string {
   if (/api key|admin key|cms key/i.test(msg)) {
-    return 'Staff login required. Open Settings → Staff and sign in (idle timeout: 5 minutes).'
+    return 'Staff login required. Open Settings → Staff and sign in (idle timeout: 30 minutes).'
   }
   return msg
 }

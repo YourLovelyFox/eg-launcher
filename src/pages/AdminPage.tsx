@@ -66,8 +66,20 @@ export function AdminPage() {
     role: string
     offlineQuota: number
     offlineUsed: number
+    email?: string | null
+    emailBound?: boolean
+    mustBindEmail?: boolean
   } | null>(null)
   const [mustQueue, setMustQueue] = useState(false)
+  /** login | forgot | reset */
+  const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login')
+  const [forgotUser, setForgotUser] = useState('')
+  const [resetCode, setResetCode] = useState('')
+  const [resetPass, setResetPass] = useState('')
+  const [resetPass2, setResetPass2] = useState('')
+  const [authBusy, setAuthBusy] = useState(false)
+  const [bindEmail, setBindEmail] = useState('')
+  const [bindBusy, setBindBusy] = useState(false)
   const [sessionEndsAt, setSessionEndsAt] = useState<number | null>(() => {
     const raw = sessionStorage.getItem(SESSION_EXPIRES_KEY)
     const n = raw ? Number(raw) : NaN
@@ -200,6 +212,8 @@ export function AdminPage() {
         }
         setStaffInfo(me.staff)
         setMustQueue(Boolean(me.mustQueue))
+        const needsBind = Boolean(me.staff.mustBindEmail || me.staff.emailBound === false)
+        if (needsBind) return
       } catch {
         setStaffInfo(null)
         setMustQueue(false)
@@ -486,13 +500,120 @@ export function AdminPage() {
     setMustQueue(res.staff.role === 'staff')
     setStaffPass('')
     setBootError('')
+    setAuthView('login')
+    const needsBind = Boolean(res.staff.mustBindEmail || res.staff.emailBound === false)
     showToast(
       'success',
-      `Signed in as ${res.staff.username} (${res.staff.role}) · idle timeout 30 min`,
+      needsBind
+        ? `Signed in as ${res.staff.username} — bind an email to unlock Staff/Admin features`
+        : `Signed in as ${res.staff.username} (${res.staff.role}) · idle timeout 30 min`,
     )
-    await refreshStatus(local.sessionToken)
-    await loadNews(local.sessionToken, { keepSelection: false })
+    if (!needsBind) {
+      await refreshStatus(local.sessionToken)
+      await loadNews(local.sessionToken, { keepSelection: false })
+    }
   }
+
+  async function doForgotPassword() {
+    const u = (forgotUser || staffUser).trim()
+    if (!u) {
+      showToast('error', 'Enter your Staff/Admin username')
+      return
+    }
+    setAuthBusy(true)
+    try {
+      const res = await window.hive.admin.staffForgotPassword(u)
+      if (!res.ok) {
+        showToast('error', res.error)
+        return
+      }
+      showToast('success', res.message)
+      setForgotUser(u)
+      setAuthView('reset')
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  async function doResetPassword() {
+    const u = (forgotUser || staffUser).trim()
+    if (!u || !resetCode.trim()) {
+      showToast('error', 'Username and reset code required')
+      return
+    }
+    if (resetPass.length < 8) {
+      showToast('error', 'New password must be at least 8 characters')
+      return
+    }
+    if (resetPass !== resetPass2) {
+      showToast('error', 'Passwords do not match')
+      return
+    }
+    setAuthBusy(true)
+    try {
+      const res = await window.hive.admin.staffResetPassword(u, resetCode.trim(), resetPass)
+      if (!res.ok) {
+        showToast('error', res.error)
+        return
+      }
+      showToast('success', res.message)
+      setStaffUser(u)
+      setStaffPass('')
+      setResetCode('')
+      setResetPass('')
+      setResetPass2('')
+      setAuthView('login')
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  async function doBindEmail() {
+    const email = bindEmail.trim()
+    if (!email || !email.includes('@')) {
+      showToast('error', 'Enter a valid email address')
+      return
+    }
+    setBindBusy(true)
+    try {
+      const res = await window.hive.admin.staffBindEmail(email)
+      if (!res.ok) {
+        showToast('error', res.error)
+        return
+      }
+      setStaffInfo((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...res.staff,
+              email: res.staff.email ?? email,
+              emailBound: true,
+              mustBindEmail: false,
+            }
+          : {
+              username: res.staff.username,
+              role: res.staff.role,
+              offlineQuota: res.staff.offlineQuota,
+              offlineUsed: res.staff.offlineUsed,
+              email: res.staff.email ?? email,
+              emailBound: true,
+              mustBindEmail: false,
+            },
+      )
+      setBindEmail('')
+      showToast('success', res.message || 'Email bound')
+      if (session) {
+        await refreshStatus(session)
+        await loadNews(session, { keepSelection: false })
+      }
+    } finally {
+      setBindBusy(false)
+    }
+  }
+
+  const needsEmailBind = Boolean(
+    staffInfo && (staffInfo.mustBindEmail || staffInfo.emailBound === false),
+  )
 
   if (booting) {
     return (
@@ -515,27 +636,221 @@ export function AdminPage() {
           </div>
         </div>
         <div className="panel" style={{ maxWidth: 420 }}>
-          <h2 style={{ fontSize: 15 }}>Staff / Admin login</h2>
-          {bootError && <p className="hint" style={{ color: 'var(--danger, #f66)' }}>{bootError}</p>}
-          <div className="form-row">
-            <label>Username</label>
-            <input
-              className="input"
-              value={staffUser}
-              onChange={(e) => setStaffUser(e.target.value)}
-              autoComplete="username"
-            />
+          {authView === 'login' && (
+            <>
+              <h2 style={{ fontSize: 15 }}>Staff / Admin login</h2>
+              {bootError && (
+                <p className="hint" style={{ color: 'var(--danger, #f66)' }}>
+                  {bootError}
+                </p>
+              )}
+              <div className="form-row">
+                <label>Username</label>
+                <input
+                  className="input"
+                  value={staffUser}
+                  onChange={(e) => setStaffUser(e.target.value)}
+                  autoComplete="username"
+                />
+              </div>
+              <div className="form-row">
+                <label>Password</label>
+                <input
+                  className="input"
+                  type="password"
+                  value={staffPass}
+                  onChange={(e) => setStaffPass(e.target.value)}
+                  autoComplete="current-password"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void doStaffLogin()
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ marginTop: 12 }}
+                disabled={!staffUser.trim() || !staffPass}
+                onClick={() => void doStaffLogin()}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ marginTop: 8, marginLeft: 8 }}
+                onClick={() => {
+                  setForgotUser(staffUser)
+                  setAuthView('forgot')
+                }}
+              >
+                Forgot Password
+              </button>
+            </>
+          )}
+
+          {authView === 'forgot' && (
+            <>
+              <h2 style={{ fontSize: 15 }}>Forgot Password</h2>
+              <p className="hint">
+                Enter your Staff/Admin username. If the account has a bound email, a one-time reset
+                code will be sent there (valid <strong>5 minutes</strong>, then deleted).
+              </p>
+              <div className="form-row">
+                <label>Staff / Admin username</label>
+                <input
+                  className="input"
+                  value={forgotUser}
+                  onChange={(e) => setForgotUser(e.target.value)}
+                  autoComplete="username"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void doForgotPassword()
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ marginTop: 12 }}
+                disabled={authBusy || !forgotUser.trim()}
+                onClick={() => void doForgotPassword()}
+              >
+                {authBusy ? 'Sending…' : 'Send reset email'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ marginTop: 8, marginLeft: 8 }}
+                disabled={authBusy}
+                onClick={() => setAuthView('login')}
+              >
+                Back to login
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ marginTop: 8, marginLeft: 8 }}
+                disabled={authBusy}
+                onClick={() => setAuthView('reset')}
+              >
+                I already have a code
+              </button>
+            </>
+          )}
+
+          {authView === 'reset' && (
+            <>
+              <h2 style={{ fontSize: 15 }}>Reset password</h2>
+              <p className="hint">
+                Enter the code from the email (expires in <strong>5 minutes</strong>), then choose a
+                new password (min 8 characters).
+              </p>
+              <div className="form-row">
+                <label>Username</label>
+                <input
+                  className="input"
+                  value={forgotUser}
+                  onChange={(e) => setForgotUser(e.target.value)}
+                  autoComplete="username"
+                />
+              </div>
+              <div className="form-row">
+                <label>Reset code</label>
+                <input
+                  className="input"
+                  value={resetCode}
+                  onChange={(e) => setResetCode(e.target.value)}
+                  autoComplete="one-time-code"
+                  spellCheck={false}
+                />
+              </div>
+              <div className="form-row">
+                <label>New password</label>
+                <input
+                  className="input"
+                  type="password"
+                  value={resetPass}
+                  onChange={(e) => setResetPass(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="form-row">
+                <label>Confirm password</label>
+                <input
+                  className="input"
+                  type="password"
+                  value={resetPass2}
+                  onChange={(e) => setResetPass2(e.target.value)}
+                  autoComplete="new-password"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void doResetPassword()
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ marginTop: 12 }}
+                disabled={
+                  authBusy ||
+                  !forgotUser.trim() ||
+                  !resetCode.trim() ||
+                  resetPass.length < 8 ||
+                  resetPass !== resetPass2
+                }
+                onClick={() => void doResetPassword()}
+              >
+                {authBusy ? 'Saving…' : 'Set new password'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ marginTop: 8, marginLeft: 8 }}
+                disabled={authBusy}
+                onClick={() => setAuthView('login')}
+              >
+                Back to login
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Logged in but must bind email before any Staff/Admin features
+  if (needsEmailBind) {
+    return (
+      <div className="page">
+        <div className="page-header">
+          <div>
+            <div className="kicker">Required</div>
+            <h1>Bind email address</h1>
+            <p>
+              Signed in as <strong>{staffInfo.username}</strong>. All Staff/Admin accounts must have
+              a bound email for password recovery. Features stay locked until you bind one.
+            </p>
           </div>
+          <button type="button" className="btn btn-secondary" onClick={() => void forceLogout()}>
+            Sign out
+          </button>
+        </div>
+        <div className="panel" style={{ maxWidth: 420 }}>
+          <h2 style={{ fontSize: 15 }}>Email address</h2>
+          <p className="hint">
+            Use an inbox you control. Forgot Password sends a one-time code here.
+          </p>
           <div className="form-row">
-            <label>Password</label>
+            <label>Email</label>
             <input
               className="input"
-              type="password"
-              value={staffPass}
-              onChange={(e) => setStaffPass(e.target.value)}
-              autoComplete="current-password"
+              type="email"
+              value={bindEmail}
+              onChange={(e) => setBindEmail(e.target.value)}
+              autoComplete="email"
+              placeholder="you@example.com"
               onKeyDown={(e) => {
-                if (e.key === 'Enter') void doStaffLogin()
+                if (e.key === 'Enter') void doBindEmail()
               }}
             />
           </div>
@@ -543,10 +858,10 @@ export function AdminPage() {
             type="button"
             className="btn btn-primary"
             style={{ marginTop: 12 }}
-            disabled={!staffUser.trim() || !staffPass}
-            onClick={() => void doStaffLogin()}
+            disabled={bindBusy || !bindEmail.trim()}
+            onClick={() => void doBindEmail()}
           >
-            Sign in
+            {bindBusy ? 'Saving…' : 'Bind email & continue'}
           </button>
         </div>
       </div>

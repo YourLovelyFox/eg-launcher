@@ -39,3 +39,11 @@ scripts/_*.mjs
 # Local ops notes
 sql/**/*.md
 cms-api/**/*.md
+
+# Generated mail DNS / DKIM private material (never publish)
+docs/mail-dns/*.pem
+docs/mail-dns/dkim_private*
+
+# DKIM private keys (server only)
+cms-api/keys/
+

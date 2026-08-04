@@ -8,6 +8,8 @@ type StaffUser = {
   offlineQuota: number
   offlineUsed: number
   enabled: boolean
+  email?: string | null
+  emailBound?: boolean
 }
 
 export function AdminStaffUsersPanel({ session }: { session: string }) {
@@ -15,6 +17,7 @@ export function AdminStaffUsersPanel({ session }: { session: string }) {
   const [users, setUsers] = useState<StaffUser[]>([])
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [email, setEmail] = useState('')
   const [role, setRole] = useState<'admin' | 'staff'>('staff')
   const [busy, setBusy] = useState(false)
 
@@ -32,6 +35,11 @@ export function AdminStaffUsersPanel({ session }: { session: string }) {
   }, [load])
 
   async function create() {
+    const em = email.trim()
+    if (!em || !em.includes('@')) {
+      showToast('error', 'A valid email is required for every staff account')
+      return
+    }
     setBusy(true)
     try {
       const res = await window.hive.admin.createStaffUser(session, {
@@ -39,6 +47,7 @@ export function AdminStaffUsersPanel({ session }: { session: string }) {
         password,
         role,
         offlineQuota: role === 'staff' ? 3 : 999,
+        email: em,
       })
       if (!res.ok) {
         showToast('error', res.error)
@@ -47,6 +56,7 @@ export function AdminStaffUsersPanel({ session }: { session: string }) {
       showToast('success', res.message || 'Created')
       setUsername('')
       setPassword('')
+      setEmail('')
       await load()
     } catch (err) {
       showToast('error', (err as Error).message)
@@ -60,8 +70,8 @@ export function AdminStaffUsersPanel({ session }: { session: string }) {
       <div className="panel" style={{ marginBottom: 16 }}>
         <h2>Create staff / admin user</h2>
         <p className="hint">
-          First-time bootstrap user is often <span className="mono">admin</span> with password = first
-          16 chars of your CMS admin_api_key (change after login).
+          Every Staff/Admin account needs a bound email for Forgot Password. Existing accounts without
+          email must bind one on next login before using features.
         </p>
         <div className="form-grid">
           <div className="form-row">
@@ -78,6 +88,16 @@ export function AdminStaffUsersPanel({ session }: { session: string }) {
             />
           </div>
           <div className="form-row">
+            <label>Email (required)</label>
+            <input
+              className="input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="staff@example.com"
+            />
+          </div>
+          <div className="form-row">
             <label>Role</label>
             <select className="select" value={role} onChange={(e) => setRole(e.target.value as 'admin' | 'staff')}>
               <option value="staff">Staff (limited + verification)</option>
@@ -89,7 +109,7 @@ export function AdminStaffUsersPanel({ session }: { session: string }) {
           type="button"
           className="btn btn-primary"
           style={{ marginTop: 12 }}
-          disabled={busy || !username || password.length < 4}
+          disabled={busy || !username || password.length < 4 || !email.trim()}
           onClick={() => void create()}
         >
           Create user
@@ -106,9 +126,19 @@ export function AdminStaffUsersPanel({ session }: { session: string }) {
                   <span className={`badge ${u.role === 'admin' ? 'badge-green' : 'badge-blue'}`}>
                     {u.role}
                   </span>
+                  {u.emailBound ? (
+                    <span className="badge badge-green" style={{ marginLeft: 6 }}>
+                      email
+                    </span>
+                  ) : (
+                    <span className="badge" style={{ marginLeft: 6 }}>
+                      no email
+                    </span>
+                  )}
                 </div>
                 <div className="sub">
                   Offline accounts: {u.offlineUsed}/{u.offlineQuota}
+                  {u.email ? ` · ${u.email}` : ' · email not bound'}
                 </div>
               </div>
               <button

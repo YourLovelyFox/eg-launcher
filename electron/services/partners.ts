@@ -14,6 +14,10 @@ import { installFeaturedPack } from './featuredPack'
 import { getProject, getProjectVersions } from './modrinth'
 import { fetchPartnerConfigs, getPartnerConfigById } from './partnerConfig'
 import { ensureDefaultServer } from './serversDat'
+import {
+  ensureEgGateModInstalled,
+  isEgForgePartner,
+} from './egGate'
 
 function toDefinition(p: PartnerConfig): PartnerDefinition {
   return {
@@ -141,6 +145,16 @@ export async function preparePartnerJoin(id: string): Promise<{
     throw new Error('Install the partner pack first')
   }
   ensurePartnerServer(status.local.instanceId, status.partner)
+  // EG Forge Server: client must have eggate.jar or the dedicated server kicks on join
+  if (isEgForgePartner(id)) {
+    const gate = ensureEgGateModInstalled(status.local.instanceId)
+    if (!gate.ok) {
+      throw new Error(
+        gate.error ||
+          'EG Gate mod missing. Build/install eggate.jar (New folder → scripts/install.ps1).',
+      )
+    }
+  }
   return {
     instanceId: status.local.instanceId,
     serverAddress: status.partner.serverAddress,
@@ -290,6 +304,16 @@ export async function installPartner(
       if (failures.length >= modSlugs.length) {
         throw new Error(`Failed to install partner mods:\n${failures.join('\n')}`)
       }
+    }
+  }
+
+  // Official EG Forge: install launcher-only gate mod into the instance
+  if (isEgForgePartner(partner.id)) {
+    emit('eggate', 0.96, 'Installing EG Gate (launcher-only access)…')
+    const gate = ensureEgGateModInstalled(instance.id)
+    if (!gate.ok) {
+      console.warn('[partners] eggate install:', gate.error)
+      // Soft-fail: instance still usable offline; join will hard-require the jar
     }
   }
 

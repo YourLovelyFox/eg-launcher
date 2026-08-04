@@ -6,6 +6,23 @@ Format: each release section is published as the GitHub Release body (and shown 
 
 ---
 
+## [2.7.0] — 2026-08-05
+
+### Added
+- **Staff Forgot Password**: enter Staff/Admin username → one-time email code (if email is bound) → set a new password.
+- **Mandatory staff email bind**: after login, Staff/Admin features stay locked until a recovery email is bound; new staff accounts require an email.
+- **Reset codes**: valid **5 minutes**, then removed from the database (also deleted after successful use).
+
+### Changed
+- Staff login / create-user UI: Forgot Password flow, bind-email gate, email field when creating staff users.
+- CMS staff APIs: `forgot_password`, `reset_password`, `bind_email`; SMTP mail helper for reset notices.
+
+### Downloads
+- Windows: `EG-Launcher-2.7.0-win-x64-setup.exe` and `EG-Launcher-2.7.0-win-x64-uninstall.exe`
+- Linux: `EG-Launcher-2.7.0-linux-x86_64.AppImage`
+
+---
+
 ## [2.5.14] — 2026-08-03
 
 ### Fixed (Microsoft Store certification)

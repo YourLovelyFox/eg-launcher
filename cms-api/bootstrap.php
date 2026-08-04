@@ -354,8 +354,18 @@ function staff_session_validate_and_touch(?string $token = null): ?array
               UNIQUE KEY uq_staff_user (username)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );
+        // Ensure email columns exist (older DBs)
+        try {
+            $pdo->exec('ALTER TABLE staff_users ADD COLUMN email VARCHAR(255) NULL');
+        } catch (Throwable $e) {
+        }
+        try {
+            $pdo->exec('ALTER TABLE staff_users ADD COLUMN email_bound_at DATETIME(3) NULL');
+        } catch (Throwable $e) {
+        }
+
         $stmt = $pdo->prepare(
-            'SELECT u.id, u.username, u.role, u.offline_quota, u.enabled,
+            'SELECT u.id, u.username, u.role, u.offline_quota, u.enabled, u.email,
                     s.expires_at, s.login_at, s.last_seen_at, s.ip
              FROM staff_sessions s
              JOIN staff_users u ON u.id = s.staff_id
@@ -402,12 +412,15 @@ function staff_session_validate_and_touch(?string $token = null): ?array
             }
         }
 
+        $email = isset($row['email']) ? trim((string) $row['email']) : '';
+
         return [
             'id' => (string) $row['id'],
             'username' => (string) $row['username'],
             'role' => (string) $row['role'],
             'offline_quota' => (int) $row['offline_quota'],
             'enabled' => (int) $row['enabled'],
+            'email' => $email,
             'login_at' => $row['login_at'] ? (string) $row['login_at'] : null,
             'last_seen_at' => $seen,
             'ip' => $row['ip'] ? (string) $row['ip'] : null,
@@ -417,6 +430,13 @@ function staff_session_validate_and_touch(?string $token = null): ?array
         error_log('[eg-cms] staff_session_validate_and_touch: ' . $e->getMessage());
         return null;
     }
+}
+
+/** Whether staff row has a valid bound email (required for Staff/Admin features). */
+function staff_has_bound_email(array $staff): bool
+{
+    $email = trim((string) ($staff['email'] ?? ''));
+    return $email !== '' && (bool) filter_var($email, FILTER_VALIDATE_EMAIL);
 }
 
 /**
@@ -441,6 +461,12 @@ function require_admin(): void
 
     $staff = try_staff_session_row();
     if ($staff !== null && ($staff['role'] ?? '') === 'admin' && (int) ($staff['enabled'] ?? 0) === 1) {
+        if (!staff_has_bound_email($staff)) {
+            json_fail(
+                'Bind an email address to your staff account before using Admin features (Settings → Staff).',
+                403
+            );
+        }
         return;
     }
 
@@ -452,13 +478,20 @@ function require_admin(): void
 /**
  * Any authenticated staff account (admin or staff role).
  * Used for offline account management and similar staff tools.
+ * Requires a bound email (except bind_email / me / logout on staff.php).
  *
- * @return array{id:string,username:string,role:string,offline_quota:int,enabled:int}
+ * @return array{id:string,username:string,role:string,offline_quota:int,enabled:int,email:string}
  */
 function require_staff_member(): array
 {
     $staff = try_staff_session_row();
     if ($staff !== null && (int) ($staff['enabled'] ?? 0) === 1) {
+        if (!staff_has_bound_email($staff)) {
+            json_fail(
+                'Bind an email address to your staff account before using Staff features (Settings → Staff).',
+                403
+            );
+        }
         return $staff;
     }
     rate_limit_or_fail('staff_auth', 20, 600);
@@ -466,7 +499,7 @@ function require_staff_member(): array
     json_fail('Staff login required (Settings → Staff). Sessions expire after 30 minutes idle.', 401);
 }
 
-/** @return array{id:string,username:string,role:string,offline_quota:int,enabled:int}|null */
+/** @return array{id:string,username:string,role:string,offline_quota:int,enabled:int,email:string}|null */
 function try_staff_session_row(): ?array
 {
     $row = staff_session_validate_and_touch();
@@ -479,6 +512,7 @@ function try_staff_session_row(): ?array
         'role' => $row['role'],
         'offline_quota' => $row['offline_quota'],
         'enabled' => $row['enabled'],
+        'email' => (string) ($row['email'] ?? ''),
     ];
 }
 

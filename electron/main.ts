@@ -98,8 +98,11 @@ import {
   clearStaffSession,
   getStaffInfo,
   refreshStaffMe,
+  staffBindEmail,
+  staffForgotPassword,
   staffLogin,
   staffLogout,
+  staffResetPassword,
 } from './services/staffSession'
 import { listApprovals, reviewApproval, staffMustQueue, submitApproval } from './services/approvals'
 import {
@@ -1011,6 +1014,15 @@ function registerIpc() {
       const staff = (await refreshStaffMe()) || getStaffInfo()
       return { staff, mustQueue: staffMustQueue() }
     })
+    ipcMain.handle('staff:forgotPassword', async (_e, username: string) =>
+      staffForgotPassword(username),
+    )
+    ipcMain.handle(
+      'staff:resetPassword',
+      async (_e, username: string, code: string, newPassword: string) =>
+        staffResetPassword(username, code, newPassword),
+    )
+    ipcMain.handle('staff:bindEmail', async (_e, email: string) => staffBindEmail(email))
     ipcMain.handle('staff:listUsers', async (_e, sessionToken: string) => {
       if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
       try {
@@ -1029,7 +1041,13 @@ function registerIpc() {
       async (
         _e,
         sessionToken: string,
-        input: { username: string; password: string; role: string; offlineQuota?: number },
+        input: {
+          username: string
+          password: string
+          role: string
+          offlineQuota?: number
+          email?: string
+        },
       ) => {
         if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
         try {

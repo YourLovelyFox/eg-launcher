@@ -38,4 +38,20 @@ return [
     // Minimum password length: 8. No fallback from admin_api_key.
     'staff_bootstrap_user' => '',
     'staff_bootstrap_pass' => '',
+
+    // SMTP for staff Forgot Password + email-bind notices (server-only secrets).
+    // Prefer SSL on port 465; STARTTLS uses port 587 with smtp_secure => 'tls'.
+    'smtp_host' => 'kw1.vipy.hu',
+    'smtp_port' => 465,
+    'smtp_user' => 'noreply@client116.ddns.net',
+    'smtp_pass' => 'YOUR_SMTP_PASSWORD',
+    'smtp_from' => 'noreply@client116.ddns.net',
+    'smtp_from_name' => 'EG Launcher',
+    // ssl | tls | none
+    'smtp_secure' => 'ssl',
+
+    // Optional DKIM (publish TXT: <selector>._domainkey.<domain>)
+    'dkim_domain' => 'eg-launcher.xyz',
+    'dkim_selector' => 'mail',
+    'dkim_private_key_path' => __DIR__ . '/keys/dkim_mail_private.pem',
 ];
