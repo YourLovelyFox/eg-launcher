@@ -19,11 +19,11 @@ Background on why Windows GitHub installers were dropped: **[GITHUB-SAC.md](./GI
 
 Preferred for public tags:
 
-1. Build **Linux AppImage**  
+1. Build **Linux AppImage only** (no Windows setup/uninstall on GitHub)  
 2. Publish release notes (changelog)  
-3. Optionally skip Windows NSIS for public GitHub (Store AppX is built separately via `npm run dist:store`)
+3. Windows Store AppX is built separately via `npm run dist:store` (not this workflow)
 
-Historical releases may still list old `.exe` assets; treat those as **unsupported**. New releases should ship **Linux only** on this repo.
+Historical releases may still list old `.exe` assets; treat those as **unsupported**. New releases ship **Linux AppImage only** on this repo.
 
 ---
 

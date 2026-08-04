@@ -13,7 +13,7 @@ on:
         required: false
         type: string
       force_rebuild:
-        description: 'Force rebuild & REPLACE binaries (changes file HASH and resets SmartScreen reputation). Keep OFF for normal releases.'
+        description: 'Force rebuild & REPLACE AppImage (changes file HASH). Keep OFF for normal releases.'
         required: false
         type: boolean
         default: false
@@ -55,7 +55,6 @@ jobs:
           fi
 
           TAG="v${VERSION}"
-          # workflow_dispatch may set force_rebuild; tag pushes leave it empty → false
           FORCE="${{ inputs.force_rebuild }}"
           if [[ -z "${FORCE}" || "${FORCE}" == "null" ]]; then FORCE="false"; fi
 
@@ -63,103 +62,31 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Resolved version: ${VERSION} (tag ${TAG}), force_rebuild=${FORCE}"
 
-          # If this version already has installer assets, do NOT rebuild by default.
-          # Re-uploading the same filename with a new binary changes SHA-256 and resets
-          # SmartScreen / reputation for that "EG Launcher x.y.z" file — like other indie
-          # apps, ship each version ONCE and leave the hash frozen.
-          HAS_WIN="false"
+          # Public GitHub releases are Linux AppImage only (no Windows setup/uninstall — SAC / Store).
+          # Re-uploading the same filename with a new binary changes SHA-256 — ship each version once.
           HAS_LINUX="false"
           if gh release view "${TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             ASSETS="$(gh release view "${TAG}" --repo "${{ github.repository }}" --json assets -q '.assets[].name' 2>/dev/null || true)"
             echo "Existing release assets:"
             echo "${ASSETS}"
-            if echo "${ASSETS}" | grep -qiE 'setup\.exe$|\.exe$'; then HAS_WIN="true"; fi
             if echo "${ASSETS}" | grep -qiE '\.AppImage$'; then HAS_LINUX="true"; fi
           else
             echo "No release for ${TAG} yet."
           fi
 
-          if [[ "${FORCE}" != "true" && "${HAS_WIN}" == "true" && "${HAS_LINUX}" == "true" ]]; then
+          if [[ "${FORCE}" != "true" && "${HAS_LINUX}" == "true" ]]; then
             echo "needs_build=false" >> "$GITHUB_OUTPUT"
-            echo "skip_reason=Release ${TAG} already has Windows+Linux installers. Hash frozen. Use force_rebuild only if you intentionally want a new hash." >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping rebuild — preserving installer hashes for ${TAG}"
+            echo "skip_reason=Release ${TAG} already has a Linux AppImage. Hash frozen. Use force_rebuild only if you intentionally want a new hash." >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping rebuild — preserving AppImage hash for ${TAG}"
           else
             echo "needs_build=true" >> "$GITHUB_OUTPUT"
-            if [[ "${FORCE}" == "true" && ("${HAS_WIN}" == "true" || "${HAS_LINUX}" == "true") ]]; then
-              echo "skip_reason=force_rebuild: will REPLACE existing assets (new hash)." >> "$GITHUB_OUTPUT"
-              echo "::warning::force_rebuild is ON — SmartScreen file reputation for this version will reset."
+            if [[ "${FORCE}" == "true" && "${HAS_LINUX}" == "true" ]]; then
+              echo "skip_reason=force_rebuild: will REPLACE existing AppImage (new hash)." >> "$GITHUB_OUTPUT"
+              echo "::warning::force_rebuild is ON — AppImage hash for this version will change."
             else
               echo "skip_reason=" >> "$GITHUB_OUTPUT"
             fi
           fi
-
-  build-windows:
-    name: Build Windows x64 (NSIS)
-    needs: resolve-version
-    if: needs.resolve-version.outputs.needs_build == 'true'
-    runs-on: windows-latest
-    timeout-minutes: 45
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Set package version
-        shell: bash
-        run: npm version "${{ needs.resolve-version.outputs.version }}" --no-git-tag-version --allow-same-version
-
-      - name: Build app (Vite + Electron compile)
-        run: npm run build
-
-      # Keep signAndEditExecutable=true so rcedit stamps PE version metadata.
-      # Do NOT force_rebuild the same version (hash freeze). See docs/GITHUB-SAC.md
-      - name: Package Windows NSIS (version metadata stamped)
-        shell: bash
-        env:
-          CI: 'true'
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          echo "Building Windows installer (rcedit metadata on)"
-          npx electron-builder --win nsis --x64 --publish never
-
-      - name: Build standalone Windows uninstaller
-        shell: bash
-        env:
-          CI: 'true'
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: |
-          set -euo pipefail
-          node scripts/build-win-uninstaller.mjs --version "${{ needs.resolve-version.outputs.version }}"
-          ls -la release/*uninstall* || true
-
-      - name: List artifacts + SHA-256 (freeze this hash)
-        shell: bash
-        run: |
-          ls -la release
-          echo "=== SHA-256 (publish once, do not replace) ==="
-          sha256sum release/*.{exe,yml,blockmap} 2>/dev/null || shasum -a 256 release/* || true
-
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: eg-launcher-windows-x64
-          path: |
-            release/*.exe
-            release/*.yml
-            release/*.blockmap
-          if-no-files-found: error
-          retention-days: 14
 
   build-linux:
     name: Build Linux x64 (AppImage)
@@ -206,34 +133,45 @@ jobs:
           name: eg-launcher-linux-x64
           path: |
             release/*.AppImage
-            release/*.yml
+            release/latest-linux.yml
             release/*.blockmap
           if-no-files-found: error
           retention-days: 14
 
   publish-release:
     name: Publish GitHub Release
-    needs: [resolve-version, build-windows, build-linux]
-    # Run when we built, or when we skipped (to report freeze)
-    if: always() && needs.resolve-version.result == 'success' && (needs.resolve-version.outputs.needs_build != 'true' || (needs.build-windows.result == 'success' && needs.build-linux.result == 'success'))
+    needs: [resolve-version, build-linux]
+    if: always() && needs.resolve-version.result == 'success' && (needs.resolve-version.outputs.needs_build != 'true' || needs.build-linux.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Hash frozen — nothing to upload
         if: needs.resolve-version.outputs.needs_build != 'true'
         run: |
           echo "${{ needs.resolve-version.outputs.skip_reason }}"
-          echo "Release ${{ needs.resolve-version.outputs.tag }} installers are frozen (same SHA forever until force_rebuild)."
+          echo "Release ${{ needs.resolve-version.outputs.tag }} AppImage is frozen (same SHA until force_rebuild)."
 
       - name: Checkout (for CHANGELOG.md)
         if: needs.resolve-version.outputs.needs_build == 'true'
         uses: actions/checkout@v4
 
-      - name: Download all build artifacts
+      - name: Download Linux build artifacts
         if: needs.resolve-version.outputs.needs_build == 'true'
         uses: actions/download-artifact@v4
         with:
+          name: eg-launcher-linux-x64
           path: artifacts
-          merge-multiple: true
+
+      - name: Keep only AppImage + Linux updater metadata
+        if: needs.resolve-version.outputs.needs_build == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts
+          # Drop any accidental Windows leftovers
+          rm -f ./*.exe ./*setup* ./*uninstall* ./latest.yml ./builder-debug.yml 2>/dev/null || true
+          find . -type f | sort
+          echo "=== SHA-256 ==="
+          find . -type f -print0 | xargs -0 sha256sum
 
       - name: Build release notes from CHANGELOG.md
         if: needs.resolve-version.outputs.needs_build == 'true'
@@ -244,49 +182,59 @@ jobs:
           echo "---- release-notes.md ----"
           cat release-notes.md
 
-      - name: List files + SHA-256
-        if: needs.resolve-version.outputs.needs_build == 'true'
-        run: |
-          find artifacts -type f | sort
-          echo "=== SHA-256 ==="
-          find artifacts -type f -print0 | xargs -0 sha256sum
-
-      - name: Publish GitHub Release (first publish of this version)
+      - name: Publish GitHub Release (Linux AppImage only)
         if: needs.resolve-version.outputs.needs_build == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.resolve-version.outputs.tag }}
           name: EG Launcher ${{ needs.resolve-version.outputs.version }}
-          # Human changelog + SAC banner from scripts/extract-changelog.mjs
           body_path: release-notes.md
           generate_release_notes: false
-          # Full releases only — GitHub "prerelease" breaks electron-updater / latest.yml for installs.
           draft: false
           prerelease: false
-          # NSIS setup + AppImage + latest.yml / latest-linux.yml
-          # IMPORTANT: Do not re-run with force_rebuild for the same version unless necessary.
-          files: artifacts/*
-          fail_on_unmatched_files: true
+          files: |
+            artifacts/*.AppImage
+            artifacts/latest-linux.yml
+            artifacts/*.blockmap
+          fail_on_unmatched_files: false
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Release summary (GitHub + SAC)
+      - name: Remove Windows setup/uninstall from this release (if any)
+        if: needs.resolve-version.outputs.needs_build == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.resolve-version.outputs.tag }}"
+          ASSETS="$(gh release view "${TAG}" --repo "${{ github.repository }}" --json assets -q '.assets[].name' 2>/dev/null || true)"
+          echo "Assets before cleanup:"
+          echo "${ASSETS}"
+          while IFS= read -r name; do
+            [[ -z "${name}" ]] && continue
+            if echo "${name}" | grep -qiE '\.exe$|setup|uninstall|latest\.yml$|builder-debug'; then
+              echo "Deleting asset: ${name}"
+              gh release delete-asset "${TAG}" "${name}" --repo "${{ github.repository }}" --yes || true
+            fi
+          done <<< "${ASSETS}"
+          echo "Assets after cleanup:"
+          gh release view "${TAG}" --repo "${{ github.repository }}" --json assets -q '.assets[].name' || true
+
+      - name: Release summary
         if: always()
         run: |
           {
             echo "## EG Launcher ${{ needs.resolve-version.outputs.tag }}"
             echo ""
-            echo "### GitHub Windows"
-            echo "- SAC Enforcement may hard-block until this **exact hash** has reputation"
-            echo "- **Hash freeze:** do not force_rebuild this version"
-            echo "- Docs: \`docs/GITHUB-SAC.md\`"
-            echo ""
-            echo "### Linux"
-            echo "- AppImage from release assets"
+            echo "### GitHub (public)"
+            echo "- **Linux AppImage only** (no Windows setup/uninstall)"
+            echo "- Windows users: Microsoft Store (when published)"
+            echo "- Docs: \`docs/GITHUB-RELEASES.md\`, \`docs/GITHUB-SAC.md\`"
             if [[ "${{ needs.resolve-version.outputs.needs_build }}" != "true" ]]; then
               echo ""
-              echo "> Hash frozen — no new binaries uploaded (good for reputation)."
+              echo "> Hash frozen — no new AppImage uploaded."
               echo "> ${{ needs.resolve-version.outputs.skip_reason }}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
