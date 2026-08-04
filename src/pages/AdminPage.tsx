@@ -8,6 +8,7 @@ import { AdminFeaturedPanel } from './AdminFeaturedPanel'
 import { AdminApprovalsPanel } from './AdminApprovalsPanel'
 import { AdminStaffUsersPanel } from './AdminStaffUsersPanel'
 import { AdminAdsPanel } from './AdminAdsPanel'
+import { RichTextEditor } from '../components/RichTextEditor'
 
 const SESSION_KEY = 'eg-admin-session'
 const SESSION_EXPIRES_KEY = 'eg-admin-session-expires'
@@ -625,7 +626,7 @@ export function AdminPage() {
           className={`btn ${tab === 'featured' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setTab('featured')}
         >
-          Featured packs
+          Edit Featured packs
         </button>
         {/* Admin-only: review queue, staff accounts, ads monetization */}
         {(!staffInfo || staffInfo.role === 'admin') && (
@@ -790,29 +791,26 @@ export function AdminPage() {
                   />
                 </div>
                 <div className="form-row">
-                  <label htmlFor="news-summary">Summary (card preview)</label>
-                  <input
+                  <RichTextEditor
                     id="news-summary"
-                    className="input"
-                    type="text"
-                    name="news-summary"
-                    autoComplete="off"
+                    label="Summary (card preview)"
                     value={draft.summary || ''}
-                    onChange={(e) => updateDraft({ summary: e.target.value })}
+                    minHeight={72}
+                    placeholder="Short preview on the card…"
+                    onChange={(html) => updateDraft({ summary: html })}
                     onFocus={() => {
                       editingRef.current = true
                     }}
                   />
                 </div>
                 <div className="form-row">
-                  <label htmlFor="news-body">Body</label>
-                  <textarea
+                  <RichTextEditor
                     id="news-body"
-                    className="input admin-textarea"
-                    name="news-body"
-                    rows={8}
+                    label="Body"
                     value={draft.body || ''}
-                    onChange={(e) => updateDraft({ body: e.target.value })}
+                    minHeight={180}
+                    placeholder="Full post — bold, color, size, lists, links…"
+                    onChange={(html) => updateDraft({ body: html })}
                     onFocus={() => {
                       editingRef.current = true
                     }}

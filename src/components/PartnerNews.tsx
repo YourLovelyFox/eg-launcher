@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NewsFeedResult, NewsItem, PartnerEvent } from '../../shared/types'
 import { markPartnerNewsSeen, partnerNewsFingerprint } from '../qolPrefs'
 import { useAppStore } from '../store'
+import { RichTextEditor } from './RichTextEditor'
+import { NewsHtml } from './NewsHtml'
+import { htmlToPlain } from '../utils/newsHtml'
 
 const POLL_MS = 8_000
 
@@ -492,12 +495,17 @@ export function PartnerNews({ newsTag, partnerTitle, partnerId }: Props) {
                   </div>
                   <h3 className="home-news-title">{item.title}</h3>
                   {!open && (item.summary || item.body) && (
-                    <p className="home-news-preview">{item.summary || item.body}</p>
+                    <p className="home-news-preview">
+                      {htmlToPlain(item.summary || item.body || '')}
+                    </p>
                   )}
                 </button>
                 {open && (
                   <div className="home-news-body">
-                    <p className="home-news-body-text">{item.body || item.summary || ''}</p>
+                    <NewsHtml
+                      className="home-news-body-text"
+                      html={item.body || item.summary || ''}
+                    />
                     {item.url && (
                       <button
                         type="button"
@@ -681,21 +689,21 @@ export function PartnerNews({ newsTag, partnerTitle, partnerId }: Props) {
                     <input className="input" type="text" value={newsTag} readOnly />
                   </div>
                   <div className="form-row">
-                    <label>Summary</label>
-                    <input
-                      className="input"
-                      type="text"
+                    <RichTextEditor
+                      label="Summary"
                       value={draft.summary || ''}
-                      onChange={(e) => updateDraft({ summary: e.target.value })}
+                      minHeight={64}
+                      placeholder="Card preview…"
+                      onChange={(html) => updateDraft({ summary: html })}
                     />
                   </div>
                   <div className="form-row">
-                    <label>Body</label>
-                    <textarea
-                      className="input admin-textarea"
-                      rows={6}
+                    <RichTextEditor
+                      label="Body"
                       value={draft.body || ''}
-                      onChange={(e) => updateDraft({ body: e.target.value })}
+                      minHeight={160}
+                      placeholder="Full post — formatting toolbar above"
+                      onChange={(html) => updateDraft({ body: html })}
                     />
                   </div>
                   <div className="form-row">

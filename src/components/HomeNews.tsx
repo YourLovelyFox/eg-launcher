@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { NewsFeedResult, NewsItem } from '../../shared/types'
+import { NewsHtml } from './NewsHtml'
+import { htmlToPlain } from '../utils/newsHtml'
 
 /** Poll often; main process pins local publishes so force won't clobber them */
 const POLL_MS = 8_000
@@ -137,6 +139,7 @@ export function HomeNews() {
           {items.map((item: NewsItem) => {
             const open = expandedId === item.id
             const preview = item.summary || item.body || ''
+            const previewPlain = htmlToPlain(preview)
             return (
               <article key={item.id} className={`home-news-card${open ? ' is-open' : ''}`}>
                 <button
@@ -149,11 +152,16 @@ export function HomeNews() {
                     <time dateTime={item.date}>{formatNewsDate(item.date)}</time>
                   </div>
                   <h3 className="home-news-title">{item.title}</h3>
-                  {!open && preview && <p className="home-news-preview">{preview}</p>}
+                  {!open && previewPlain && (
+                    <p className="home-news-preview">{previewPlain}</p>
+                  )}
                 </button>
                 {open && (
                   <div className="home-news-body">
-                    <p className="home-news-body-text">{item.body || item.summary || ''}</p>
+                    <NewsHtml
+                      className="home-news-body-text"
+                      html={item.body || item.summary || ''}
+                    />
                     {item.url && (
                       <button
                         type="button"
