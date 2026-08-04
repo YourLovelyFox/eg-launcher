@@ -237,11 +237,9 @@ Also:
 - **Bee's SMP** (Featured) — install pack when you want it  
 - **Horizons SMP** (Partners) — set up Fabric instance + default mods + server  
 
-### Auto-update
+### Updates
 
-Packaged builds check GitHub Releases a few seconds after start (and via **Settings → Check for updates**). Nothing downloads until you confirm, then the installer / AppImage update flow runs.
-
-Dev mode (`npm run dev`) has auto-update **disabled**.
+There is **no in-app auto-updater**. On **Windows**, install and update via the **Microsoft Store**. On **Linux**, download a new AppImage from GitHub Releases when you want to upgrade.
 
 ---
 
@@ -261,7 +259,7 @@ Instances, accounts, mods, and caches live under that folder.
 - **Electron** + **Vite** + **React** + **TypeScript**  
 - Modrinth REST API v2  
 - Mojang / Fabric / Forge / NeoForge metadata  
-- `electron-updater` + GitHub Releases (**Linux AppImage**); Microsoft Store for Windows  
+- Microsoft Store updates on Windows; Linux AppImage from GitHub Releases (manual)  
 
 
 ---
