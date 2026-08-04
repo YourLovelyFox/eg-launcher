@@ -1,5 +1,6 @@
 import type { PartnerEvent } from '../../shared/types'
 import { cmsRequest } from './cms/httpClient'
+import { getStaffSessionToken } from './staffSession'
 
 export async function listPartnerEvents(partnerId?: string): Promise<PartnerEvent[]> {
   const path = partnerId
@@ -24,11 +25,13 @@ export async function adminUpsertPartnerEvent(
 ): Promise<{ ok: true; event: PartnerEvent; message?: string } | { ok: false; error: string }> {
   if (!requireAdmin(sessionToken)) return { ok: false, error: 'Not authenticated' }
   try {
+    const staffTok = getStaffSessionToken()
     const r = await cmsRequest<{ event?: PartnerEvent; message?: string; error?: string }>({
       path: 'partner_events.php',
       method: 'POST',
       admin: true,
-      body: { action: 'upsert', ...input },
+      sessionToken: staffTok,
+      body: { action: 'upsert', ...input, sessionToken: staffTok || undefined },
     })
     if (!r.event) return { ok: false, error: r.error || 'Save failed' }
     return { ok: true, event: r.event, message: r.message }
@@ -44,11 +47,13 @@ export async function adminDeletePartnerEvent(
 ): Promise<{ ok: true; message?: string } | { ok: false; error: string }> {
   if (!requireAdmin(sessionToken)) return { ok: false, error: 'Not authenticated' }
   try {
+    const staffTok = getStaffSessionToken()
     const r = await cmsRequest<{ message?: string; error?: string }>({
       path: 'partner_events.php',
       method: 'POST',
       admin: true,
-      body: { action: 'delete', id },
+      sessionToken: staffTok,
+      body: { action: 'delete', id, sessionToken: staffTok || undefined },
     })
     return { ok: true, message: r.message || 'Deleted' }
   } catch (err) {

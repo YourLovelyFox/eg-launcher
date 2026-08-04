@@ -26,12 +26,13 @@ export async function submitApproval(input: {
   payload: unknown
 }): Promise<{ ok: true; id: string; message?: string } | { ok: false; error: string }> {
   try {
+    const staffTok = getStaffSessionToken()
     const r = await cmsRequest<{ id?: string; message?: string; error?: string }>({
       path: 'approvals.php?action=submit',
       method: 'POST',
       admin: true,
-      sessionToken: getStaffSessionToken(),
-      body: input,
+      sessionToken: staffTok,
+      body: { ...input, sessionToken: staffTok || undefined },
     })
     if (!r.id) return { ok: false, error: r.error || 'Submit failed' }
     return { ok: true, id: r.id, message: r.message }

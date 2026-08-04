@@ -3,6 +3,7 @@ import path from 'path'
 import { dialog, BrowserWindow } from 'electron'
 import { requireAdmin } from './admin'
 import { cmsRequest } from './cms/httpClient'
+import { getStaffSessionToken } from './staffSession'
 
 const MAX_BYTES = 2 * 1024 * 1024
 const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
@@ -77,15 +78,18 @@ export async function uploadAdminImage(
     // (Host blocks static files and often upload.php by name.)
     let r: { ok?: boolean; url?: string; message?: string; error?: string }
     try {
+      const staffTok = getStaffSessionToken()
       r = await cmsRequest({
         path: 'partners.php',
         method: 'POST',
         admin: true,
+        sessionToken: staffTok,
         body: {
           action: 'upload_image',
           filename: name,
           mime,
           data: base64,
+          sessionToken: staffTok || undefined,
         },
       })
     } catch (err) {

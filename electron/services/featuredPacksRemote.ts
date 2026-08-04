@@ -1,6 +1,7 @@
 import type { FeaturedPackConfig } from '../../shared/types'
 import { FEATURED_PACK } from '../../shared/branding'
 import { cmsRequest } from './cms/httpClient'
+import { getStaffSessionToken } from './staffSession'
 
 function fallbackPacks(): FeaturedPackConfig[] {
   return [
@@ -37,11 +38,13 @@ export async function saveFeaturedPack(
   pack: Partial<FeaturedPackConfig> & { slug: string; projectId: string; title: string },
 ): Promise<{ ok: true; pack: FeaturedPackConfig } | { ok: false; error: string }> {
   try {
+    const staffTok = getStaffSessionToken()
     const r = await cmsRequest<{ pack?: FeaturedPackConfig; error?: string }>({
       path: 'featured_packs.php',
       method: 'POST',
       admin: true,
-      body: { action: 'upsert', ...pack },
+      sessionToken: staffTok,
+      body: { action: 'upsert', ...pack, sessionToken: staffTok || undefined },
     })
     if (!r.pack) return { ok: false, error: r.error || 'Save failed' }
     return { ok: true, pack: r.pack }
@@ -54,11 +57,13 @@ export async function deleteFeaturedPack(
   id: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
+    const staffTok = getStaffSessionToken()
     await cmsRequest({
       path: 'featured_packs.php',
       method: 'POST',
       admin: true,
-      body: { action: 'delete', id },
+      sessionToken: staffTok,
+      body: { action: 'delete', id, sessionToken: staffTok || undefined },
     })
     return { ok: true }
   } catch (err) {

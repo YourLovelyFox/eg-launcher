@@ -1,5 +1,6 @@
 import type { OfflineAuthFile, OfflineAuthUser } from '../../../shared/types'
 import { cmsRequest } from '../cms/httpClient'
+import { getStaffSessionToken } from '../staffSession'
 
 export type PartnerAuthRecord = {
   id: string
@@ -170,11 +171,13 @@ export async function cmsSetOfflineUnlock(
   password: string,
 ): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
   try {
+    const staffTok = getStaffSessionToken()
     const r = await cmsRequest<{ message?: string }>({
       path: 'offline_auth.php?action=set_unlock',
       method: 'POST',
       admin: true,
-      body: { password },
+      sessionToken: staffTok,
+      body: { password, sessionToken: staffTok || undefined },
     })
     return { ok: true, message: r.message || 'Unlock password set' }
   } catch (err) {
@@ -187,11 +190,13 @@ export async function cmsCreateOfflineUser(
   password: string,
 ): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
   try {
+    const staffTok = getStaffSessionToken()
     const r = await cmsRequest<{ message?: string }>({
       path: 'offline_auth.php?action=create_user',
       method: 'POST',
       admin: true,
-      body: { username, password },
+      sessionToken: staffTok,
+      body: { username, password, sessionToken: staffTok || undefined },
     })
     return { ok: true, message: r.message || 'User created' }
   } catch (err) {
@@ -203,11 +208,13 @@ export async function cmsDeleteOfflineUser(
   id: string,
 ): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
   try {
+    const staffTok = getStaffSessionToken()
     const r = await cmsRequest<{ message?: string }>({
       path: 'offline_auth.php?action=delete_user',
       method: 'POST',
       admin: true,
-      body: { id },
+      sessionToken: staffTok,
+      body: { id, sessionToken: staffTok || undefined },
     })
     return { ok: true, message: r.message || 'User deleted' }
   } catch (err) {
