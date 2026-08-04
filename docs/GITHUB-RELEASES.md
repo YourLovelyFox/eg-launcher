@@ -4,10 +4,10 @@
 
 | Platform | Channel |
 | --- | --- |
-| **Windows** | **Microsoft Store only** — GitHub `setup.exe` installers are **not** published (SAC / SmartScreen). |
-| **Linux** | **GitHub Releases** — `EG-Launcher-*-linux-*.AppImage` only |
+| **Windows** | **Microsoft Store only** (GitHub `setup.exe` not published — SAC). **Store listing is currently unavailable** while Microsoft **publishing / certification** finishes — users must wait. |
+| **Linux** | **GitHub Releases** — `EG-Launcher-*-linux-*.AppImage` only (available now) |
 
-Store product: https://apps.microsoft.com/detail/9P32SFSJH9B1  
+Store product (when live): https://apps.microsoft.com/detail/9P32SFSJH9B1  
 
 Background on why Windows GitHub installers were dropped: **[GITHUB-SAC.md](./GITHUB-SAC.md)**.
 
@@ -64,7 +64,7 @@ See [MS-STORE.md](./MS-STORE.md). Store builds are often uploaded to a **private
 
 **Where is the Windows installer?**
 
-> Windows `setup.exe` files were removed from GitHub because of Smart App Control / SmartScreen. Please install EG Launcher from the Microsoft Store: https://apps.microsoft.com/detail/9P32SFSJH9B1
+> Windows `setup.exe` files were removed from GitHub because of Smart App Control / SmartScreen. The Microsoft Store is the official Windows path, but the listing is **not available yet** (publishing / certification in progress). Please wait a bit — there is no public Windows download until the Store goes live.
 
 **Linux**
 

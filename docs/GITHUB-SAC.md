@@ -7,10 +7,10 @@
 | Channel | Status |
 | --- | --- |
 | GitHub Windows NSIS / setup.exe | **Removed / discontinued** (SAC / SmartScreen reputation) |
-| Microsoft Store (AppX) | **Official Windows install** |
-| GitHub Linux AppImage | **Still supported** |
+| Microsoft Store (AppX) | **Official Windows path** — **currently unavailable** (Microsoft publishing / certification in progress; users must wait) |
+| GitHub Linux AppImage | **Still supported** (available now) |
 
-Users on Windows should install from:  
+When the Store listing is published, Windows users should install from:  
 https://apps.microsoft.com/detail/9P32SFSJH9B1  
 
 ## Why

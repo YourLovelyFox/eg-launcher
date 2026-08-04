@@ -12,16 +12,16 @@ Modern **Minecraft: Java Edition** launcher for browsing and installing mods via
 >
 > **Unfortunately, the Windows `setup.exe` installers have been removed** because of **Smart App Control (SAC) / SmartScreen** reputation issues with unsigned or frequently rebuilt GitHub binaries.
 >
-> | Platform | Where to get EG Launcher |
+> | Platform | Status |
 > | --- | --- |
-> | **Windows** | **[Microsoft Store only](https://apps.microsoft.com/detail/9P32SFSJH9B1)** — currently the supported Windows install path |
-> | **Linux** | **[GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest)** — **AppImage only** |
+> | **Windows** | **Microsoft Store** is the official channel — **currently unavailable** while the listing finishes the **Microsoft publishing / certification process**. Please wait a bit; we’ll update when it’s live. |
+> | **Linux** | **[GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest)** — **AppImage only** (available now) |
 >
-> Please do **not** look for or trust third-party Windows setups. Use the Store on Windows.
+> Please do **not** look for or trust third-party Windows setups. There is no public Windows installer on GitHub while Store publishing is in progress.
 
 | | |
 | --- | --- |
-| **Windows** | [Microsoft Store — EG Launcher](https://apps.microsoft.com/detail/9P32SFSJH9B1) |
+| **Windows** | Microsoft Store — **pending publication** (not installable yet; wait) |
 | **Linux** | [GitHub Releases (AppImage)](https://github.com/YourLovelyFox/eg-launcher/releases/latest) |
 | **Changelog** | [CHANGELOG.md](./CHANGELOG.md) |
 | **Privacy** | [PRIVACY.md](./PRIVACY.md) |
@@ -40,27 +40,29 @@ Modern **Minecraft: Java Edition** launcher for browsing and installing mods via
 - Featured pack: **Bee's SMP** (manual install, news & changelogs from Modrinth)  
 - **Partners** from CMS (staff-managed)  
 - **Updates**  
-  - **Windows (Microsoft Store):** updates via the Store only  
+  - **Windows (Microsoft Store):** updates via the Store only (once the listing is published)  
   - **Linux (GitHub AppImage):** optional in-app updates from GitHub Releases  
 
 ---
 
 ## Download (end users)
 
-### Windows → Microsoft Store only
+### Windows → Microsoft Store (publishing in progress)
 
-**https://apps.microsoft.com/detail/9P32SFSJH9B1**
+GitHub no longer distributes Windows `setup.exe` files (SAC / SmartScreen).
 
-GitHub no longer distributes Windows `setup.exe` files. SAC / SmartScreen blocked or reset reputation for unsigned installers after rebuilds. The Store package is the official Windows channel.
+The **official Windows path is the Microsoft Store**, but the app is **not available to install yet** — it is still in Microsoft’s **publishing / certification process**. **Windows users need to wait a bit** until the listing goes live. We will update this README when Store install is ready.
 
-### Linux → GitHub Releases (AppImage)
+Do not use third-party Windows builds.
+
+### Linux → GitHub Releases (AppImage) — available now
 
 **https://github.com/YourLovelyFox/eg-launcher/releases/latest**
 
 | Platform | File | Notes |
 | --- | --- | --- |
 | **Linux x64** | `EG-Launcher-<version>-linux-*.AppImage` | Only installer published on GitHub |
-| **Windows** | — | Use [Microsoft Store](https://apps.microsoft.com/detail/9P32SFSJH9B1) |
+| **Windows** | — | Store listing **pending publication** — please wait |
 
 Release process (maintainers): [docs/GITHUB-RELEASES.md](./docs/GITHUB-RELEASES.md) · SAC history: [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md)
 
