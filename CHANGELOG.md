@@ -16,6 +16,7 @@ Format: each release section is published as the GitHub Release body (and shown 
 ### Changed
 - Staff login / create-user UI: Forgot Password flow, bind-email gate, email field when creating staff users.
 - CMS staff APIs: `forgot_password`, `reset_password`, `bind_email`; SMTP mail helper for reset notices.
+- **No in-app auto-updater**: removed `electron-updater` / GitHub download flow. Windows updates via **Microsoft Store**; Settings opens Store (or GitHub Releases on non-Windows for manual AppImage).
 
 ### Downloads
 - Windows: `EG-Launcher-2.7.0-win-x64-setup.exe` and `EG-Launcher-2.7.0-win-x64-uninstall.exe`

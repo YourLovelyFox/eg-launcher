@@ -85,7 +85,6 @@ import {
   initAutoUpdater,
   installUpdate,
   setUpdaterWindow,
-  startPeriodicUpdateChecks,
   stopPeriodicUpdateChecks,
 } from './services/updater'
 import {
@@ -275,21 +274,13 @@ function createWindow() {
     setNewsUpdateListener(null)
   })
 
-  // Init updater after the window exists; check much later so first paint is smooth.
-  // Microsoft Store builds never run electron-updater (no app-update.yml under WindowsApps).
+  // No GitHub auto-updater — Windows updates via Microsoft Store.
   mainWindow.webContents.once('did-finish-load', () => {
     try {
       initAutoUpdater(mainWindow)
     } catch (err) {
       console.warn('[updater] init on load failed', err)
     }
-    setTimeout(() => {
-      checkForUpdates(false)
-        .catch((err) => console.warn('[updater] startup check', err))
-        .finally(() => {
-          startPeriodicUpdateChecks()
-        })
-    }, 12_000)
   })
 }
 
@@ -846,11 +837,10 @@ function registerIpc() {
     })
   })
 
-  // App auto-update (NSIS / AppImage via GitHub Releases)
+  // Version / open Store or releases (no in-app download/install)
   ipcMain.handle('updater:getStatus', () => getUpdateStatus())
   ipcMain.handle('updater:getVersion', () => getAppVersionInfo())
   ipcMain.handle('updater:check', async () => checkForUpdates(true))
-  // Download stays async; progress is pushed via events so the window can repaint
   ipcMain.handle('updater:download', async () => downloadUpdate())
   ipcMain.handle('updater:install', () => {
     installUpdate()

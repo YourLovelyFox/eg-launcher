@@ -2,8 +2,8 @@ import { app } from 'electron'
 import path from 'path'
 
 /**
- * Microsoft Store / MSIX installs live under WindowsApps and must not use
- * electron-updater (no writable app-update.yml; updates come from the Store).
+ * Microsoft Store / MSIX installs live under WindowsApps.
+ * Updates come from the Store — no in-app updater.
  */
 export function isMicrosoftStoreInstall(): boolean {
   if (process.env.EG_MS_STORE === '1' || process.env.EG_MS_STORE === 'true') {
@@ -30,7 +30,10 @@ export function isMicrosoftStoreInstall(): boolean {
   return false
 }
 
-/** GitHub / NSIS / AppImage channel — allow electron-updater. */
+/**
+ * In-app self-update (electron-updater / GitHub) is disabled.
+ * Windows updates are handled by the Microsoft Store.
+ */
 export function isSelfUpdateChannel(): boolean {
-  return app.isPackaged && !isMicrosoftStoreInstall()
+  return false
 }

@@ -28,7 +28,7 @@ import {
   IconUser,
 } from './Icons'
 import { PlayerHeadWithFallback } from './PlayerHead'
-import { UpdateModal } from './UpdateModal'
+
 
 function partnerNavIcon(p: PartnerDefinition): string | null {
   if (p.iconUrl) return p.iconUrl
@@ -614,7 +614,6 @@ export function Layout() {
         </div>
       )}
 
-      <UpdateModal />
     </div>
   )
 }

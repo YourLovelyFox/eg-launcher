@@ -413,7 +413,7 @@ export type RunningGameInfo = {
   startedAt: string | null
 }
 
-/** electron-updater status pushed to the renderer */
+/** Launcher update status (in-app download disabled; Store / manual only) */
 export type UpdateStatus =
   | { state: 'idle' }
   | { state: 'checking' }
@@ -447,7 +447,7 @@ export type UpdateStatus =
 export type AppVersionInfo = {
   /** True when installed from Microsoft Store / WindowsApps (MSIX) */
   microsoftStore?: boolean
-  /** True when GitHub electron-updater is allowed */
+  /** Always false — in-app auto-update removed */
   selfUpdateChannel?: boolean
   version: string
   isPackaged: boolean

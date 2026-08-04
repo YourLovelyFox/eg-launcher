@@ -114,7 +114,7 @@ If ads are enabled in a future build:
 
 ## 7. Auto-updates
 
-Packaged builds can check **GitHub Releases** for a new version. Update checks and downloads use GitHub’s infrastructure. Nothing is installed until you confirm (as designed in the updater UI).
+EG Launcher does **not** use an in-app auto-updater. On **Windows**, updates are delivered by the **Microsoft Store**. On **Linux**, users download new AppImages from GitHub Releases manually when available.
 
 ---
 

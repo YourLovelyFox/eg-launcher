@@ -40,18 +40,7 @@ export default defineConfig(({ command }) => {
             build: {
               outDir: 'dist-electron',
               rollupOptions: {
-                external: [
-                  'electron',
-                  'electron-updater',
-                  'builder-util-runtime',
-                  'fs-extra',
-                  'js-yaml',
-                  'lazy-val',
-                  'lodash.escaperegexp',
-                  'lodash.isequal',
-                  'semver',
-                  'tiny-typed-emitter',
-                ],
+                external: ['electron'],
               },
             },
           },

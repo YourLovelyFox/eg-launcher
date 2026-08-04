@@ -5,7 +5,6 @@ import type {
   LauncherSettings,
   LauncherTheme,
   SystemMemoryInfo,
-  UpdateStatus,
 } from '../../shared/types'
 import { useAppStore } from '../store'
 import { applyTheme } from '../theme'
@@ -23,7 +22,6 @@ export function SettingsPage() {
   const [javaInfo, setJavaInfo] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [versionInfo, setVersionInfo] = useState<AppVersionInfo | null>(null)
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [systemMemory, setSystemMemory] = useState<SystemMemoryInfo | null>(null)
 
@@ -56,24 +54,13 @@ export function SettingsPage() {
 
   useEffect(() => {
     window.hive.updater.getVersion().then(setVersionInfo).catch(() => undefined)
-    window.hive.updater.getStatus().then(setUpdateStatus).catch(() => undefined)
-    return window.hive.updater.onStatus(setUpdateStatus)
   }, [])
 
-  async function checkUpdates() {
+  async function openUpdateChannel() {
     setCheckingUpdate(true)
     try {
-      const status = await window.hive.updater.check()
-      setUpdateStatus(status)
-      if (status.state === 'available') {
-        showToast('success', `Update ${status.version} available`)
-      } else if (status.state === 'unavailable') {
-        showToast('success', 'You are on the latest version')
-      } else if (status.state === 'error') {
-        showToast('error', status.message)
-      } else if (status.state === 'ready') {
-        showToast('success', `Update ${status.version} ready to install`)
-      }
+      // Opens Microsoft Store (Windows) or GitHub Releases (other) — no in-app download
+      await window.hive.updater.check()
     } catch (err) {
       showToast('error', (err as Error).message)
     } finally {
@@ -248,20 +235,11 @@ export function SettingsPage() {
 
       <div className="panel">
         <h2>Updates</h2>
-        {versionInfo && 'microsoftStore' in versionInfo && (versionInfo as { microsoftStore?: boolean }).microsoftStore ? (
-          <p className="hint">
-            You installed EG Launcher from the <strong>Microsoft Store</strong>. Updates are delivered by
-            the Store only (in-app GitHub updater is disabled). Use &quot;Open Microsoft Store&quot; to check
-            for a new version.
-          </p>
-        ) : (
-          <p className="hint">
-            Updates come from <strong>GitHub Releases</strong> (Windows NSIS / Linux AppImage). Nothing
-            downloads until you confirm. SmartScreen may warn; Smart App Control Enforcement may block
-            new file hashes until reputation builds. Only install official releases from this
-            project&apos;s GitHub.
-          </p>
-        )}
+        <p className="hint">
+          The in-app auto-updater is <strong>disabled</strong>. On Windows, install and update EG
+          Launcher through the <strong>Microsoft Store</strong> only. Linux users can download a new
+          AppImage from GitHub Releases when available.
+        </p>
         <div className="form-grid">
           <div className="form-row">
             <label>Installed version</label>
@@ -277,40 +255,17 @@ export function SettingsPage() {
                   </span>
                 </>
               ) : null}
-              {versionInfo && !versionInfo.isPackaged ? ' (dev build — auto-update disabled)' : ''}
-              {versionInfo &&
-              'microsoftStore' in versionInfo &&
-              (versionInfo as { microsoftStore?: boolean }).microsoftStore
-                ? ' · Microsoft Store'
-                : ''}
+              {versionInfo && !versionInfo.isPackaged ? ' (dev build)' : ''}
+              {versionInfo?.microsoftStore ? ' · Microsoft Store' : ''}
               {versionInfo ? ` · ${versionInfo.platform}/${versionInfo.arch}` : ''}
             </div>
           </div>
           <div className="form-row">
-            <label>Status</label>
+            <label>Update channel</label>
             <div className="muted">
-              {versionInfo &&
-              'microsoftStore' in versionInfo &&
-              (versionInfo as { microsoftStore?: boolean }).microsoftStore
-                ? 'Managed by Microsoft Store'
-                : null}
-              {!(
-                versionInfo &&
-                'microsoftStore' in versionInfo &&
-                (versionInfo as { microsoftStore?: boolean }).microsoftStore
-              ) && (
-                <>
-                  {updateStatus.state === 'idle' && 'Not checked yet'}
-                  {updateStatus.state === 'checking' && 'Checking…'}
-                  {updateStatus.state === 'unavailable' && 'Up to date'}
-                  {updateStatus.state === 'available' && `Update ${updateStatus.version} available`}
-                  {updateStatus.state === 'downloading' &&
-                    `Downloading ${updateStatus.version}… ${Math.round(updateStatus.percent)}%`}
-                  {updateStatus.state === 'ready' &&
-                    `Update ${updateStatus.version} ready — restart to install`}
-                  {updateStatus.state === 'error' && `Error: ${updateStatus.message}`}
-                </>
-              )}
+              {versionInfo?.microsoftStore || versionInfo?.platform === 'win32'
+                ? 'Microsoft Store'
+                : 'GitHub Releases (manual AppImage)'}
             </div>
           </div>
         </div>
@@ -318,37 +273,15 @@ export function SettingsPage() {
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={checkUpdates}
+            onClick={() => void openUpdateChannel()}
             disabled={checkingUpdate}
           >
-            {versionInfo &&
-            'microsoftStore' in versionInfo &&
-            (versionInfo as { microsoftStore?: boolean }).microsoftStore
-              ? checkingUpdate
-                ? 'Opening…'
-                : 'Open Microsoft Store'
-              : checkingUpdate
-                ? 'Checking…'
-                : 'Check for updates'}
+            {checkingUpdate
+              ? 'Opening…'
+              : versionInfo?.microsoftStore || versionInfo?.platform === 'win32'
+                ? 'Open Microsoft Store'
+                : 'Open GitHub Releases'}
           </button>
-          {updateStatus.state === 'available' && (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => window.hive.updater.download()}
-            >
-              Download & install
-            </button>
-          )}
-          {updateStatus.state === 'ready' && (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => window.hive.updater.install()}
-            >
-              Restart & install
-            </button>
-          )}
         </div>
       </div>
 

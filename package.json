@@ -47,7 +47,9 @@
       {
         "from": "resources/eg-gate",
         "to": "eg-gate",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "files": [
@@ -131,14 +133,9 @@
       "synopsis": "EG Launcher — Minecraft mods via Modrinth",
       "description": "EG Launcher — Minecraft mods via Modrinth, with partner SMP support."
     },
-    "asar": true,
-    "asarUnpack": [
-      "**/node_modules/electron-updater/**/*",
-      "**/node_modules/builder-util-runtime/**/*"
-    ]
+    "asar": true
   },
   "dependencies": {
-    "electron-updater": "^6.6.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
