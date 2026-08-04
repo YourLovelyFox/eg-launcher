@@ -1,6 +1,7 @@
 import type { FeedKind } from '../../../shared/contentRepo'
 import type { NewsFeedResult, NewsItem } from '../../../shared/types'
 import { cmsRequest } from '../cms/httpClient'
+import { getStaffSessionToken } from '../staffSession'
 
 export async function fetchNewsFromDb(kind: FeedKind, _tag?: string): Promise<NewsFeedResult> {
   const r = await cmsRequest<{
@@ -28,15 +29,27 @@ export async function replaceFeedInDb(
   items: NewsItem[],
   title?: string,
 ): Promise<void> {
-  await cmsRequest({
+  const staffTok = getStaffSessionToken()
+  if (!staffTok) {
+    throw new Error(
+      'Session timed out or not signed in. Open Settings → Staff and sign in again (Admin role required to publish/delete news).',
+    )
+  }
+  // Same session transport as partner delete: headers + body (hosts that strip X-EG-*)
+  const r = await cmsRequest<{ ok?: boolean; error?: string; message?: string; count?: number }>({
     path: `news.php?kind=${encodeURIComponent(kind)}`,
     method: 'POST',
     admin: true,
+    sessionToken: staffTok,
     body: {
       title: title || (kind === 'launcher' ? 'EG Launcher News' : 'EG Partner News'),
-      items,
+      items: Array.isArray(items) ? items : [],
+      sessionToken: staffTok,
     },
   })
+  if (r && r.ok === false) {
+    throw new Error(r.error || 'CMS rejected news publish')
+  }
 }
 
 export async function mergePartnerNewsInDb(

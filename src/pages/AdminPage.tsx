@@ -331,46 +331,86 @@ export function AdminPage() {
     return cleaned
   }
 
-  async function publishList(list: NewsItem[], opts?: { allowEmpty?: boolean; successMsg?: string }) {
-    if (!session) return false
-    const cleaned = cleanItems(list, { allowEmpty: Boolean(opts?.allowEmpty) })
-    if (cleaned === null) {
+  function sanitizeNewsList(list: NewsItem[]): NewsItem[] {
+    return list
+      .map((i) => ({
+        ...i,
+        title: (i.title || '').trim(),
+        summary: (i.summary || '').trim(),
+        body: (i.body || '').trim(),
+        tag: (i.tag || 'info').trim() || 'info',
+        url: null as string | null,
+      }))
+      .filter((i) => Boolean(i.title))
+  }
+
+  async function publishList(
+    list: NewsItem[],
+    opts?: { allowEmpty?: boolean; successMsg?: string; skipDraftMerge?: boolean },
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (!session) return { ok: false, error: 'Not signed in' }
+
+    // skipDraftMerge: use the list as-is (delete path). Otherwise merge live draft into list.
+    const payload = opts?.skipDraftMerge
+      ? sanitizeNewsList(list)
+      : cleanItems(list, { allowEmpty: Boolean(opts?.allowEmpty) })
+
+    if (payload === null) {
       showToast('error', 'Add at least one news item with a title')
-      return false
+      return { ok: false, error: 'Add at least one news item with a title' }
+    }
+    if (!opts?.allowEmpty && payload.length === 0) {
+      showToast('error', 'Add at least one news item with a title')
+      return { ok: false, error: 'Add at least one news item with a title' }
     }
 
     setPublishing(true)
     editingRef.current = false
     try {
+      try {
+        await window.hive.admin.touchSession(session)
+      } catch {
+        /* continue */
+      }
       const me = await window.hive.admin.staffMe()
-      if (me?.mustQueue) {
+      if (!me?.staff) {
+        const err = 'Session timed out. Sign in again under Settings → Staff.'
+        showToast('error', err)
+        return { ok: false, error: err }
+      }
+      if (me.mustQueue) {
         const sub = await window.hive.admin.submitApproval(session, {
           type: 'news_launcher',
-          summary: `Home news update (${cleaned.length} posts)`,
-          payload: { title: title.trim() || 'EG Launcher News', items: cleaned },
+          summary: `Home news update (${payload.length} posts)`,
+          payload: { title: title.trim() || 'EG Launcher News', items: payload },
         })
         if (!sub.ok) {
           showToast('error', sub.error)
-          return false
+          return { ok: false, error: sub.error }
         }
-        showToast('success', sub.message || 'Submitted for admin verification')
-        return true
+        showToast(
+          'info',
+          sub.message ||
+            'News change queued for Admin approval — live feed is not updated until an Admin reviews Approvals.',
+        )
+        return { ok: true }
       }
       const res = await window.hive.admin.publishNews(
         session,
-        cleaned,
+        payload,
         title.trim() || 'EG Launcher News',
       )
       if (!res.ok) {
         showToast('error', res.error)
-        return false
+        return { ok: false, error: res.error }
       }
       showToast('success', opts?.successMsg || res.message)
       await loadNews(session, { keepSelection: true })
-      return true
+      return { ok: true }
     } catch (err) {
-      showToast('error', (err as Error).message)
-      return false
+      const msg = (err as Error).message || 'Publish failed'
+      showToast('error', msg)
+      return { ok: false, error: msg }
     } finally {
       setPublishing(false)
     }
@@ -395,12 +435,18 @@ export function AdminPage() {
     setDraft(nextSel ? { ...nextSel } : null)
     editingRef.current = false
 
-    const ok = await publishList(next, {
+    const result = await publishList(next, {
       allowEmpty: true,
+      skipDraftMerge: true,
       successMsg: 'Post deleted and feed updated on CMS.',
     })
-    if (!ok) {
-      showToast('error', 'Delete was not saved to CMS — reloading feed')
+    if (!result.ok) {
+      showToast(
+        'error',
+        result.error
+          ? `Delete was not saved to CMS: ${result.error}`
+          : 'Delete was not saved to CMS — reloading feed',
+      )
       await loadNews(session, { keepSelection: false })
     }
   }

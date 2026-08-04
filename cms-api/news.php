@@ -62,6 +62,7 @@ try {
         if (!is_array($items)) {
             json_fail('items must be array', 400);
         }
+        // Empty array is valid — full feed replace / delete all posts
         if (count($items) > 200) {
             json_fail('Too many items (max 200)', 400);
         }
@@ -72,6 +73,7 @@ try {
             'INSERT INTO news_items (id, feed_kind, title, summary, body, published_at, tag, url, sort_date)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
+        $inserted = 0;
         foreach ($items as $item) {
             if (!is_array($item)) {
                 continue;
@@ -80,7 +82,16 @@ try {
             if ($id === '' || strlen($id) > 128) {
                 continue;
             }
-            $dt = date('Y-m-d H:i:s', strtotime((string) ($item['date'] ?? 'now')) ?: time());
+            $titleItem = trim((string) ($item['title'] ?? ''));
+            // Skip blank titles (client may send drafts); empty feed still allowed
+            if ($titleItem === '') {
+                continue;
+            }
+            $ts = strtotime((string) ($item['date'] ?? 'now'));
+            if ($ts === false) {
+                $ts = time();
+            }
+            $dt = gmdate('Y-m-d H:i:s', $ts);
             $url = $item['url'] ?? null;
             if (is_string($url) && $url !== '') {
                 if (!preg_match('#^https?://#i', $url)) {
@@ -92,7 +103,7 @@ try {
             $ins->execute([
                 $id,
                 $kind,
-                mb_substr((string) ($item['title'] ?? 'Untitled'), 0, 512),
+                mb_substr($titleItem, 0, 512),
                 $item['summary'] ?? null,
                 $item['body'] ?? ($item['summary'] ?? null),
                 $dt,
@@ -100,13 +111,18 @@ try {
                 $url,
                 $dt,
             ]);
+            $inserted++;
         }
         $pdo->prepare(
             'INSERT INTO feed_meta (feed_kind, title, updated_at) VALUES (?, ?, UTC_TIMESTAMP())
              ON DUPLICATE KEY UPDATE title = VALUES(title), updated_at = UTC_TIMESTAMP()'
         )->execute([$kind, mb_substr($title, 0, 256)]);
         $pdo->commit();
-        json_out(['ok' => true, 'message' => 'Feed published', 'count' => count($items)]);
+        json_out([
+            'ok' => true,
+            'message' => $inserted === 0 ? 'Feed cleared (0 posts)' : 'Feed published',
+            'count' => $inserted,
+        ]);
     }
 
     json_fail('Method not allowed', 405);
