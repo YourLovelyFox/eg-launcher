@@ -1,6 +1,6 @@
 {
   "name": "eg-launcher",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "description": "EG Launcher — Minecraft mods via the mod catalog, with permanent Bee's SMP pack support.",
   "main": "dist-electron/main.js",
   "author": "EG Launcher",
