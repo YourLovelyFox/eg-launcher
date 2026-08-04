@@ -252,7 +252,7 @@ export function InstanceDetailPage() {
 
   useEffect(() => {
     const offInstall = window.hive.mc.onInstallProgress((p) => setInstallProgress(p))
-    const offDl = window.hive.modrinth.onDownloadProgress((p) => setDownloadProgress(p))
+    const offDl = window.hive.mods.onDownloadProgress((p) => setDownloadProgress(p))
     const offBackup = window.hive.instances.onBackupProgress((p) =>
       setBackupProgress({ message: p.message, progress: p.progress }),
     )
@@ -348,7 +348,7 @@ export function InstanceDetailPage() {
 
     setUpdatingId(projectId)
     try {
-      const result = await window.hive.modrinth.installMod({
+      const result = await window.hive.mods.installMod({
         instanceId: instance!.id,
         projectId,
         versionId: info.latestVersionId,
@@ -389,7 +389,7 @@ export function InstanceDetailPage() {
     setCancelUpdateAll(false)
     setUpdatingId(null)
     try {
-      const result = await window.hive.modrinth.installModsBatch({
+      const result = await window.hive.mods.installModsBatch({
         instanceId: instance.id,
         mods: batch,
       })
@@ -845,7 +845,7 @@ export function InstanceDetailPage() {
           {instance.mods.length === 0 ? (
             <div className="empty" style={{ padding: 28 }}>
               <h3>No mods installed</h3>
-              <p>Search Modrinth and install mods that match this loader and version.</p>
+              <p>Search mods and install mods that match this loader and version.</p>
               <Link className="btn btn-primary" to={`/browse?instance=${instance.id}`}>
                 Find mods
               </Link>

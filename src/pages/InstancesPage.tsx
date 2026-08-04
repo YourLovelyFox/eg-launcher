@@ -206,7 +206,7 @@ export function InstancesPage() {
             <div style={{ width: `${Math.round(packProgress.progress * 100)}%` }} />
           </div>
           <p className="hint" style={{ marginBottom: 0, marginTop: 8 }}>
-            Same format as Modrinth packs: import <strong>.egpack</strong> or <strong>.mrpack</strong>.
+            Same format as mod packs: import <strong>.egpack</strong> or <strong>.mrpack</strong>.
             Export uses <strong>.egpack</strong> only (identical structure to .mrpack).
           </p>
         </div>

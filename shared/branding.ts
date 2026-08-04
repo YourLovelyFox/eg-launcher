@@ -29,7 +29,7 @@ import { resolveCmsApiBase } from './cmsApi'
 /** Home news via HTTPS CMS API (MariaDB on server). */
 export const DEFAULT_NEWS_FEED_URL = `${resolveCmsApiBase()}/news.php?kind=launcher`
 
-/** Permanent featured modpack (Modrinth slug). Not auto-installed. */
+/** Permanent featured modpack (Project slug). Not auto-installed. */
 export const FEATURED_PACK = {
   id: 'beessmp',
   slug: 'beessmp',
@@ -66,7 +66,7 @@ export type PartnerDefinition = {
   defaultMods: readonly string[]
   newsTag: string
   newsUsername?: string
-  modrinthPackSlug?: string | null
+  packSlug?: string | null
   iconUrl?: string | null
   discordUrl?: string | null
 }

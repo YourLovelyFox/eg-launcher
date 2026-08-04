@@ -15,10 +15,10 @@ export type PartnerConfig = {
   newsTag: string
   /** Login username for partner news portal */
   newsUsername: string
-  /** Modrinth mod slugs/ids installed automatically */
+  /** mod catalog mod slugs/ids installed automatically */
   defaultMods: string[]
-  /** Optional Modrinth modpack project slug/id */
-  modrinthPackSlug?: string | null
+  /** Optional mod catalog modpack project slug/id */
+  packSlug?: string | null
   /** Optional icon URL (https) */
   iconUrl?: string | null
   /** Optional Discord invite / server URL */
@@ -226,7 +226,7 @@ export type InstalledMod = {
   downloadedAt: string
 }
 
-/** One list row in the export picker (Modrinth App–style content list). */
+/** One list row in the export picker (export-style content list). */
 export type EgpackExportEntry = {
   /** Relative path under the instance root, e.g. `mods/sodium.jar` or `config` */
   path: string
@@ -246,15 +246,15 @@ export type EgpackExportEntry = {
 
 /** Options for exporting an instance as .egpack (mrpack-compatible). */
 export type EgpackExportOptions = {
-  /** Display name written into modrinth.index.json / eg.manifest.json */
+  /** Display name written into pack index JSON / eg.manifest.json */
   packName: string
   /** Optional pack summary / description */
   summary?: string
   /**
-   * Prefer Modrinth CDN downloads for tracked mods (smaller pack).
+   * Prefer mod catalog CDN downloads for tracked mods (smaller pack).
    * When false, all selected mods are embedded in overrides/.
    */
-  preferModrinthDownloads: boolean
+  preferCdnDownloads: boolean
   /**
    * Relative paths to include (from listExportableContents).
    * Examples: `mods/foo.jar`, `config`, `saves`, `options.txt`
@@ -277,7 +277,7 @@ export type GameInstance = {
   activeProfileId?: string | null
 }
 
-export type ModrinthSearchHit = {
+export type CatalogSearchHit = {
   project_id: string
   slug: string
   title: string
@@ -300,14 +300,14 @@ export type ModrinthSearchHit = {
   color?: number | null
 }
 
-export type ModrinthSearchResult = {
-  hits: ModrinthSearchHit[]
+export type CatalogSearchResult = {
+  hits: CatalogSearchHit[]
   offset: number
   limit: number
   total_hits: number
 }
 
-export type ModrinthVersionFile = {
+export type CatalogVersionFile = {
   hashes: { sha1: string; sha512: string }
   url: string
   filename: string
@@ -316,20 +316,20 @@ export type ModrinthVersionFile = {
   file_type: string | null
 }
 
-export type ModrinthDependency = {
+export type CatalogDependency = {
   version_id: string | null
   project_id: string | null
   file_name: string | null
   dependency_type: 'required' | 'optional' | 'incompatible' | 'embedded'
 }
 
-export type ModrinthVersion = {
+export type CatalogVersion = {
   id: string
   project_id: string
   name: string
   version_number: string
   changelog: string
-  dependencies: ModrinthDependency[]
+  dependencies: CatalogDependency[]
   game_versions: string[]
   version_type: 'release' | 'beta' | 'alpha'
   loaders: string[]
@@ -337,10 +337,10 @@ export type ModrinthVersion = {
   status: string
   date_published: string
   downloads: number
-  files: ModrinthVersionFile[]
+  files: CatalogVersionFile[]
 }
 
-export type ModrinthProject = {
+export type CatalogProject = {
   id: string
   slug: string
   title: string

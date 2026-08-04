@@ -1651,7 +1651,7 @@ textarea.input:disabled {
   min-height: 48px;
 }
 
-/* ========== Export .egpack modal (Modrinth App–style list) ========== */
+/* ========== Export .egpack modal (export-style list) ========== */
 .export-modal {
   width: min(720px, 100%);
   max-height: min(92vh, 860px);

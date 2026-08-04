@@ -12,9 +12,9 @@ const JAVA_RUNTIME_INDEX =
   'https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json'
 
 /**
- * Same source Modrinth App uses for "Install recommended" Java:
+ * Same source export uses for "Install recommended" Java:
  * Azul Zulu metadata API → single JRE zip (not Mojang multi-file runtime).
- * @see https://github.com/modrinth/code packages/app-lib/src/api/jre.rs
+ * Portable JRE install approach used by several Minecraft launchers.
  */
 function azulOs(): string {
   if (process.platform === 'win32') return 'windows'
@@ -388,7 +388,7 @@ type AzulPackage = {
 }
 
 /**
- * Download a portable Azul Zulu JRE — same approach as Modrinth App auto-install.
+ * Download a portable Azul Zulu JRE — same approach as export auto-install.
  * One zip, no Mojang multi-file CDN (avoids intermittent 403 on policy files).
  */
 export async function ensureAzulZuluJava(
@@ -418,7 +418,7 @@ export async function ensureAzulZuluJava(
     `&latest=true` +
     `&page_size=1`
 
-  onProgress?.(`Fetching Java ${major} package (Azul Zulu / Modrinth-style)…`, 0.02)
+  onProgress?.(`Fetching Java ${major} package (Azul Zulu / portable)…`, 0.02)
   const packages = await httpGetJson<AzulPackage[]>(metaUrl)
   const pkg = packages?.[0]
   if (!pkg?.download_url) {
@@ -608,7 +608,7 @@ export async function ensureMojangJavaRuntime(
 /**
  * Resolve a Java install that satisfies the required major version.
  * Auto-downloads when needed:
- *  1) Azul Zulu JRE (same method as Modrinth App)
+ *  1) Azul Zulu JRE (same method as export)
  *  2) Mojang multi-file runtime (fallback)
  */
 export async function resolveJavaForGame(
@@ -634,7 +634,7 @@ export async function resolveJavaForGame(
   const targetMajor = requiredMajor >= 25 ? 25 : requiredMajor >= 21 ? 21 : requiredMajor >= 17 ? 17 : 8
 
   onProgress?.(
-    `Minecraft needs Java ${requiredMajor}+. Downloading Azul Zulu JRE (Modrinth-style)…`,
+    `Minecraft needs Java ${requiredMajor}+. Downloading Azul Zulu JRE (portable)…`,
     0,
   )
   try {

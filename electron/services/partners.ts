@@ -11,7 +11,7 @@ import { createInstance, getInstance, listInstances, updateInstance } from './in
 import { installInstanceRuntime, listLoaderVersions } from './minecraft'
 import { installModWithDependencies } from './modInstall'
 import { installFeaturedPack } from './featuredPack'
-import { getProject, getProjectVersions } from './modrinth'
+import { getProject, getProjectVersions } from './catalog'
 import { fetchPartnerConfigs, getPartnerConfigById } from './partnerConfig'
 import { ensureDefaultServer } from './serversDat'
 import {
@@ -33,7 +33,7 @@ function toDefinition(p: PartnerConfig): PartnerDefinition {
     defaultMods: p.defaultMods,
     newsTag: p.newsTag,
     newsUsername: p.newsUsername,
-    modrinthPackSlug: p.modrinthPackSlug,
+    packSlug: p.packSlug,
     iconUrl: p.iconUrl,
     discordUrl: p.discordUrl ?? null,
   }
@@ -239,11 +239,11 @@ export async function installPartner(
   // Refresh instance after runtime (metadata may be unchanged but mods install needs current)
   instance = getInstance(instance.id) || instance
 
-  // Optional Modrinth modpack
-  const packSlug = partner.modrinthPackSlug?.trim()
+  // Optional mod catalog modpack
+  const packSlug = partner.packSlug?.trim()
   if (packSlug) {
     try {
-      emit('pack', 0.48, `Installing Modrinth pack ${packSlug}…`)
+      emit('pack', 0.48, `Installing mod pack ${packSlug}…`)
       await installFeaturedPack(
         { slug: packSlug },
         (p) => emit(p.stage, 0.48 + p.progress * 0.2, p.message),

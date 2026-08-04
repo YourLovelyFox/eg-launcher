@@ -1,7 +1,7 @@
 {
   "name": "eg-launcher",
   "version": "2.7.0",
-  "description": "EG Launcher — Minecraft mods via Modrinth, with permanent Bee's SMP pack support.",
+  "description": "EG Launcher — Minecraft mods via the mod catalog, with permanent Bee's SMP pack support.",
   "main": "dist-electron/main.js",
   "author": "EG Launcher",
   "license": "MIT",
@@ -130,8 +130,8 @@
       ],
       "category": "Game",
       "artifactName": "EG-Launcher-${version}-linux-${arch}.${ext}",
-      "synopsis": "EG Launcher — Minecraft mods via Modrinth",
-      "description": "EG Launcher — Minecraft mods via Modrinth, with partner SMP support."
+      "synopsis": "EG Launcher — Minecraft mods via the mod catalog",
+      "description": "EG Launcher — Minecraft mods via the mod catalog, with partner SMP support."
     },
     "asar": true
   },

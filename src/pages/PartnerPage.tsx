@@ -19,7 +19,7 @@ type PartnerStatus = {
     instanceName: string
     defaultMods: readonly string[]
     newsTag: string
-    modrinthPackSlug?: string | null
+    packSlug?: string | null
     iconUrl?: string | null
     discordUrl?: string | null
   }
@@ -424,7 +424,7 @@ export function PartnerPage() {
               <span className="meta-label">Mods</span>
               <strong>
                 {mods.length}
-                {partner.modrinthPackSlug ? ` + pack ${partner.modrinthPackSlug}` : ''}
+                {partner.packSlug ? ` + pack ${partner.packSlug}` : ''}
               </strong>
             </div>
           </div>
@@ -546,24 +546,24 @@ export function PartnerPage() {
             <p className="hint" style={{ marginBottom: 0 }}>
               Latest {loaderLabel(partner.loader)} builds for Minecraft {partner.gameVersion}.
               Required dependencies install automatically.
-              {partner.modrinthPackSlug
-                ? ` Modrinth pack: ${partner.modrinthPackSlug}.`
+              {partner.packSlug
+                ? ` mod pack: ${partner.packSlug}.`
                 : ''}
             </p>
           </div>
         </div>
 
-        {mods.length === 0 && !partner.modrinthPackSlug ? (
+        {mods.length === 0 && !partner.packSlug ? (
           <div className="empty" style={{ padding: 20 }}>
             <p>No auto-install mods configured for this partner.</p>
           </div>
         ) : (
           <div className="list partner-mods-list">
-            {partner.modrinthPackSlug && (
+            {partner.packSlug && (
               <div className="list-item partner-mod-row">
                 <div className="grow">
-                  <div className="title">{partner.modrinthPackSlug}</div>
-                  <div className="sub">Modrinth modpack</div>
+                  <div className="title">{partner.packSlug}</div>
+                  <div className="sub">mod catalog modpack</div>
                 </div>
                 <span className="badge badge-blue">Pack</span>
               </div>
@@ -572,7 +572,7 @@ export function PartnerPage() {
               <div key={slug} className="list-item partner-mod-row">
                 <div className="grow">
                   <div className="title">{slug}</div>
-                  <div className="sub">Modrinth project</div>
+                  <div className="sub">mod project</div>
                 </div>
                 <span className="badge badge-green">Mod</span>
               </div>

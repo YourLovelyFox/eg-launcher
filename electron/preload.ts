@@ -16,9 +16,9 @@ import type {
   MinecraftAccount,
   MinecraftServerStatus,
   MinecraftVersionInfo,
-  ModrinthProject,
-  ModrinthSearchResult,
-  ModrinthVersion,
+  CatalogProject,
+  CatalogSearchResult,
+  CatalogVersion,
   ProgressEvent,
   RunningGameInfo,
   UpdateStatus,
@@ -185,7 +185,7 @@ const api = {
     status: (address: string): Promise<MinecraftServerStatus> =>
       ipcRenderer.invoke('server:status', address),
   },
-  modrinth: {
+  mods: {
     search: (opts: {
       query?: string
       gameVersion?: string
@@ -194,12 +194,12 @@ const api = {
       offset?: number
       limit?: number
       index?: string
-    }): Promise<ModrinthSearchResult> => ipcRenderer.invoke('modrinth:search', opts),
-    project: (id: string): Promise<ModrinthProject> => ipcRenderer.invoke('modrinth:project', id),
-    versions: (id: string, gameVersion?: string, loader?: string): Promise<ModrinthVersion[]> =>
-      ipcRenderer.invoke('modrinth:versions', id, gameVersion, loader),
-    version: (versionId: string): Promise<ModrinthVersion> =>
-      ipcRenderer.invoke('modrinth:version', versionId),
+    }): Promise<CatalogSearchResult> => ipcRenderer.invoke('mods:search', opts),
+    project: (id: string): Promise<CatalogProject> => ipcRenderer.invoke('mods:project', id),
+    versions: (id: string, gameVersion?: string, loader?: string): Promise<CatalogVersion[]> =>
+      ipcRenderer.invoke('mods:versions', id, gameVersion, loader),
+    version: (versionId: string): Promise<CatalogVersion> =>
+      ipcRenderer.invoke('mods:version', versionId),
     installMod: (payload: {
       instanceId: string
       projectId: string
@@ -217,7 +217,7 @@ const api = {
           failed: Array<{ projectId: string; title?: string; error: string }>
         }
       }
-    > => ipcRenderer.invoke('modrinth:installMod', payload),
+    > => ipcRenderer.invoke('mods:installMod', payload),
     /** Parallel bulk update — one job for all selected mods. */
     installModsBatch: (payload: {
       instanceId: string
@@ -235,12 +235,12 @@ const api = {
           failed: Array<{ projectId: string; title?: string; error: string }>
         }
       }
-    > => ipcRenderer.invoke('modrinth:installModsBatch', payload),
+    > => ipcRenderer.invoke('mods:installModsBatch', payload),
     onDownloadProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
       const listener = (_: unknown, event: ProgressEvent) => cb(event)
-      ipcRenderer.on('modrinth:downloadProgress', listener)
+      ipcRenderer.on('mods:downloadProgress', listener)
       return () => {
-        ipcRenderer.removeListener('modrinth:downloadProgress', listener)
+        ipcRenderer.removeListener('mods:downloadProgress', listener)
       }
     },
   },

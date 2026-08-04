@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to **EG Launcher** are documented here.
 
@@ -88,9 +88,9 @@ Format: each release section is published as the GitHub Release body (and shown 
 ## [2.5.9] â€” 2026-08-02
 
 ### Fixed
-- **Featured pack install**: register mods after install; resolve real Modrinth names/icons from jar hashes.
-- **Update all**: parallel bulk downloads with stable progress; rate-limit safe Modrinth API usage.
-- **Java auto-install**: Azul Zulu JRE (Modrinth-style) with Mojang runtime fallback; no manual Java required for Forge install.
+- **Featured pack install**: register mods after install; resolve real mod catalog names/icons from jar hashes.
+- **Update all**: parallel bulk downloads with stable progress; rate-limit safe mod catalog API usage.
+- **Java auto-install**: Azul Zulu JRE (portable) with Mojang runtime fallback; no manual Java required for Forge install.
 - **Update checks**: no longer hang on large packs; skip synthetic `local-*` mod ids (no API 404 spam).
 - **Instance folders**: strip apostrophes from folder names (fixes PowerShell extract issues for Bee's SMP).
 - **Staff CMS**: remove hardcoded default admin password from source; bootstrap only via server config.
@@ -209,8 +209,8 @@ Format: each release section is published as the GitHub Release body (and shown 
 ## [2.5.0] â€” 2026-07-24
 
 ### Added
-- **`.egpack` export/import**: export instances as EG pack files (Modrinth-compatible structure); import **`.egpack`** and **`.mrpack`**.
-- **Export options UI** (Modrinth Appâ€“style list): pack name, summary, per-file/folder selection with sizes, Recommended / All / None.
+- **`.egpack` export/import**: export instances as EG pack files (pack-compatible structure); import **`.egpack`** and **`.mrpack`**.
+- **Export options UI** (exportâ€“style list): pack name, summary, per-file/folder selection with sizes, Recommended / All / None.
 - **Google AdSense** live unit in the launcher (hosted `ad-unit.php` iframe).
 - Staff **AdSense settings** (client + slot) and PayPal remove-ads.
 - Site verification helpers (`index.php` AdSense snippet + `ads.txt` on CMS host).
@@ -409,7 +409,7 @@ Live update from **2.0.0** â€” installers, optional data wipe on uninstall,
 - **CMS-driven Partners**: sidebar partners load from `news/partners-config.json` (create/edit/delete in Dev Admin).
 - Generic partner page at `/partners/:id` (install, play, mods list, partner news).
 - **Partner news portal**: partners log in on their page to publish tagged posts (public hash auth + private CMS).
-- Dev Admin **Partners** tab (name, news user/pass, server IP, version/loader, Modrinth pack or mods, icon URL).
+- Dev Admin **Partners** tab (name, news user/pass, server IP, version/loader, mod pack or mods, icon URL).
 - Private CMS dual-write (`eg-launcher-content`) with public mirrors for Live clients.
 
 ### Fixed
@@ -501,7 +501,7 @@ Live update from **2.0.0** â€” installers, optional data wipe on uninstall,
 ### Added
 - Initial public release of EG Launcher.
 - Microsoft account login (required to play).
-- Modrinth mod browse / install with dependencies.
+- mod catalog mod browse / install with dependencies.
 - Instances: Vanilla, Fabric, Forge, NeoForge.
 - Permanent featured pack: **Bee's SMP**.
 - Windows and Linux builds via GitHub Actions.

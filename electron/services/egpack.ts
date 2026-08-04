@@ -1,12 +1,12 @@
 /**
  * EG Launcher pack export/import.
  *
- * .egpack is the same format as Modrinth .mrpack (ZIP + modrinth.index.json + overrides/).
+ * .egpack uses standard .mrpack layout (ZIP + pack index JSON + overrides/).
  * Only the file extension differs on export (.egpack only).
  * Import accepts both .egpack and .mrpack with identical install logic.
  *
  * Spec (same as mrpack):
- *   modrinth.index.json  — formatVersion, game, name, files[], dependencies
+ *   pack index JSON      — standard .mrpack layout (formatVersion, game, files[])
  *   overrides/           — config + any files not downloaded from the index
  *   client-overrides/    — optional (import only)
  *
@@ -29,14 +29,20 @@ import type {
 import { ensureDir, getDataRoot, getInstanceDir, getInstanceModsDir } from '../paths'
 import { createInstance, getInstance, updateInstance } from './instances'
 import { installInstanceRuntime } from './minecraft'
-import { downloadFile, enrichModsWithProjectMeta, getVersion, pickPrimaryFile } from './modrinth'
+import {
+  downloadFile,
+  enrichModsWithProjectMeta,
+  getVersion,
+  PACK_INDEX_FILENAME,
+  pickPrimaryFile,
+} from './catalog'
 
 export const EGPACK_EXT = '.egpack'
 export const MRPACK_EXT = '.mrpack'
 
 const PACK_EXTS = [EGPACK_EXT, MRPACK_EXT] as const
 
-/** Content folders listed like Modrinth App export picker. */
+/** Content folders listed like export export picker. */
 const CONTENT_FOLDERS: {
   dir: string
   group: EgpackExportEntry['group']
@@ -97,7 +103,7 @@ function dirSizeAndCount(dir: string): { size: number; count: number } {
 }
 
 /**
- * List everything exportable for the Modrinth App–style picker.
+ * List everything exportable for the export-style picker.
  */
 export function listExportableContents(instanceId: string): EgpackExportEntry[] {
   const instance = getInstance(instanceId)
@@ -196,7 +202,7 @@ export function defaultEgpackExportOptions(
   return {
     packName: instanceName || 'My Pack',
     summary: '',
-    preferModrinthDownloads: true,
+    preferCdnDownloads: true,
     selectedPaths,
   }
 }
@@ -214,7 +220,7 @@ function normalizeExportOptions(
   return {
     packName: (partial.packName ?? base.packName).trim() || base.packName,
     summary: partial.summary ?? base.summary,
-    preferModrinthDownloads: partial.preferModrinthDownloads ?? base.preferModrinthDownloads,
+    preferCdnDownloads: partial.preferCdnDownloads ?? base.preferCdnDownloads,
     selectedPaths: paths,
   }
 }
@@ -313,7 +319,7 @@ function hashFile(filePath: string): { sha1: string; sha512: string; size: numbe
   }
 }
 
-function isModrinthTracked(mod: InstalledMod): boolean {
+function isCatalogTracked(mod: InstalledMod): boolean {
   const id = mod.projectId || ''
   const ver = mod.versionId || ''
   if (!id || !ver) return false
@@ -452,8 +458,8 @@ function loaderFromDependencies(deps: Record<string, string>): {
 }
 
 /**
- * Export instance as .egpack — same structure as a Modrinth .mrpack.
- * `selectedPaths` controls exactly what is packed (Modrinth App–style list).
+ * Export instance as .egpack — same structure as a mod catalog .mrpack.
+ * `selectedPaths` controls exactly what is packed (export-style list).
  */
 export async function exportInstanceAsEgpack(
   instanceId: string,
@@ -493,7 +499,7 @@ export async function exportInstanceAsEgpack(
   try {
     // 1) Mods — CDN for tracked enabled jars when preferred
     if (selectedModPaths.length) {
-      const useCdn = opts.preferModrinthDownloads
+      const useCdn = opts.preferCdnDownloads
       const selectedBaseNames = new Set(
         selectedModPaths.map((p) => path.basename(p).replace(/\.disabled$/i, '').toLowerCase()),
       )
@@ -502,7 +508,7 @@ export async function exportInstanceAsEgpack(
         ? instance.mods.filter(
             (m) =>
               m.enabled !== false &&
-              isModrinthTracked(m) &&
+              isCatalogTracked(m) &&
               selectedBaseNames.has(m.fileName.toLowerCase()),
           )
         : []
@@ -610,7 +616,7 @@ export async function exportInstanceAsEgpack(
     }
 
     fs.writeFileSync(
-      path.join(staging, 'modrinth.index.json'),
+      path.join(staging, PACK_INDEX_FILENAME),
       JSON.stringify(index, null, 2),
       'utf8',
     )
@@ -692,8 +698,8 @@ export function scanModsFromDisk(
 }
 
 /**
- * Import .egpack or .mrpack — identical Modrinth pack install path.
- * Requires modrinth.index.json (same as any .mrpack).
+ * Import .egpack or .mrpack — identical mod pack install path.
+ * Requires pack index JSON (standard .mrpack layout).
  */
 export async function importPackFile(
   filePath: string,
@@ -716,16 +722,16 @@ export async function importPackFile(
   try {
     await extractZip(src, extractDir)
 
-    const indexPath = path.join(extractDir, 'modrinth.index.json')
+    const indexPath = path.join(extractDir, PACK_INDEX_FILENAME)
     if (!fs.existsSync(indexPath)) {
       throw new Error(
-        'Invalid pack — missing modrinth.index.json (same requirement as .mrpack)',
+        'Invalid pack — missing pack index file',
       )
     }
 
     const index = readJsonSafe<MrpackIndex>(indexPath)
     if (!index || !index.dependencies) {
-      throw new Error('Invalid modrinth.index.json')
+      throw new Error('Invalid pack index file')
     }
 
     const manifestPath = path.join(extractDir, 'eg.manifest.json')
@@ -822,7 +828,7 @@ export async function importPackFile(
       emit(onProgress, 'mods', 0.74, 'Fetching mod names & icons…')
       mods = await enrichModsWithProjectMeta(mods)
     } catch {
-      // keep filename titles if Modrinth is unreachable
+      // keep filename titles if mod catalog is unreachable
     }
     instance = updateInstance(instance.id, { mods })
 

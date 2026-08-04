@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS partner_config (
   news_tag VARCHAR(128) NOT NULL,
   news_username VARCHAR(128) NOT NULL,
   default_mods_json JSON NOT NULL,
-  modrinth_pack_slug VARCHAR(256) NULL,
+  pack_slug VARCHAR(256) NULL,
   icon_url VARCHAR(1024) NULL,
   discord_url VARCHAR(1024) NULL,
   enabled TINYINT(1) NOT NULL DEFAULT 1,

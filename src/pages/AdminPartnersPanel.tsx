@@ -15,8 +15,8 @@ type FormState = {
   newsTag: string
   newsUsername: string
   newsPassword: string
-  useModrinthProject: boolean
-  modrinthPackSlug: string
+  usePackProject: boolean
+  packSlug: string
   defaultModsText: string
   iconUrl: string
   discordUrl: string
@@ -34,8 +34,8 @@ const emptyForm = (): FormState => ({
   newsTag: '',
   newsUsername: '',
   newsPassword: '',
-  useModrinthProject: false,
-  modrinthPackSlug: '',
+  usePackProject: false,
+  packSlug: '',
   defaultModsText: '',
   iconUrl: '',
   discordUrl: '',
@@ -55,8 +55,8 @@ function fromConfig(p: PartnerConfig): FormState {
     newsTag: p.newsTag,
     newsUsername: p.newsUsername,
     newsPassword: '',
-    useModrinthProject: Boolean(p.modrinthPackSlug),
-    modrinthPackSlug: p.modrinthPackSlug || '',
+    usePackProject: Boolean(p.packSlug),
+    packSlug: p.packSlug || '',
     defaultModsText: (p.defaultMods || []).join(', '),
     iconUrl: p.iconUrl || '',
     discordUrl: p.discordUrl || '',
@@ -213,8 +213,8 @@ export function AdminPartnersPanel({ session }: Props) {
         newsTag: form.newsTag || form.title.replace(/[^a-zA-Z0-9]+/g, ''),
         newsUsername: form.newsUsername,
         newsPassword: form.newsPassword || undefined,
-        defaultMods: form.useModrinthProject ? mods : mods,
-        modrinthPackSlug: form.useModrinthProject ? form.modrinthPackSlug.trim() || null : null,
+        defaultMods: form.usePackProject ? mods : mods,
+        packSlug: form.usePackProject ? form.packSlug.trim() || null : null,
         iconUrl: form.iconUrl.trim() || null,
         discordUrl: form.discordUrl.trim() || null,
         enabled: true,
@@ -367,27 +367,27 @@ export function AdminPartnersPanel({ session }: Props) {
     }
   }
 
-  async function lookupModrinth() {
-    const slug = form.modrinthPackSlug.trim()
+  async function lookupPackProject() {
+    const slug = form.packSlug.trim()
     if (!slug) {
-      showToast('error', 'Enter a Modrinth project slug or id')
+      showToast('error', 'Enter a mod project slug or id')
       return
     }
     try {
-      const project = await window.hive.modrinth.project(slug)
+      const project = await window.hive.mods.project(slug)
       if (project.project_type === 'modpack') {
         setForm((f) => ({
           ...f,
-          useModrinthProject: true,
-          modrinthPackSlug: project.slug || slug,
+          usePackProject: true,
+          packSlug: project.slug || slug,
           description: f.description || project.description || '',
         }))
         showToast('success', `Modpack: ${project.title}`)
       } else {
         setForm((f) => ({
           ...f,
-          useModrinthProject: false,
-          modrinthPackSlug: '',
+          usePackProject: false,
+          packSlug: '',
           defaultModsText: [project.slug || slug, ...f.defaultModsText.split(',').map((s) => s.trim()).filter(Boolean)]
             .filter((v, i, a) => a.indexOf(v) === i)
             .join(', '),
@@ -557,27 +557,27 @@ export function AdminPartnersPanel({ session }: Props) {
                 <label className="checkbox-row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <input
                     type="checkbox"
-                    checked={form.useModrinthProject}
+                    checked={form.usePackProject}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, useModrinthProject: e.target.checked }))
+                      setForm((f) => ({ ...f, usePackProject: e.target.checked }))
                     }
                   />
-                  Use a Modrinth project (pack or mod)
+                  Use a mod project (pack or mod)
                 </label>
               </div>
-              {form.useModrinthProject && (
+              {form.usePackProject && (
                 <div className="form-row">
-                  <label>Modrinth project slug / id</label>
+                  <label>mod project slug / id</label>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input
                       className="input"
                       type="text"
                       style={{ flex: 1 }}
-                      value={form.modrinthPackSlug}
-                      onChange={(e) => setForm((f) => ({ ...f, modrinthPackSlug: e.target.value }))}
+                      value={form.packSlug}
+                      onChange={(e) => setForm((f) => ({ ...f, packSlug: e.target.value }))}
                       placeholder="e.g. sodium or a modpack slug"
                     />
-                    <button type="button" className="btn btn-secondary" onClick={() => void lookupModrinth()}>
+                    <button type="button" className="btn btn-secondary" onClick={() => void lookupPackProject()}>
                       Look up
                     </button>
                   </div>
@@ -587,7 +587,7 @@ export function AdminPartnersPanel({ session }: Props) {
                 </div>
               )}
               <div className="form-row">
-                <label>Auto-install mods (comma-separated Modrinth slugs)</label>
+                <label>Auto-install mods (comma-separated Project slugs)</label>
                 <textarea
                   className="input admin-textarea"
                   rows={3}

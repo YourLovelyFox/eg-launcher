@@ -6,7 +6,7 @@ Support Discord server: Soon
 
 # EG Launcher
 
-Modern **Minecraft: Java Edition** launcher for browsing and installing mods via [Modrinth](https://modrinth.com/), managing instances, and launching the game.
+Modern **Minecraft: Java Edition** launcher for browsing and installing mods via mod catalog API, managing instances, and launching the game.
 
 > ## Windows downloads from GitHub are discontinued
 >
@@ -32,12 +32,12 @@ Modern **Minecraft: Java Edition** launcher for browsing and installing mods via
 ## Features
 
 - Dark glass-style UI with instance management  
-- Browse & install mods from the **Modrinth** API (with required dependencies)  
+- Browse & install mods from the **mod catalog** API (with required dependencies)  
 - **Microsoft login** (device-code flow) and offline accounts where configured  
 - Java RAM settings and automatic Mojang JRE download when a version needs a newer runtime  
 - Loaders: **Vanilla**, **Fabric**, **Forge**, **NeoForge**  
 - Enable / disable / remove mods; update checks on installed mods  
-- Featured pack: **Bee's SMP** (manual install, news & changelogs from Modrinth)  
+- Featured pack: **Bee's SMP** (manual install, news & changelogs from the mod catalog)  
 - **Partners** from CMS (staff-managed)  
 - **Updates**  
   - **Windows (Microsoft Store):** updates via the Store only (once the listing is published)  
@@ -229,7 +229,7 @@ CI runs `scripts/extract-changelog.mjs` and uses that section as the GitHub Rele
 2. **Microsoft Login** — sign in with the account that owns Java Edition  
 3. **Instances** — create Vanilla / Fabric / Forge / NeoForge  
 4. Open the instance → install / repair runtime if needed  
-5. **Browse Mods** — search Modrinth and install into the instance  
+5. **Browse Mods** — search mod catalog and install into the instance  
 6. **Play**  
 
 Also:
@@ -257,7 +257,7 @@ Instances, accounts, mods, and caches live under that folder.
 ## Stack
 
 - **Electron** + **Vite** + **React** + **TypeScript**  
-- Modrinth REST API v2  
+- mod catalog REST API v2  
 - Mojang / Fabric / Forge / NeoForge metadata  
 - Microsoft Store updates on Windows; Linux AppImage from GitHub Releases (manual)  
 

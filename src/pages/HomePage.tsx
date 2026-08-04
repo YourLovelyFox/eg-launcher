@@ -108,7 +108,7 @@ export function HomePage() {
           </h1>
           <p>
             {loggedIn
-              ? 'Browse Modrinth mods, build instances, and launch Minecraft.'
+              ? 'Browse mods, build instances, and launch Minecraft.'
               : 'Sign in with Microsoft or an Admin-created offline account to play.'}
           </p>
         </div>

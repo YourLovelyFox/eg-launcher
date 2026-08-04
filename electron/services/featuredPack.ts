@@ -24,8 +24,9 @@ import {
   getProjectVersions,
   getVersion,
   getVersionsByHashes,
+  PACK_INDEX_FILENAME,
   pickPrimaryFile,
-} from './modrinth'
+} from './catalog'
 import type { InstalledMod } from '../../shared/types'
 import { installInstanceRuntime } from './minecraft'
 import { getActiveAccountSecret } from './auth'
@@ -82,7 +83,7 @@ export type FeaturedPackStatus = {
   local: FeaturedPackState
   updateAvailable: boolean
   instance: GameInstance | null
-  /** Recent version changelogs from Modrinth (newest first). */
+  /** Recent version changelogs from the mod catalog (newest first). */
   news: FeaturedPackNewsItem[]
   /** System RAM requirements for this heavy pack */
   memory: FeaturedPackMemoryGate
@@ -427,7 +428,7 @@ export async function installFeaturedPack(
   if (options.versionId && !version) {
     version = await getVersion(options.versionId)
   }
-  if (!version) throw new Error('No pack versions found on Modrinth')
+  if (!version) throw new Error('No pack versions found in the mod catalog')
 
   const file = pickPrimaryFile(version)
   if (!file) throw new Error('Pack has no downloadable .mrpack file')
@@ -461,9 +462,9 @@ export async function installFeaturedPack(
     throw new Error(`Failed to extract .mrpack: ${(err as Error).message}`)
   }
 
-  const indexPath = path.join(extractDir, 'modrinth.index.json')
+  const indexPath = path.join(extractDir, PACK_INDEX_FILENAME)
   if (!fs.existsSync(indexPath)) {
-    throw new Error('Invalid .mrpack — missing modrinth.index.json')
+    throw new Error('Invalid .mrpack — missing pack index file')
   }
   const index = JSON.parse(fs.readFileSync(indexPath, 'utf-8')) as MrpackIndex
 
@@ -538,7 +539,7 @@ export async function installFeaturedPack(
   instance = updateInstance(instance.id, { mods: [] })
 
   // Download pack files (mods, resourcepacks, etc.)
-  // Match importPackFile / Modrinth App: client !== 'unsupported' (missing env = include)
+  // Match importPackFile / export: client !== 'unsupported' (missing env = include)
   const clientFiles = (index.files || []).filter((f) => f.env?.client !== 'unsupported')
 
   emit('files', 0.4, `Downloading ${clientFiles.length} pack files…`)
@@ -608,7 +609,7 @@ export async function installFeaturedPack(
   }
 
   // Register mods in instance metadata (UI lists instance.mods — not only files on disk).
-  // Prefer real Modrinth project/version ids from pack file hashes so update checks work
+  // Prefer real mod project/version ids from pack file hashes so update checks work
   // and we never query /project/local-… (404 spam).
   emit('mods', 0.8, 'Registering installed mods…')
   const hashToFile = new Map<string, { path: string; fileName: string }>()
@@ -624,7 +625,7 @@ export async function installFeaturedPack(
   let byHash: Awaited<ReturnType<typeof getVersionsByHashes>> = {}
   const hashList = [...hashToFile.keys()]
   if (hashList.length > 0) {
-    emit('mods', 0.81, `Resolving ${hashList.length} mods on Modrinth…`)
+    emit('mods', 0.81, `Resolving ${hashList.length} mods in the mod catalog…`)
     try {
       byHash = await getVersionsByHashes(hashList, 'sha1')
     } catch {
@@ -637,7 +638,7 @@ export async function installFeaturedPack(
     const ver = byHash[sha1] || byHash[sha1.toLowerCase()]
     const fileName = meta.fileName
     if (ver?.project_id && ver?.id) {
-      // Prefer human version name from Modrinth; title/icon filled in batch below
+      // Prefer human version name from the mod catalog; title/icon filled in batch below
       metaFromPack.push({
         projectId: ver.project_id,
         versionId: ver.id,

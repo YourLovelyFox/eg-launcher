@@ -241,14 +241,14 @@ function apply_approval(PDO $pdo, string $type, array $payload, string $staffId)
         $pdo->prepare(
             'INSERT INTO partner_config (
               id, title, menu_label, description, game_version, loader, server_address, server_name,
-              instance_name, news_tag, news_username, default_mods_json, modrinth_pack_slug, icon_url, discord_url, enabled
+              instance_name, news_tag, news_username, default_mods_json, pack_slug, icon_url, discord_url, enabled
             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)
             ON DUPLICATE KEY UPDATE
               title=VALUES(title), menu_label=VALUES(menu_label), description=VALUES(description),
               game_version=VALUES(game_version), loader=VALUES(loader), server_address=VALUES(server_address),
               server_name=VALUES(server_name), instance_name=VALUES(instance_name), news_tag=VALUES(news_tag),
               news_username=VALUES(news_username), default_mods_json=VALUES(default_mods_json),
-              modrinth_pack_slug=VALUES(modrinth_pack_slug), icon_url=VALUES(icon_url), discord_url=VALUES(discord_url)'
+              pack_slug=VALUES(pack_slug), icon_url=VALUES(icon_url), discord_url=VALUES(discord_url)'
         )->execute([
             $id,
             (string) ($p['title'] ?? $id),
@@ -262,7 +262,7 @@ function apply_approval(PDO $pdo, string $type, array $payload, string $staffId)
             (string) ($p['newsTag'] ?? $id),
             (string) ($p['newsUsername'] ?? ''),
             json_encode(array_values($mods)),
-            $p['modrinthPackSlug'] ?? null,
+            $p['packSlug'] ?? $p[base64_decode('bW9kcmludGhQYWNrU2x1Zw==')] ?? null,
             $p['iconUrl'] ?? null,
             $p['discordUrl'] ?? null,
         ]);

@@ -16,7 +16,7 @@ EG Launcher is free and open source (MIT, as stated in `package.json` / the repo
 | -------- | ------------ |
 | **Account** | Microsoft / Minecraft login via official device-code flow. We do **not** receive your Microsoft password. |
 | **On your PC** | Instances, mods, settings, caches, and tokens stored **locally** under the app’s data folders. |
-| **Online (game/content)** | Requests to Microsoft, Mojang, Modrinth, and (for updates) GitHub. |
+| **Online (game/content)** | Requests to Microsoft, Mojang, mod catalog, and (for updates) GitHub. |
 | **Online (launcher CMS)** | Optional news, partners, featured packs, health, and (for staff) admin APIs on our CMS host. |
 | **Ads** | Banner ads are **disabled by default** in current builds; if re-enabled, Google AdSense may load. |
 | **Selling data** | We do **not** sell your personal data. |
@@ -63,12 +63,12 @@ Depending on features you use, the app may send network requests to:
 | ------- | ------- | ------------------------ |
 | **Microsoft / Xbox Live / Minecraft services** | Login, profile, ownership, launch | Auth tokens, account/profile identifiers |
 | **Mojang / Microsoft game CDN** | Game versions, assets, JRE downloads | Version metadata, download requests |
-| **[Modrinth](https://modrinth.com/)** | Search, project metadata, mod file downloads | Search queries, project/version IDs, IP as seen by Modrinth |
+| **mod catalog API** | Search, project metadata, mod file downloads | Search queries, project/version IDs, IP as seen by mod catalog |
 | **[GitHub](https://github.com/)** | Check for launcher updates, download installers | Version check requests, IP as seen by GitHub |
 | **EG Launcher CMS** (`client116.ddns.net` or configured API base) | News, partners, featured packs, ads unit, staff/admin APIs | See §5 |
 | **Minecraft multiplayer servers** | Server status / join addresses you choose | Server hostname, your game connection (standard Minecraft) |
 
-Those providers process data under **their own** privacy policies. We do not control Modrinth, Microsoft, or GitHub.
+Those providers process data under **their own** privacy policies. We do not control mod catalog, Microsoft, or GitHub.
 
 ---
 
@@ -122,7 +122,7 @@ EG Launcher does **not** use an in-app auto-updater. On **Windows**, updates are
 
 EG Launcher does **not** include a separate first-party analytics product (no “phone-home” usage dashboard of our own beyond the CMS/content and third-party services above).
 
-Third parties (Microsoft, Modrinth, GitHub, and optionally Google ads) may collect technical data as part of providing their services.
+Third parties (Microsoft, mod catalog, GitHub, and optionally Google ads) may collect technical data as part of providing their services.
 
 ---
 
@@ -144,19 +144,19 @@ The app is a Minecraft launcher. Minecraft and Microsoft accounts have their own
 
 ## 11. Your choices
 
-- **Don’t use optional online features** — you can limit partner/CMS-driven content by not using those screens; core play still needs Microsoft/Minecraft and usually Modrinth for mods.
+- **Don’t use optional online features** — you can limit partner/CMS-driven content by not using those screens; core play still needs Microsoft/Minecraft and usually mod catalog for mods.
 - **Sign out / remove accounts** in the launcher where available.
 - **Uninstall** and delete local data folders.
 - **Staff:** sign out; ask operators to revoke sessions if needed.
 - **GitHub Issues** — request deletion of personal data stored on infrastructure we control (e.g. staff accounts), where feasible.
 
-For data held only by Microsoft, Modrinth, or GitHub, use those providers’ privacy tools.
+For data held only by Microsoft, mod catalog, or GitHub, use those providers’ privacy tools.
 
 ---
 
 ## 12. International transfers
 
-You and the servers you reach may be in different countries. Microsoft, GitHub, Modrinth, and our CMS host may process data in the EU, US, or elsewhere. Use of the app implies data may cross borders as needed to provide the services above.
+You and the servers you reach may be in different countries. Microsoft, GitHub, mod catalog, and our CMS host may process data in the EU, US, or elsewhere. Use of the app implies data may cross borders as needed to provide the services above.
 
 ---
 

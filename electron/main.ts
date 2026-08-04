@@ -71,11 +71,20 @@ import {
 import { requireAdmin } from './services/admin'
 import { installModWithDependencies, installModsBatch } from './services/modInstall'
 import {
+  CATALOG_SITE_ORIGIN,
   getProject,
   getProjectVersions,
   getVersion,
   searchMods,
-} from './services/modrinth'
+} from './services/catalog'
+
+function catalogSiteHost(): string {
+  try {
+    return new URL(CATALOG_SITE_ORIGIN).hostname
+  } catch {
+    return ''
+  }
+}
 import { getSystemMemoryInfo, loadSettings, saveSettings } from './services/settings'
 import {
   checkForUpdates,
@@ -347,16 +356,16 @@ function registerIpc() {
     if (!hasLocal && !needsIcons) return inst
 
     try {
-      const modrinth = await import('./services/modrinth')
+      const catalog = await import('./services/catalog')
       // Prefer fast batch project meta when ids are already known (no jar hashing)
       let mods = inst.mods
       if (needsIcons) {
-        mods = await modrinth.enrichModsWithProjectMeta(mods)
+        mods = await catalog.enrichModsWithProjectMeta(mods)
       }
       // Only hash jars for remaining synthetic local-* ids (expensive)
       if (hasLocal || mods.some((m) => /^(local|import|disk)-/i.test(m.projectId || ''))) {
         const modsDir = getInstanceModsDir(inst.id)
-        mods = await modrinth.repairInstalledModsMeta(mods, modsDir)
+        mods = await catalog.repairInstalledModsMeta(mods, modsDir)
       }
       const changed = mods.some((m, i) => {
         const o = inst.mods[i]
@@ -536,7 +545,7 @@ function registerIpc() {
           filters: [
             { name: 'Modpacks', extensions: ['egpack', 'mrpack'] },
             { name: 'EG Launcher Pack', extensions: ['egpack'] },
-            { name: 'Modrinth Pack', extensions: ['mrpack'] },
+            { name: 'Mod pack', extensions: ['mrpack'] },
           ],
         }
         const result = win
@@ -568,9 +577,9 @@ function registerIpc() {
   ipcMain.handle('mc:forceStop', () => forceClearRunningGame())
   ipcMain.handle('mc:running', () => getRunningGameInfo())
 
-  // Modrinth
+  // mod catalog
   ipcMain.handle(
-    'modrinth:search',
+    'mods:search',
     async (
       _e,
       opts: {
@@ -584,9 +593,9 @@ function registerIpc() {
       },
     ) => searchMods(opts),
   )
-  ipcMain.handle('modrinth:project', async (_e, id: string) => getProject(id))
+  ipcMain.handle('mods:project', async (_e, id: string) => getProject(id))
   ipcMain.handle(
-    'modrinth:versions',
+    'mods:versions',
     async (_e, id: string, gameVersion?: string, loader?: string) => {
       try {
         return await getProjectVersions(id, gameVersion, loader)
@@ -596,10 +605,10 @@ function registerIpc() {
       }
     },
   )
-  ipcMain.handle('modrinth:version', async (_e, versionId: string) => getVersion(versionId))
+  ipcMain.handle('mods:version', async (_e, versionId: string) => getVersion(versionId))
 
   ipcMain.handle(
-    'modrinth:installMod',
+    'mods:installMod',
     async (
       _e,
       payload: {
@@ -615,7 +624,7 @@ function registerIpc() {
         versionId: payload.versionId,
         resolveDependencies: settings.resolveDependencies !== false,
         onProgress: (progress) => {
-          sendProgress('modrinth:downloadProgress', progress)
+          sendProgress('mods:downloadProgress', progress)
         },
       })
 
@@ -637,7 +646,7 @@ function registerIpc() {
 
   /** Bulk update/install many mods as one parallel job ("Update all"). */
   ipcMain.handle(
-    'modrinth:installModsBatch',
+    'mods:installModsBatch',
     async (
       _e,
       payload: {
@@ -652,7 +661,7 @@ function registerIpc() {
         resolveDependencies: settings.resolveDependencies !== false,
         concurrency: 6,
         onProgress: (progress) => {
-          sendProgress('modrinth:downloadProgress', progress)
+          sendProgress('mods:downloadProgress', progress)
         },
       })
 
@@ -661,7 +670,7 @@ function registerIpc() {
         const rateLimited = result.failed.some((f) => /429|rate limit/i.test(f.error || ''))
         throw new Error(
           rateLimited
-            ? `Modrinth rate limit hit while preparing updates. Wait a few seconds and try Update all again. (${first})`
+            ? `Mod catalog rate limit hit while preparing updates. Wait a few seconds and try Update all again. (${first})`
             : first,
         )
       }
@@ -693,8 +702,8 @@ function registerIpc() {
       host === 'discord.gg' ||
       host === 'discord.com' ||
       host.endsWith('.discord.com') ||
-      host === 'modrinth.com' ||
-      host.endsWith('.modrinth.com') ||
+      host === catalogSiteHost() ||
+      host.endsWith(`.${catalogSiteHost()}`) ||
       host === 'github.com' ||
       host.endsWith('.github.com') ||
       host.endsWith('.githubusercontent.com') ||

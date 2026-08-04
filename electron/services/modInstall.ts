@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import type { GameInstance, InstalledMod, LoaderType, ModrinthVersion } from '../../shared/types'
+import type { GameInstance, InstalledMod, LoaderType, CatalogVersion } from '../../shared/types'
 import { getInstanceModsDir } from '../paths'
 import { addModToInstance, getInstance, updateInstance } from './instances'
 import {
@@ -9,7 +9,7 @@ import {
   getProjectVersions,
   getVersion,
   pickPrimaryFile,
-} from './modrinth'
+} from './catalog'
 
 export type InstallModResult = {
   instance: GameInstance
@@ -26,7 +26,7 @@ type ProgressFn = (event: {
 
 function toInstalledMod(
   project: { id: string; slug: string; title: string; icon_url: string | null },
-  version: ModrinthVersion,
+  version: CatalogVersion,
   fileName: string,
 ): InstalledMod {
   return {
@@ -49,7 +49,7 @@ async function resolveVersionForProject(
   preferredVersionId: string | null | undefined,
   gameVersion: string,
   loader: LoaderType,
-): Promise<ModrinthVersion | null> {
+): Promise<CatalogVersion | null> {
   if (preferredVersionId) {
     try {
       return await getVersion(preferredVersionId)
@@ -66,7 +66,7 @@ async function resolveVersionForProject(
 }
 
 /**
- * Install a mod and recursively install all *required* Modrinth dependencies.
+ * Install a mod and recursively install all *required* mod catalog dependencies.
  */
 export async function installModWithDependencies(options: {
   instanceId: string
@@ -257,7 +257,7 @@ type BatchTarget = {
   versionId: string
   isDependency: boolean
   title: string
-  version: ModrinthVersion
+  version: CatalogVersion
   project: { id: string; slug: string; title: string; icon_url: string | null }
   fileName: string
   url: string
@@ -302,7 +302,7 @@ export async function installModsBatch(options: {
   })
 
   // Expand required dependencies (use pinned version ids when present — fewer API calls)
-  const versionCache = new Map<string, ModrinthVersion>()
+  const versionCache = new Map<string, CatalogVersion>()
   if (resolveDeps) {
     const queue = [...wanted.entries()].map(([projectId, v]) => ({
       projectId,
@@ -347,7 +347,7 @@ export async function installModsBatch(options: {
     message: `Fetching version info (${entries.length})…`,
   })
 
-  // Load every version id once (rate-limited inside modrinth client)
+  // Load every version id once (rate-limited inside catalog client)
   for (let i = 0; i < entries.length; i++) {
     const [projectId, pref] = entries[i]!
     if (versionCache.has(pref.versionId)) continue
@@ -379,7 +379,7 @@ export async function installModsBatch(options: {
   const projectIds = entries.map(([id]) => id)
   let projectById = new Map<string, Awaited<ReturnType<typeof getProject>>>()
   try {
-    const { getProjects } = await import('./modrinth')
+    const { getProjects } = await import('./catalog')
     const list = await getProjects(projectIds)
     projectById = new Map(list.map((p) => [p.id, p]))
     for (const p of list) {

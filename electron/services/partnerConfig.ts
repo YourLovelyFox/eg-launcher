@@ -97,7 +97,7 @@ export type PartnerUpsertInput = {
   newsUsername: string
   newsPassword?: string
   defaultMods?: string[]
-  modrinthPackSlug?: string | null
+  packSlug?: string | null
   iconUrl?: string | null
   discordUrl?: string | null
   enabled?: boolean
@@ -146,16 +146,16 @@ export async function upsertPartnerConfig(
     newsTag: (input.newsTag || newsTagFromName(title)).trim(),
     newsUsername,
     defaultMods: (input.defaultMods || []).map((m) => m.trim()).filter(Boolean),
-    modrinthPackSlug: input.modrinthPackSlug?.trim() || null,
+    packSlug: input.packSlug?.trim() || null,
     iconUrl: input.iconUrl?.trim() || null,
     discordUrl: input.discordUrl?.trim() || null,
     enabled: input.enabled !== false,
   }
 
-  if (partner.loader !== 'vanilla' && !partner.modrinthPackSlug && partner.defaultMods.length === 0) {
+  if (partner.loader !== 'vanilla' && !partner.packSlug && partner.defaultMods.length === 0) {
     return {
       ok: false,
-      error: 'Mod loader selected: set a Modrinth pack project or at least one mod slug for auto-install.',
+      error: 'Mod loader selected: set a mod pack project or at least one mod slug for auto-install.',
     }
   }
 

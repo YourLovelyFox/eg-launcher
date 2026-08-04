@@ -150,7 +150,7 @@ export function ExportEgpackModal({ open, instance, busy, onClose, onExport }: P
     onExport({
       packName: name,
       summary: summary.trim(),
-      preferModrinthDownloads: preferCdn,
+      preferCdnDownloads: preferCdn,
       selectedPaths: Array.from(selected),
     })
   }
@@ -172,8 +172,8 @@ export function ExportEgpackModal({ open, instance, busy, onClose, onExport }: P
           <div>
             <h2 id="export-egpack-title">Export as .egpack</h2>
             <p className="hint" style={{ marginBottom: 0 }}>
-              Same format as Modrinth <strong>.mrpack</strong> — pick every file and folder like the
-              Modrinth App.
+              Same format as mod catalog <strong>.mrpack</strong> — pick every file and folder like the
+              export.
             </p>
           </div>
         </div>
@@ -207,7 +207,7 @@ export function ExportEgpackModal({ open, instance, busy, onClose, onExport }: P
               onChange={(e) => setPreferCdn(e.target.checked)}
             />
             <span>
-              Prefer Modrinth CDN for tracked mods
+              Prefer mod catalog CDN for tracked mods
               <span className="hint" style={{ display: 'block', margin: 0 }}>
                 Smaller pack · needs internet on import. Uncheck to embed every jar offline.
               </span>

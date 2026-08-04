@@ -136,7 +136,7 @@ export function AdminFeaturedPanel({ session }: { session: string }) {
         )}
         <div className="form-grid">
           <div className="form-row">
-            <label>Modrinth slug *</label>
+            <label>Project slug *</label>
             <input
               className="input"
               value={form.slug}
@@ -145,7 +145,7 @@ export function AdminFeaturedPanel({ session }: { session: string }) {
             />
           </div>
           <div className="form-row">
-            <label>Modrinth project id *</label>
+            <label>mod project id *</label>
             <input
               className="input"
               value={form.projectId}

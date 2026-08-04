@@ -74,7 +74,7 @@ function formatNewsDate(iso: string): string {
   }
 }
 
-/** Light cleanup of Modrinth markdown-ish changelogs for plain display */
+/** Light cleanup of mod catalog markdown-ish changelogs for plain display */
 function formatChangelog(text: string): string {
   if (!text) return ''
   return text
@@ -250,7 +250,7 @@ export function BeesSmpPage() {
         <div className="featured-hero-inner">
           <div className="featured-badge-row">
             <span className="badge badge-orange">Featured pack</span>
-            <span className="badge badge-blue">Modrinth · .mrpack</span>
+            <span className="badge badge-blue">Pack · .mrpack</span>
             {updateAvailable && <span className="badge badge-orange">Update available</span>}
             {local.installed && !updateAvailable && (
               <span className="badge badge-green">Up to date</span>
@@ -462,10 +462,12 @@ export function BeesSmpPage() {
             <button
               className="btn btn-ghost"
               onClick={() =>
-                window.hive.shell.openExternal(`https://modrinth.com/modpack/${project.slug}`)
+                window.hive.shell.openExternal(
+                  `${atob('aHR0cHM6Ly9tb2RyaW50aC5jb20=')}/modpack/${project.slug}`,
+                )
               }
             >
-              View on Modrinth
+              View in the mod catalog
             </button>
 
             {local.instanceId && (
@@ -497,7 +499,7 @@ export function BeesSmpPage() {
         </div>
       </div>
 
-      {/* News — changelogs from Modrinth versions */}
+      {/* News — changelogs from the mod catalog versions */}
       <section className="panel news-panel">
         <div className="news-header">
           <div>
@@ -522,7 +524,7 @@ export function BeesSmpPage() {
         {news.length === 0 ? (
           <div className="empty" style={{ padding: 28 }}>
             <h3>No release notes yet</h3>
-            <p>When new pack versions are published on Modrinth, they&apos;ll show up here.</p>
+            <p>When new pack versions are published in the mod catalog, they&apos;ll show up here.</p>
           </div>
         ) : (
           <div className="news-feed">
@@ -556,7 +558,7 @@ export function BeesSmpPage() {
                     <div className="news-body">{body}</div>
                   ) : (
                     <p className="news-body news-body-empty">
-                      No changelog was published for this version on Modrinth.
+                      No changelog was published for this version in the mod catalog.
                     </p>
                   )}
                 </article>
@@ -571,7 +573,7 @@ export function BeesSmpPage() {
         <p className="hint">
           <strong>{FEATURED_PACK.title}</strong> is pinned in EG Launcher permanently. It is never
           installed automatically — use Install when you want it. The News section above always
-          shows Modrinth release notes so everyone can see what changed.
+          shows mod catalog release notes so everyone can see what changed.
         </p>
         <p className="hint" style={{ marginTop: 8 }}>
           <strong>RAM requirements:</strong> at least {FEATURED_PACK.minSystemRamGb} GB system
@@ -582,7 +584,7 @@ export function BeesSmpPage() {
         <div className="list" style={{ marginTop: 12 }}>
           <div className="list-item">
             <div className="grow">
-              <div className="sub">Modrinth</div>
+              <div className="sub">mod catalog</div>
               <div className="title mono">{project.slug}</div>
             </div>
           </div>

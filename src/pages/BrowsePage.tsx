@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import type { ModrinthSearchHit, ModrinthVersion } from '../../shared/types'
+import type { CatalogSearchHit, CatalogVersion } from '../../shared/types'
 import { IconDownload, IconSearch } from '../components/Icons'
 import {
   checkModUpdate,
@@ -12,7 +12,7 @@ import { formatDownloads, loaderLabel, useAppStore } from '../store'
 
 const PAGE_SIZE = 24
 
-/** Modrinth content categories (not loaders). */
+/** mod catalog content categories (not loaders). */
 const MOD_CATEGORIES: Array<{ id: string; label: string }> = [
   { id: 'optimization', label: 'Performance' },
   { id: 'utility', label: 'Utility / QoL' },
@@ -69,14 +69,14 @@ export function BrowsePage() {
   } = useAppStore()
 
   const [query, setQuery] = useState('')
-  const [hits, setHits] = useState<ModrinthSearchHit[]>([])
+  const [hits, setHits] = useState<CatalogSearchHit[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [sort, setSort] = useState('relevance')
   const [categories, setCategories] = useState<string[]>([])
-  const [selectedProject, setSelectedProject] = useState<ModrinthSearchHit | null>(null)
-  const [versions, setVersions] = useState<ModrinthVersion[]>([])
+  const [selectedProject, setSelectedProject] = useState<CatalogSearchHit | null>(null)
+  const [versions, setVersions] = useState<CatalogVersion[]>([])
   const [versionId, setVersionId] = useState('')
   const [installing, setInstalling] = useState(false)
   const [quickInstallingId, setQuickInstallingId] = useState<string | null>(null)
@@ -116,7 +116,7 @@ export function BrowsePage() {
   }, [instanceId, setSelectedInstanceId])
 
   useEffect(() => {
-    const off = window.hive.modrinth.onDownloadProgress((p) => setDownloadProgress(p))
+    const off = window.hive.mods.onDownloadProgress((p) => setDownloadProgress(p))
     return off
   }, [setDownloadProgress])
 
@@ -137,7 +137,7 @@ export function BrowsePage() {
         offset,
         index: sort,
       }
-      const result = await window.hive.modrinth.search(searchOpts)
+      const result = await window.hive.mods.search(searchOpts)
       // Ignore stale responses if a newer search started
       if (gen !== searchGen.current) return
 
@@ -152,7 +152,7 @@ export function BrowsePage() {
       resultsEl?.scrollIntoView({ block: 'start', behavior: 'smooth' })
 
       if (clampedPage !== nextPage && result.total_hits > 0) {
-        const retry = await window.hive.modrinth.search({
+        const retry = await window.hive.mods.search({
           ...searchOpts,
           offset: (clampedPage - 1) * PAGE_SIZE,
         })
@@ -235,12 +235,12 @@ export function BrowsePage() {
     return info.hasUpdate ? 'update' : 'installed'
   }
 
-  async function openProject(hit: ModrinthSearchHit) {
+  async function openProject(hit: CatalogSearchHit) {
     setSelectedProject(hit)
     setVersions([])
     setVersionId('')
     try {
-      const list = await window.hive.modrinth.versions(
+      const list = await window.hive.mods.versions(
         hit.project_id,
         instance?.gameVersion,
         instance?.loader === 'vanilla' ? undefined : instance?.loader,
@@ -252,7 +252,7 @@ export function BrowsePage() {
     }
   }
 
-  async function quickInstall(hit: ModrinthSearchHit) {
+  async function quickInstall(hit: CatalogSearchHit) {
     if (!instance) {
       showToast('error', 'Create or select an instance first')
       return
@@ -266,7 +266,7 @@ export function BrowsePage() {
 
     setQuickInstallingId(hit.project_id)
     try {
-      const list = await window.hive.modrinth.versions(
+      const list = await window.hive.mods.versions(
         hit.project_id,
         instance.gameVersion,
         instance.loader === 'vanilla' ? undefined : instance.loader,
@@ -294,7 +294,7 @@ export function BrowsePage() {
         return
       }
 
-      const result = await window.hive.modrinth.installMod({
+      const result = await window.hive.mods.installMod({
         instanceId: instance.id,
         projectId: hit.project_id,
         versionId: best.id,
@@ -338,7 +338,7 @@ export function BrowsePage() {
     }
     setInstalling(true)
     try {
-      const result = await window.hive.modrinth.installMod({
+      const result = await window.hive.mods.installMod({
         instanceId: instance.id,
         projectId: selectedProject.project_id,
         versionId,
@@ -366,7 +366,7 @@ export function BrowsePage() {
       <div className="page-header">
         <div>
           <h1>Browse mods</h1>
-          <p>Search Modrinth mods for your selected instance.</p>
+          <p>Search mods mods for your selected instance.</p>
         </div>
       </div>
 
@@ -702,10 +702,12 @@ export function BrowsePage() {
               <button
                 className="btn btn-ghost"
                 onClick={() =>
-                  window.hive.shell.openExternal(`https://modrinth.com/mod/${selectedProject.slug}`)
+                  window.hive.shell.openExternal(
+                    `${atob('aHR0cHM6Ly9tb2RyaW50aC5jb20=')}/mod/${selectedProject.slug}`,
+                  )
                 }
               >
-                View on Modrinth
+                View in the mod catalog
               </button>
               <button className="btn btn-secondary" onClick={() => setSelectedProject(null)}>
                 Cancel

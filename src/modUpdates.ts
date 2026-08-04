@@ -1,4 +1,4 @@
-import type { GameInstance, InstalledMod, LoaderType, ModrinthVersion } from '../shared/types'
+import type { GameInstance, InstalledMod, LoaderType, CatalogVersion } from '../shared/types'
 
 export type ModUpdateInfo = {
   projectId: string
@@ -11,7 +11,7 @@ export type ModUpdateInfo = {
   error?: string
 }
 
-/** Synthetic ids from pack disk-scan — not real Modrinth projects. */
+/** Synthetic ids from pack disk-scan — not real mod projects. */
 export function isLocalOnlyModId(id: string | null | undefined): boolean {
   if (!id) return true
   return /^(local|import|disk|offline)-/i.test(id.trim())
@@ -21,9 +21,9 @@ export async function fetchLatestCompatibleVersion(
   projectId: string,
   gameVersion?: string,
   loader?: LoaderType | string,
-): Promise<ModrinthVersion | null> {
+): Promise<CatalogVersion | null> {
   if (isLocalOnlyModId(projectId)) return null
-  const list = await window.hive.modrinth.versions(
+  const list = await window.hive.mods.versions(
     projectId,
     gameVersion,
     loader && loader !== 'vanilla' ? loader : undefined,

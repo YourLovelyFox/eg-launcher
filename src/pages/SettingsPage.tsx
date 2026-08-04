@@ -208,7 +208,7 @@ export function SettingsPage() {
       <div className="panel">
         <h2>Mods</h2>
         <p className="hint">
-          When you install a mod, EG Launcher reads its Modrinth dependencies and installs required
+          When you install a mod, EG Launcher reads its mod catalog dependencies and installs required
           ones (including nested dependencies like Fabric API).
         </p>
         <label className="checkbox-row">
