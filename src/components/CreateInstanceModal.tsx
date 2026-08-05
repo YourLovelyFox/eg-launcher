@@ -111,7 +111,7 @@ export function CreateInstanceModal({ open, onClose, onCreated }: Props) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>Create instance</h2>
         <p className="hint">
-          Install Vanilla, Fabric, Forge, or NeoForge — then add mods from the mod catalog.
+          Install Vanilla, Fabric, Forge, or NeoForge — then add Minecraft content from the catalog.
         </p>
 
         <div className="form-grid">

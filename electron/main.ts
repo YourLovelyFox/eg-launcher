@@ -15,6 +15,9 @@ import {
   setActiveAccount,
   startDeviceCodeLogin,
   getActiveAccountSecret,
+  ensureFreshActiveAccount,
+  getMsAuthPublicInfo,
+  setAuthProgressSink,
 } from './services/auth'
 import {
   addModToInstance,
@@ -325,6 +328,7 @@ function registerIpc() {
   })
   ipcMain.handle('auth:startDeviceCode', async () => startDeviceCodeLogin())
   ipcMain.handle('auth:pollDeviceCode', async (_e, deviceCode: string) => pollDeviceCodeLogin(deviceCode))
+  ipcMain.handle('auth:msInfo', () => getMsAuthPublicInfo())
 
   // Offline (cracked) accounts — feature unlock + register/login
   ipcMain.handle('offline:status', () => getOfflinePublicStatus())
@@ -445,7 +449,8 @@ function registerIpc() {
         }
       }
 
-      const account = getActiveAccountSecret()
+      // Refresh MSA session when near expiry so Store testers don't see "signed in" then fail launch
+      const account = (await ensureFreshActiveAccount()) || getActiveAccountSecret()
       const result = await launchInstance(instance, account, {
         quickPlayServer: options?.quickPlayServer,
       })
@@ -1362,6 +1367,15 @@ app.whenReady().then(() => {
 
   // Register IPC then open the window as soon as possible
   registerIpc()
+  setAuthProgressSink((message) => {
+    for (const w of BrowserWindow.getAllWindows()) {
+      try {
+        w.webContents.send('auth:progress', message)
+      } catch {
+        /* ignore */
+      }
+    }
+  })
   createWindow()
 
   app.on('activate', () => {

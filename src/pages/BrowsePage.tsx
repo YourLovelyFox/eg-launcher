@@ -365,8 +365,11 @@ export function BrowsePage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Browse mods</h1>
-          <p>Search mods mods for your selected instance.</p>
+          <h1>Minecraft content</h1>
+          <p>
+            Find community content (mods) for your selected Minecraft: Java Edition instance and
+            add it to that instance only.
+          </p>
         </div>
       </div>
 
@@ -567,17 +570,17 @@ export function BrowsePage() {
                       title={
                         action === 'update'
                           ? `Update to ${info?.latestVersionNumber || 'latest'}`
-                          : 'Install latest compatible version'
+                          : 'Add latest compatible version to this instance'
                       }
                     >
                       <IconDownload />
                       {busy
                         ? action === 'update'
                           ? 'Updating…'
-                          : 'Installing…'
+                          : 'Adding…'
                         : action === 'update'
                           ? 'Update'
-                          : 'Install'}
+                          : 'Add to instance'}
                     </button>
                   )}
                 </div>
@@ -656,7 +659,7 @@ export function BrowsePage() {
 
             <div className="form-grid" style={{ marginTop: 18 }}>
               <div className="form-row">
-                <label>Install to instance</label>
+                <label>Add to instance</label>
                 <select
                   className="select"
                   value={instanceId}
@@ -725,13 +728,13 @@ export function BrowsePage() {
               >
                 <IconDownload />
                 {installing
-                  ? 'Installing…'
+                  ? 'Adding…'
                   : selectedProject &&
                       installedByProject.get(selectedProject.project_id)?.versionId === versionId
-                    ? 'Installed'
+                    ? 'Already added'
                     : selectedProject && installedByProject.has(selectedProject.project_id)
-                      ? 'Update / Install'
-                      : 'Install'}
+                      ? 'Update in instance'
+                      : 'Add to instance'}
               </button>
             </div>
           </div>

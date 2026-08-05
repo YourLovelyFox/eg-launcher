@@ -6,6 +6,23 @@ Format: each release section is published as the GitHub Release body.
 
 ---
 
+## [2.7.2] — 2026-08-05
+
+### Fixed (Microsoft Store certification)
+- **Microsoft login UX**: progress through Xbox → Minecraft after device-code approval; clear “wait until username appears under Saved accounts” so the sidebar does not stay **Not signed in** after browser-only success.
+- **Session refresh** before launch when the Microsoft/Minecraft token is near expiry.
+- **Consent screen name**: document shared OAuth client (“Prism Launcher” is Azure app name, not the Store listing); support `EG_MS_CLIENT_ID` for a first-party **EG Launcher** Azure public client.
+- **Content wording**: “Browse Mods” / download-install software phrasing → **Content** / **Add to instance** (Minecraft content for local Java instances).
+
+### Changed
+- Certification notes template in `docs/MS-STORE.md` (test MSA, Prism consent explanation, smoke test).
+
+### Downloads
+- Linux: `EG-Launcher-2.7.2-linux-x86_64.AppImage`
+- Windows Store package (Partner Center / sideload test): `EG-Launcher-2.7.2-win-x64-store.appx`
+
+---
+
 ## [2.7.1] — 2026-08-05
 
 ### Changed

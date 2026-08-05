@@ -353,7 +353,7 @@ export function Layout() {
               title="Ctrl+K or / to search"
             >
               <IconSearch />
-              Browse Mods
+              Content
             </NavLink>
             <NavLink
               to="/instances"

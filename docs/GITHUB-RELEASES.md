@@ -50,13 +50,13 @@ npm ci
 npm run dist:linux
 ```
 
-### Microsoft Store package (private / Partner Center)
+### Microsoft Store package (Partner Center)
 
 ```bash
 npm run dist:store
 ```
 
-See [MS-STORE.md](./MS-STORE.md). Store builds are often uploaded to a **private** repo, not public GitHub Releases.
+Produces `release/EG-Launcher-<version>-win-x64-store.appx`. May also be attached to a GitHub Release for Partner Center upload / sideload testing (unsigned Store package — not a public Windows installer; SAC/SmartScreen still applies to random `.exe` setups). See [MS-STORE.md](./MS-STORE.md).
 
 ---
 

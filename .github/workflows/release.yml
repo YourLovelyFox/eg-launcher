@@ -214,7 +214,11 @@ jobs:
           echo "${ASSETS}"
           while IFS= read -r name; do
             [[ -z "${name}" ]] && continue
-            if echo "${name}" | grep -qiE '\.exe$|setup|uninstall|latest\.yml$|builder-debug'; then
+            # Strip Windows NSIS/updater leftovers; keep Store .appx/.msix if uploaded for Partner Center.
+            if echo "${name}" | grep -qiE '\.(exe)$|uninstall|latest\.yml$|builder-debug'; then
+              echo "Deleting asset: ${name}"
+              gh release delete-asset "${TAG}" "${name}" --repo "${{ github.repository }}" --yes || true
+            elif echo "${name}" | grep -qiE 'setup' && ! echo "${name}" | grep -qiE '\.(appx|msix)$'; then
               echo "Deleting asset: ${name}"
               gh release delete-asset "${TAG}" "${name}" --repo "${{ github.repository }}" --yes || true
             fi

@@ -63,6 +63,13 @@ const api = {
       | { status: 'declined' }
       | { status: 'failed'; message: string; code?: string }
     > => ipcRenderer.invoke('auth:pollDeviceCode', deviceCode),
+    msInfo: (): Promise<{ clientId: string; sharedClient: boolean; consentAppHint: string }> =>
+      ipcRenderer.invoke('auth:msInfo'),
+    onProgress: (cb: (message: string) => void): (() => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, message: string) => cb(message)
+      ipcRenderer.on('auth:progress', handler)
+      return () => ipcRenderer.removeListener('auth:progress', handler)
+    },
   },
   offline: {
     status: (): Promise<{

@@ -29,7 +29,9 @@ import {
 import { loadSettings } from './settings'
 import { getEgGateToken } from './egGate'
 import { sanitizeInstanceMods } from './modSanitize'
+import { resolveMsClientId } from '../../shared/msAuth'
 
+const CLIENT_ID_FOR_LAUNCH = resolveMsClientId()
 const MOJANG_MANIFEST = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'
 const FABRIC_META = 'https://meta.fabricmc.net/v2'
 const FORGE_MAVEN = 'https://maven.minecraftforge.net'
@@ -1515,8 +1517,6 @@ export async function launchInstance(
     return { success: false, message: (err as Error).message }
   }
 }
-
-const CLIENT_ID_FOR_LAUNCH = 'c36a9fb6-4f2a-41ff-90bd-ae7cc92031eb'
 
 /** Remove a game arg and its following value (if present). */
 function stripGameArg(args: string[], flag: string): void {

@@ -206,10 +206,10 @@ export function SettingsPage() {
       </div>
 
       <div className="panel">
-        <h2>Mods</h2>
+        <h2>Content</h2>
         <p className="hint">
-          When you install a mod, EG Launcher reads its mod catalog dependencies and installs required
-          ones (including nested dependencies like Fabric API).
+          When you add content to an instance, EG Launcher can resolve catalog dependencies and add
+          required ones (including nested dependencies such as Fabric API).
         </p>
         <label className="checkbox-row">
           <input
@@ -217,7 +217,7 @@ export function SettingsPage() {
             checked={form.resolveDependencies}
             onChange={(e) => setForm({ ...form, resolveDependencies: e.target.checked })}
           />
-          Automatically install required mod dependencies
+          Automatically add required content dependencies
         </label>
       </div>
 

@@ -765,7 +765,7 @@ export function InstanceDetailPage() {
         <section className="panel">
           <div className="page-header" style={{ marginBottom: 12 }}>
             <div>
-              <h2>Installed mods</h2>
+              <h2>Installed content</h2>
               <p className="hint" style={{ marginBottom: 0 }}>
                 {instance.mods.length} mod{instance.mods.length === 1 ? '' : 's'}
                 {updatesAvailable.length > 0
@@ -827,7 +827,7 @@ export function InstanceDetailPage() {
                 </button>
               )}
               <Link className="btn btn-primary" to={`/browse?instance=${instance.id}`}>
-                Browse mods
+                Add content
               </Link>
             </div>
           </div>
@@ -836,7 +836,7 @@ export function InstanceDetailPage() {
             <input
               className="input"
               style={{ marginBottom: 12 }}
-              placeholder="Search installed mods…"
+              placeholder="Search installed content…"
               value={modFilter}
               onChange={(e) => setModFilter(e.target.value)}
             />
@@ -844,10 +844,10 @@ export function InstanceDetailPage() {
 
           {instance.mods.length === 0 ? (
             <div className="empty" style={{ padding: 28 }}>
-              <h3>No mods installed</h3>
-              <p>Search mods and install mods that match this loader and version.</p>
+              <h3>No content installed</h3>
+              <p>Browse the catalog and add content that matches this loader and version.</p>
               <Link className="btn btn-primary" to={`/browse?instance=${instance.id}`}>
-                Find mods
+                Browse content
               </Link>
             </div>
           ) : filteredMods.length === 0 ? (

@@ -12,6 +12,7 @@ export function AccountPage() {
   const [device, setDevice] = useState<DeviceCodeResponse | null>(null)
   const [status, setStatus] = useState<string>('')
   const [busy, setBusy] = useState(false)
+  const [consentHint, setConsentHint] = useState('')
   const pollRef = useRef<number | null>(null)
   const cancelledRef = useRef(false)
   const attemptsRef = useRef(0)
@@ -32,12 +33,20 @@ export function AccountPage() {
       .warning()
       .then(setOfflineWarning)
       .catch(() => undefined)
+    window.hive.auth
+      .msInfo()
+      .then((info) => setConsentHint(info.consentAppHint || ''))
+      .catch(() => undefined)
   }, [])
 
   useEffect(() => {
+    const off = window.hive.auth.onProgress((message) => {
+      if (message) setStatus(message)
+    })
     return () => {
       cancelledRef.current = true
       if (pollRef.current) window.clearTimeout(pollRef.current)
+      off()
     }
   }, [])
 
@@ -46,6 +55,11 @@ export function AccountPage() {
       window.clearTimeout(pollRef.current)
       pollRef.current = null
     }
+  }
+
+  function openLoginUrl(code: DeviceCodeResponse) {
+    const url = code.verificationUriComplete || code.verificationUri
+    return window.hive.shell.openExternal(url)
   }
 
   async function startLogin() {
@@ -58,8 +72,10 @@ export function AccountPage() {
       const code = await window.hive.auth.startDeviceCode()
       if (cancelledRef.current) return
       setDevice(code)
-      setStatus('Waiting for you to approve the login in your browser…')
-      await window.hive.shell.openExternal(code.verificationUri)
+      setStatus(
+        'Browser opened. Enter the code (if asked), approve access, then return here — do not close EG Launcher until your username appears under Saved accounts.',
+      )
+      await openLoginUrl(code)
       poll(code.deviceCode, Math.max(code.interval || 5, 3))
     } catch (err) {
       showToast('error', (err as Error).message)
@@ -89,7 +105,11 @@ export function AccountPage() {
         if (cancelledRef.current) return
 
         if (result.status === 'pending') {
-          setStatus('Waiting for approval… keep this window open.')
+          setStatus((prev) =>
+            prev.includes('Xbox') || prev.includes('Minecraft') || prev.includes('Finishing')
+              ? prev
+              : 'Waiting for approval in the browser… keep EG Launcher open.',
+          )
           poll(deviceCode, intervalSec)
           return
         }
@@ -105,7 +125,7 @@ export function AccountPage() {
           return
         }
         if (result.status === 'declined') {
-          setStatus('Login was declined.')
+          setStatus('Login was declined in the browser. Click Sign in to try again.')
           setDevice(null)
           setBusy(false)
           return
@@ -140,7 +160,6 @@ export function AccountPage() {
       } catch (err) {
         if (cancelledRef.current) return
         const msg = (err as Error).message || 'Login failed'
-        // Xbox / profile errors should not look like a crash
         if (/Xbox profile|xbox\.com|XBOX_PROFILE|underage|Minecraft profile/i.test(msg)) {
           setStatus(msg.replace(/^XBOX_PROFILE_REQUIRED:\s*/i, ''))
           showToast('error', msg.split('\n')[0].replace(/^XBOX_PROFILE_REQUIRED:\s*/i, ''))
@@ -155,13 +174,15 @@ export function AccountPage() {
           }
           return
         }
-        if (attemptsRef.current < 3) {
+        if (attemptsRef.current < 5) {
           setStatus('Network hiccup — retrying…')
           poll(deviceCode, intervalSec)
           return
         }
         showToast('error', msg)
-        setStatus('Login failed. Try again.')
+        setStatus(
+          'Login failed after browser approval. Check your connection, ensure this account owns Minecraft: Java Edition and has an Xbox profile, then try again.',
+        )
         setBusy(false)
         setDevice(null)
       }
@@ -232,6 +253,11 @@ export function AccountPage() {
             </button>
             , create a gamertag, then try again. You can still use Offline login without Xbox.
           </p>
+          {consentHint && (
+            <p className="hint" style={{ marginTop: 8 }}>
+              {consentHint}
+            </p>
+          )}
         </div>
       </div>
 
@@ -285,6 +311,8 @@ export function AccountPage() {
               <h2 style={{ margin: 0 }}>Microsoft</h2>
               <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
                 Paid Minecraft account. Required for official servers, Realms, and Bee&apos;s SMP.
+                After the browser says you&apos;re signed in, <strong>wait here</strong> until your
+                username appears under Saved accounts (Xbox + Minecraft finish in the app).
               </p>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -313,16 +341,26 @@ export function AccountPage() {
                   className="btn btn-ghost"
                   type="button"
                   style={{ display: 'inline', padding: 0, color: 'var(--green)' }}
-                  onClick={() => window.hive.shell.openExternal(device.verificationUri)}
+                  onClick={() => void openLoginUrl(device)}
                 >
                   {device.verificationUri}
                 </button>
                 <br />
-                2. Enter this code and approve access:
+                2. Enter this code (if not pre-filled) and approve access for Minecraft login:
               </p>
               <div className="device-code">{device.userCode}</div>
               <p className="muted">{status || device.message}</p>
+              <p className="hint" style={{ marginTop: 8 }}>
+                You are signed in only when your Minecraft name appears under <strong>Saved accounts</strong>{' '}
+                below — not when the browser alone says success.
+              </p>
             </>
+          )}
+
+          {!device && status && (
+            <p className="muted" style={{ marginTop: 8 }}>
+              {status}
+            </p>
           )}
         </div>
       )}
@@ -386,7 +424,8 @@ export function AccountPage() {
         <h2>Saved accounts</h2>
         <p className="hint">
           Microsoft accounts are required for official servers and Bee&apos;s SMP. Offline accounts
-          can play singleplayer and offline-friendly multiplayer only.
+          can play singleplayer and offline-friendly multiplayer only. The sidebar shows{' '}
+          <strong>Not signed in</strong> until an account is listed here and set Active.
         </p>
 
         {accounts.length === 0 ? (

@@ -389,6 +389,8 @@ export type DeviceCodeResponse = {
   userCode: string
   deviceCode: string
   verificationUri: string
+  /** Prefer opening this so the user code is pre-filled when Microsoft provides it. */
+  verificationUriComplete?: string
   expiresIn: number
   interval: number
   message: string
