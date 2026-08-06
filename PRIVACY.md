@@ -2,7 +2,8 @@
 
 **Last updated:** 2026-08-06  
 **Project:** [EG Launcher](https://github.com/YourLovelyFox/eg-launcher)  
-**Operator:** the maintainers of the EG Launcher open-source project (contact via [GitHub Issues](https://github.com/YourLovelyFox/eg-launcher/issues))  
+**Operator:** the maintainers of the EG Launcher open-source project  
+**Contact:** [info@eg-launcher.xyz](mailto:info@eg-launcher.xyz) · abuse reports: [abuse@eg-launcher.xyz](mailto:abuse@eg-launcher.xyz) · [GitHub Issues](https://github.com/YourLovelyFox/eg-launcher/issues)  
 **Microsoft Store product (when published):** [EG Launcher](https://apps.microsoft.com/detail/9P32SFSJH9B1)
 
 This policy describes what EG Launcher (“the app”, “we”) does with information when you install and use the desktop application and related optional online services.
@@ -146,7 +147,7 @@ Third parties (Microsoft, the mod catalog, GitHub, and optionally Google ads) ma
 
 ## 10. Children
 
-The app is a Minecraft launcher. Minecraft and Microsoft accounts have their own age and parental rules. We do not knowingly collect personal data from children independent of those platforms. If you believe a child has provided data to our CMS inappropriately, contact us via GitHub Issues so we can delete staff/server records we control where applicable.
+The app is a Minecraft launcher. Minecraft and Microsoft accounts have their own age and parental rules. We do not knowingly collect personal data from children independent of those platforms. If you believe a child has provided data to our CMS inappropriately, contact us at [info@eg-launcher.xyz](mailto:info@eg-launcher.xyz) or via GitHub Issues so we can delete staff/server records we control where applicable.
 
 ---
 
@@ -166,7 +167,8 @@ The app is a Minecraft launcher. Minecraft and Microsoft accounts have their own
 - **Sign out / remove accounts** in the launcher where available.
 - **Uninstall** and delete local data folders.
 - **Staff:** sign out; ask operators to revoke sessions if needed.
-- **GitHub Issues** — request deletion of personal data stored on infrastructure we control (e.g. staff accounts), where feasible.
+- **Email** [info@eg-launcher.xyz](mailto:info@eg-launcher.xyz) or **GitHub Issues** — request deletion of personal data stored on infrastructure we control (e.g. staff accounts), where feasible.
+- **Abuse / misuse reports** — [abuse@eg-launcher.xyz](mailto:abuse@eg-launcher.xyz)
 
 For data held only by Microsoft, the mod catalog provider, or GitHub, use those providers’ privacy tools.
 
@@ -198,9 +200,13 @@ We may update this policy by editing `PRIVACY.md` in the repository and changing
 
 ## 17. Contact
 
-- **GitHub Issues:** https://github.com/YourLovelyFox/eg-launcher/issues  
-- **Repository:** https://github.com/YourLovelyFox/eg-launcher  
-- **Store listing (when live):** https://apps.microsoft.com/detail/9P32SFSJH9B1  
+| Purpose | Contact |
+| ------- | ------- |
+| **General / privacy / support** | [info@eg-launcher.xyz](mailto:info@eg-launcher.xyz) |
+| **Abuse / security / misuse reports** | [abuse@eg-launcher.xyz](mailto:abuse@eg-launcher.xyz) |
+| **GitHub Issues** | https://github.com/YourLovelyFox/eg-launcher/issues |
+| **Repository** | https://github.com/YourLovelyFox/eg-launcher |
+| **Store listing (when live)** | https://apps.microsoft.com/detail/9P32SFSJH9B1 |
 
 For partners or app stores that require a privacy policy URL, use:
 
