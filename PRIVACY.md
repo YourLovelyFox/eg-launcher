@@ -1,8 +1,9 @@
 # Privacy Policy — EG Launcher
 
-**Last updated:** 2026-07-31  
+**Last updated:** 2026-08-06  
 **Project:** [EG Launcher](https://github.com/YourLovelyFox/eg-launcher)  
-**Operator:** the maintainers of the EG Launcher open-source project (contact via [GitHub Issues](https://github.com/YourLovelyFox/eg-launcher/issues))
+**Operator:** the maintainers of the EG Launcher open-source project (contact via [GitHub Issues](https://github.com/YourLovelyFox/eg-launcher/issues))  
+**Microsoft Store product (when published):** [EG Launcher](https://apps.microsoft.com/detail/9P32SFSJH9B1)
 
 This policy describes what EG Launcher (“the app”, “we”) does with information when you install and use the desktop application and related optional online services.
 
@@ -15,38 +16,50 @@ EG Launcher is free and open source (MIT, as stated in `package.json` / the repo
 | Category | What happens |
 | -------- | ------------ |
 | **Account** | Microsoft / Minecraft login via official device-code flow. We do **not** receive your Microsoft password. |
-| **On your PC** | Instances, mods, settings, caches, and tokens stored **locally** under the app’s data folders. |
-| **Online (game/content)** | Requests to Microsoft, Mojang, mod catalog, and (for updates) GitHub. |
+| **On your PC** | Instances, Minecraft content (mods/packs), settings, caches, and tokens stored **locally** under the app’s data folders. |
+| **Online (game / content)** | Requests to Microsoft, Mojang/Microsoft game services, a third-party **mod catalog API** used only to list and fetch Minecraft content, and (Linux) GitHub for AppImage downloads. |
 | **Online (launcher CMS)** | Optional news, partners, featured packs, health, and (for staff) admin APIs on our CMS host. |
 | **Ads** | Banner ads are **disabled by default** in current builds; if re-enabled, Google AdSense may load. |
 | **Selling data** | We do **not** sell your personal data. |
 
 ---
 
-## 2. Data stored on your device
+## 2. Distribution channels
+
+| Platform | How you get the app / updates |
+| -------- | ----------------------------- |
+| **Windows** | **Microsoft Store** is the official channel. There is **no** public Windows `setup.exe` on GitHub (Smart App Control / SmartScreen). Store builds do **not** use an in-app auto-updater; the Store delivers app updates. |
+| **Linux** | **GitHub Releases** — AppImage only. Users download a new AppImage when they want a newer version. |
+
+A Store `.appx` package may appear on a GitHub Release for **Partner Center / certification** use. That is not a general Windows installer and is not the recommended install path for end users once the Store listing is live.
+
+---
+
+## 3. Data stored on your device
 
 The app stores data locally (paths depend on OS; typically under your user application data / the install directory), including for example:
 
 - Launcher **settings** (theme, Java path, allocated RAM, preferences)
-- **Game instances**, mods, resource packs, and related files you install
+- **Game instances**, content you add (mods, resource packs, etc.), and related files
 - **Microsoft account session** material needed to launch Minecraft (tokens / profile info cached by the launcher — not your password)
 - Optional **offline / partner** unlock state if you use those features
-- **Update** temporary downloads
+- Temporary files used during installs or (on non-Store builds) package work
 - UI preferences (e.g. pinned partners) where applicable
 
-You can remove local data by uninstalling the app and deleting remaining data folders (Windows uninstaller may offer optional data wipe where implemented).
+You can remove local data by uninstalling the app and deleting remaining data folders (Windows Store uninstall removes the app package; clear remaining data under your user profile if needed).
 
 We do not have access to files that never leave your computer.
 
 ---
 
-## 3. Microsoft account and Minecraft
+## 4. Microsoft account and Minecraft
 
 To play **Minecraft: Java Edition**, you sign in with a **Microsoft account** that owns the game (device-code / OAuth-style flow).
 
 - Authentication is handled with **Microsoft / Xbox / Minecraft** services.
 - The app uses the resulting tokens/profile to launch the game and show your username/skin-related info as needed.
 - **We do not operate Microsoft’s login pages** and do not see your Microsoft password.
+- Microsoft’s consent screen may show an **OAuth application name** configured in Azure (historically a shared public client used by open-source Java launchers). That name is not the Store product name; login still completes inside EG Launcher.
 
 See also:
 
@@ -55,24 +68,27 @@ See also:
 
 ---
 
-## 4. Third-party services the app contacts
+## 5. Third-party services the app contacts
 
 Depending on features you use, the app may send network requests to:
 
 | Service | Purpose | Data typically involved |
 | ------- | ------- | ------------------------ |
 | **Microsoft / Xbox Live / Minecraft services** | Login, profile, ownership, launch | Auth tokens, account/profile identifiers |
-| **Mojang / Microsoft game CDN** | Game versions, assets, JRE downloads | Version metadata, download requests |
-| **mod catalog API** | Search, project metadata, mod file downloads | Search queries, project/version IDs, IP as seen by mod catalog |
-| **[GitHub](https://github.com/)** | Check for launcher updates, download installers | Version check requests, IP as seen by GitHub |
-| **EG Launcher CMS** (`client116.ddns.net` or configured API base) | News, partners, featured packs, ads unit, staff/admin APIs | See §5 |
+| **Mojang / Microsoft game CDN** | Game versions, assets, Java runtime downloads | Version metadata, download requests |
+| **Third-party mod catalog API** | Search and metadata for Minecraft content; file downloads you choose to add to a local instance | Search queries, project/version IDs, IP as seen by that provider |
+| **[GitHub](https://github.com/)** | Linux AppImage downloads; optional version metadata for non-Store channels | Download requests, IP as seen by GitHub |
+| **Microsoft Store** | Install and update the Windows app when you use the Store | Per Microsoft’s Store / account policies |
+| **EG Launcher CMS** (`client116.ddns.net` or configured API base) | News, partners, featured packs, ads unit, staff/admin APIs | See §6 |
 | **Minecraft multiplayer servers** | Server status / join addresses you choose | Server hostname, your game connection (standard Minecraft) |
 
-Those providers process data under **their own** privacy policies. We do not control mod catalog, Microsoft, or GitHub.
+Those providers process data under **their own** privacy policies. We do not control Microsoft, GitHub, or the third-party mod catalog.
+
+The app talks about **“content”** and a **“mod catalog”** in the UI so the product does not depend on a specific third-party brand name. Network traffic for content still goes to the catalog provider’s infrastructure when you search or add content.
 
 ---
 
-## 5. EG Launcher CMS and optional online features
+## 6. EG Launcher CMS and optional online features
 
 The launcher may call a CMS API (default host documented in the project, overridable via configuration) for:
 
@@ -82,25 +98,26 @@ The launcher may call a CMS API (default host documented in the project, overrid
 - Optional **ad unit** HTML (when ads are enabled)
 - **Staff / admin** features (only if you sign in as staff)
 
-### 5.1 Normal users
+### 6.1 Normal users
 
 Typical CMS calls are **content fetches** (news, partners, etc.). They may log standard web server data (e.g. IP address, user agent, time, URL) for security, debugging, and reliability.
 
-### 5.2 Staff / admin users
+### 6.2 Staff / admin users
 
 If you use **Settings → Staff** (or related admin tools):
 
 - You authenticate against the CMS with credentials/session tokens managed by the project operators.
 - Session information (e.g. session token, approximate login time, IP) may be stored **on the server** for security and idle timeout, as implemented in the CMS.
+- Staff accounts may require a bound recovery email for password reset; that email is used only for account recovery / security notices as implemented.
 - Do not use staff accounts on shared or untrusted machines.
 
-### 5.3 Offline mode / partner unlock (if enabled)
+### 6.3 Offline mode / partner unlock (if enabled)
 
 Some builds may support optional unlocks or offline-related flows gated by project configuration. Passwords/secrets for those flows are handled as implemented in the app and CMS; treat them as sensitive.
 
 ---
 
-## 6. Advertising
+## 7. Advertising
 
 Current public builds may ship with the **in-app ads banner disabled** until advertising is approved and turned on.
 
@@ -112,27 +129,28 @@ If ads are enabled in a future build:
 
 ---
 
-## 7. Auto-updates
+## 8. Updates
 
-EG Launcher does **not** use an in-app auto-updater. On **Windows**, updates are delivered by the **Microsoft Store**. On **Linux**, users download new AppImages from GitHub Releases manually when available.
+- **Windows (Microsoft Store):** updates via the Store only. The Store build does **not** run a third-party in-app auto-updater.
+- **Linux (GitHub AppImage):** no forced auto-update; download a newer AppImage from Releases when you choose.
 
 ---
 
-## 8. Analytics and tracking
+## 9. Analytics and tracking
 
 EG Launcher does **not** include a separate first-party analytics product (no “phone-home” usage dashboard of our own beyond the CMS/content and third-party services above).
 
-Third parties (Microsoft, mod catalog, GitHub, and optionally Google ads) may collect technical data as part of providing their services.
+Third parties (Microsoft, the mod catalog, GitHub, and optionally Google ads) may collect technical data as part of providing their services.
 
 ---
 
-## 9. Children
+## 10. Children
 
 The app is a Minecraft launcher. Minecraft and Microsoft accounts have their own age and parental rules. We do not knowingly collect personal data from children independent of those platforms. If you believe a child has provided data to our CMS inappropriately, contact us via GitHub Issues so we can delete staff/server records we control where applicable.
 
 ---
 
-## 10. Data retention
+## 11. Data retention
 
 | Location | Retention |
 | -------- | --------- |
@@ -142,46 +160,47 @@ The app is a Minecraft launcher. Minecraft and Microsoft accounts have their own
 
 ---
 
-## 11. Your choices
+## 12. Your choices
 
-- **Don’t use optional online features** — you can limit partner/CMS-driven content by not using those screens; core play still needs Microsoft/Minecraft and usually mod catalog for mods.
+- **Don’t use optional online features** — you can limit partner/CMS-driven content by not using those screens; core play still needs Microsoft/Minecraft, and adding community content usually needs the mod catalog.
 - **Sign out / remove accounts** in the launcher where available.
 - **Uninstall** and delete local data folders.
 - **Staff:** sign out; ask operators to revoke sessions if needed.
 - **GitHub Issues** — request deletion of personal data stored on infrastructure we control (e.g. staff accounts), where feasible.
 
-For data held only by Microsoft, mod catalog, or GitHub, use those providers’ privacy tools.
+For data held only by Microsoft, the mod catalog provider, or GitHub, use those providers’ privacy tools.
 
 ---
 
-## 12. International transfers
+## 13. International transfers
 
-You and the servers you reach may be in different countries. Microsoft, GitHub, mod catalog, and our CMS host may process data in the EU, US, or elsewhere. Use of the app implies data may cross borders as needed to provide the services above.
+You and the servers you reach may be in different countries. Microsoft, GitHub, the mod catalog, and our CMS host may process data in the EU, US, or elsewhere. Use of the app implies data may cross borders as needed to provide the services above.
 
 ---
 
-## 13. Security
+## 14. Security
 
 We aim to keep tokens and credentials handled with reasonable care (local storage permissions, HTTPS for CMS where configured, session expiry for staff). No method of transmission or storage is 100% secure. Protect your Microsoft account with a strong password and 2FA.
 
 ---
 
-## 14. Open source
+## 15. Open source
 
 Source code is public on GitHub so you can review what the app does. Building from source or third-party forks may behave differently; this policy applies to official project builds and the project’s CMS as operated by the maintainers, unless a fork publishes its own policy.
 
 ---
 
-## 15. Changes
+## 16. Changes
 
 We may update this policy by editing `PRIVACY.md` in the repository and changing the **Last updated** date. Continued use of new versions of the app after changes means you accept the updated policy for that version.
 
 ---
 
-## 16. Contact
+## 17. Contact
 
 - **GitHub Issues:** https://github.com/YourLovelyFox/eg-launcher/issues  
 - **Repository:** https://github.com/YourLovelyFox/eg-launcher  
+- **Store listing (when live):** https://apps.microsoft.com/detail/9P32SFSJH9B1  
 
 For partners or app stores that require a privacy policy URL, use:
 
