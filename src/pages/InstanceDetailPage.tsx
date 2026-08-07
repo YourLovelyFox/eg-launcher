@@ -7,6 +7,10 @@ import type {
   InstanceProfile,
 } from '../../shared/types'
 import { ExportEgpackModal } from '../components/ExportEgpackModal'
+import {
+  OFFLINE_MAX_PRIMARY_MODS,
+  countPrimaryMods,
+} from '../../shared/offlineLimits'
 import { IconDownload, IconFolder, IconPlay, IconStop, IconTrash } from '../components/Icons'
 import { checkModsUpdates, type ModUpdateInfo } from '../modUpdates'
 import { pushRecent } from '../qolPrefs'
@@ -41,6 +45,10 @@ export function InstanceDetailPage() {
     activeAccountId,
   } = useAppStore()
   const [instance, setInstance] = useState<GameInstance | null>(null)
+  const activeAcc = accounts.find((a) => a.id === activeAccountId)
+  const offlineActive = Boolean(
+    activeAcc && (activeAcc.type === 'offline' || activeAcc.id.startsWith('offline-')),
+  )
   const [busy, setBusy] = useState<'install' | 'launch' | 'backup' | 'restore' | 'export' | null>(
     null,
   )
@@ -768,6 +776,9 @@ export function InstanceDetailPage() {
               <h2>Installed content</h2>
               <p className="hint" style={{ marginBottom: 0 }}>
                 {instance.mods.length} mod{instance.mods.length === 1 ? '' : 's'}
+                {offlineActive
+                  ? ` · ${countPrimaryMods(instance.mods)}/${OFFLINE_MAX_PRIMARY_MODS} count toward offline limit (deps free)`
+                  : ''}
                 {updatesAvailable.length > 0
                   ? ` · ${updatesAvailable.length} update${updatesAvailable.length === 1 ? '' : 's'} available`
                   : checkingUpdates
@@ -889,6 +900,11 @@ export function InstanceDetailPage() {
                         {mod.fileName}
                       </div>
                       <div className="badge-row" style={{ marginTop: 6 }}>
+                        {mod.isDependency ? (
+                          <span className="badge" title="Required dependency — does not count toward offline mod limit">
+                            Dependency
+                          </span>
+                        ) : null}
                         {hasUpdate ? (
                           <span className="badge badge-orange">Update available</span>
                         ) : info && !checkingUpdates ? (

@@ -753,6 +753,15 @@ export async function importPackFile(
 
     if (!gameVersion) throw new Error('Pack does not specify a Minecraft version')
 
+    // Offline: pack jars all count as primary mods (no dep metadata in pack index)
+    const packModCount = (index.files || []).filter((f) => {
+      if (f.env?.client === 'unsupported') return false
+      const p = (f.path || '').replace(/\\/g, '/').toLowerCase()
+      return p.startsWith('mods/') && p.endsWith('.jar')
+    }).length
+    const { assertOfflineCanInstallPackModCount } = await import('./offlineAuth')
+    assertOfflineCanInstallPackModCount(packModCount)
+
     emit(onProgress, 'instance', 0.15, 'Creating instance…')
     let instance = createInstance({
       name: safeName(name),

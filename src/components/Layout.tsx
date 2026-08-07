@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { AdsBanner } from './AdsBanner'
 import {
@@ -64,6 +64,14 @@ export function Layout() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [partnerUnread, setPartnerUnread] = useState<Record<string, boolean>>({})
+  /** Nested dragenter/leave counter — avoids a stuck full-screen overlay that blocks clicks. */
+  const dragDepthRef = useRef(0)
+  const accountMenuRef = useRef<HTMLDivElement | null>(null)
+
+  const clearDragOverlay = useCallback(() => {
+    dragDepthRef.current = 0
+    setDragOver(false)
+  }, [])
 
   const loadPartners = useCallback(async () => {
     try {
@@ -187,6 +195,41 @@ export function Layout() {
     return () => window.removeEventListener('keydown', onKey)
   }, [navigate])
 
+  // Never leave drag overlay stuck (blocks interaction in some Electron builds)
+  useEffect(() => {
+    const endDrag = () => clearDragOverlay()
+    window.addEventListener('dragend', endDrag)
+    window.addEventListener('drop', endDrag)
+    window.addEventListener('blur', endDrag)
+    document.addEventListener('visibilitychange', endDrag)
+    return () => {
+      window.removeEventListener('dragend', endDrag)
+      window.removeEventListener('drop', endDrag)
+      window.removeEventListener('blur', endDrag)
+      document.removeEventListener('visibilitychange', endDrag)
+    }
+  }, [clearDragOverlay])
+
+  // Close account menu on outside click / Escape so it cannot sit over the UI
+  useEffect(() => {
+    if (!accountMenuOpen) return
+    function onPointerDown(e: MouseEvent) {
+      const root = accountMenuRef.current
+      if (root && !root.contains(e.target as Node)) {
+        setAccountMenuOpen(false)
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setAccountMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [accountMenuOpen])
+
   const sortedPartners = useMemo(() => {
     const pinned = loadQolPrefs().pinnedPartnerIds
     return [...partners].sort((a, b) => {
@@ -277,14 +320,28 @@ export function Layout() {
   return (
     <div
       className="app-shell"
+      onDragEnter={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        dragDepthRef.current += 1
+        if (e.dataTransfer?.types?.includes('Files')) setDragOver(true)
+      }}
       onDragOver={(e) => {
         e.preventDefault()
-        setDragOver(true)
+        e.stopPropagation()
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+        if (e.dataTransfer?.types?.includes('Files')) setDragOver(true)
       }}
-      onDragLeave={() => setDragOver(false)}
+      onDragLeave={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+        if (dragDepthRef.current === 0) setDragOver(false)
+      }}
       onDrop={(e) => {
         e.preventDefault()
-        setDragOver(false)
+        e.stopPropagation()
+        clearDragOverlay()
         if (e.dataTransfer?.files?.length) void onDropFiles(e.dataTransfer.files)
       }}
     >
@@ -297,20 +354,10 @@ export function Layout() {
 
       {dragOver && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 50,
-            background: 'rgba(15, 159, 110, 0.18)',
-            border: '3px dashed var(--green)',
-            display: 'grid',
-            placeItems: 'center',
-            pointerEvents: 'none',
-            fontWeight: 700,
-            fontSize: 18,
-          }}
+          className="drag-drop-overlay"
+          aria-hidden
         >
-          Drop .jar mods to install into the selected instance
+          Drop .jar / .egpack / .mrpack onto the launcher
         </div>
       )}
 
@@ -501,7 +548,7 @@ export function Layout() {
             )}
           </div>
 
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative' }} ref={accountMenuRef}>
             <button
               type="button"
               className={`account-chip${loggedIn ? ' signed-in' : ' signed-out'}`}

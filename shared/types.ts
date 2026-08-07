@@ -224,6 +224,12 @@ export type InstalledMod = {
   gameVersions: string[]
   enabled: boolean
   downloadedAt: string
+  /**
+   * True when this mod was pulled in only as a required dependency of another mod.
+   * Offline accounts: dependency mods do not count toward the per-instance mod cap.
+   * Once installed as a user-chosen (primary) mod, stays primary even if also a dep.
+   */
+  isDependency?: boolean
 }
 
 /** One list row in the export picker (export-style content list). */

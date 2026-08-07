@@ -783,11 +783,17 @@ function registerIpc() {
         throw new Error('Only .jar mod files are supported for drag-and-drop right now')
       }
       const fileName = path.basename(src)
+      const slug = fileName.replace(/\.jar$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      const projectId = `local-${slug}`
+      // Offline: local jars count as primary mods
+      if (!inst.mods.some((m) => m.projectId === projectId)) {
+        const { assertOfflineCanAddPrimaryMods } = await import('./services/offlineAuth')
+        assertOfflineCanAddPrimaryMods(inst, 1)
+      }
       const dest = path.join(getInstanceModsDir(instanceId), fileName)
       fs.copyFileSync(src, dest)
-      const slug = fileName.replace(/\.jar$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
       const mod = {
-        projectId: `local-${slug}`,
+        projectId,
         versionId: `local-${Date.now()}`,
         slug,
         title: fileName.replace(/\.jar$/i, ''),
@@ -798,6 +804,7 @@ function registerIpc() {
         gameVersions: [inst.gameVersion],
         enabled: true,
         downloadedAt: new Date().toISOString(),
+        isDependency: false,
       }
       return addModToInstance(instanceId, mod)
     },

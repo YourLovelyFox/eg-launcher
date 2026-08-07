@@ -3,6 +3,7 @@ import path from 'path'
 import type { GameInstance, InstalledMod, LoaderType, CatalogVersion } from '../../shared/types'
 import { getInstanceModsDir } from '../paths'
 import { addModToInstance, getInstance, updateInstance } from './instances'
+import { assertOfflineCanAddPrimaryMods } from './offlineAuth'
 import {
   downloadFile,
   getProject,
@@ -28,6 +29,7 @@ function toInstalledMod(
   project: { id: string; slug: string; title: string; icon_url: string | null },
   version: CatalogVersion,
   fileName: string,
+  isDependency = false,
 ): InstalledMod {
   return {
     projectId: project.id,
@@ -41,6 +43,7 @@ function toInstalledMod(
     gameVersions: version.game_versions,
     enabled: true,
     downloadedAt: new Date().toISOString(),
+    isDependency: isDependency ? true : false,
   }
 }
 
@@ -150,6 +153,12 @@ export async function installModWithDependencies(options: {
         return
       }
 
+      // Offline tier: only brand-new primary (user-chosen) mods consume a slot
+      if (!isDependency && !existing) {
+        const latest = getInstance(options.instanceId)
+        if (latest) assertOfflineCanAddPrimaryMods(latest, 1)
+      }
+
       // Remove previous jar if filename changed (update)
       if (existing && existing.fileName && existing.fileName !== file.filename) {
         const oldPath = path.join(modsDir, existing.fileName)
@@ -183,7 +192,7 @@ export async function installModWithDependencies(options: {
 
       addModToInstance(
         options.instanceId,
-        toInstalledMod(project, version, file.filename),
+        toInstalledMod(project, version, file.filename, isDependency),
       )
 
       installed.push({
@@ -478,6 +487,14 @@ export async function installModsBatch(options: {
     }
   }
 
+  // Offline: only new primary (root) mods need free slots — updates & deps free
+  const newPrimaryRoots = targets.filter(
+    (t) =>
+      !t.isDependency &&
+      !instance.mods.some((m) => m.projectId === t.projectId || m.projectId === t.project.id),
+  ).length
+  assertOfflineCanAddPrimaryMods(instance, newPrimaryRoots)
+
   // Parallel downloads with stable, monotonic overall progress
   const totalN = targets.length
   const fileFrac = new Array<number>(totalN).fill(0) // 0..1 per file
@@ -574,14 +591,17 @@ export async function installModsBatch(options: {
 
   let mods = [...current.mods]
   for (const t of ready) {
-    const rec = toInstalledMod(t.project, t.version, t.fileName)
+    const rec = toInstalledMod(t.project, t.version, t.fileName, t.isDependency)
+    const prev = mods.find((m) => m.projectId === rec.projectId)
+    // Keep primary status if it was already a user-chosen mod
+    if (prev?.isDependency === false) rec.isDependency = false
     mods = mods.filter((m) => m.projectId !== rec.projectId)
     mods.push(rec)
     installed.push({
       projectId: rec.projectId,
       title: rec.title,
       versionNumber: rec.versionNumber,
-      isDependency: t.isDependency,
+      isDependency: rec.isDependency === true,
     })
   }
   current = updateInstance(options.instanceId, { mods })

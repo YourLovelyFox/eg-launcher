@@ -1,6 +1,19 @@
 import crypto from 'crypto'
 import path from 'path'
-import type { MinecraftAccount, OfflineAuthFile, OfflineAuthUser } from '../../shared/types'
+import type {
+  GameInstance,
+  MinecraftAccount,
+  OfflineAuthFile,
+  OfflineAuthUser,
+} from '../../shared/types'
+import {
+  OFFLINE_MAX_INSTANCES,
+  OFFLINE_MAX_PRIMARY_MODS,
+  countPrimaryMods,
+  offlineInstanceLimitMessage,
+  offlineModLimitMessage,
+  offlinePackModLimitMessage,
+} from '../../shared/offlineLimits'
 import { getDataRoot, readJsonFile, writeJsonFile } from '../paths'
 import {
   cmsCreateOfflineUser,
@@ -230,8 +243,50 @@ export function offlineMultiplayerWarning(): string {
   return (
     'You are using an offline (non-premium) account. You cannot join official Minecraft servers, ' +
     'Realms, or servers that require a paid Microsoft/Minecraft login. Use cracked-friendly / offline ' +
-    'servers only. Bee’s SMP requires a paid Microsoft account and cannot be installed while offline.'
+    'servers only. Bee’s SMP requires a paid Microsoft account and cannot be installed while offline. ' +
+    `Limits: up to ${OFFLINE_MAX_INSTANCES} instances and ${OFFLINE_MAX_PRIMARY_MODS} mods per instance ` +
+    '(required dependencies do not count toward the mod limit). Sign in with Microsoft for full access.'
   )
+}
+
+/** True when the currently active launcher account is offline. */
+export function isActiveAccountOffline(): boolean {
+  return getActiveAccountKind() === 'offline'
+}
+
+/**
+ * Offline tier: block creating another instance when already at the cap.
+ * Call before createInstance / pack import that creates a new instance.
+ */
+export function assertOfflineCanCreateInstance(currentInstanceCount: number): void {
+  if (!isActiveAccountOffline()) return
+  if (currentInstanceCount >= OFFLINE_MAX_INSTANCES) {
+    throw new Error(offlineInstanceLimitMessage(currentInstanceCount))
+  }
+}
+
+/**
+ * Offline tier: block adding new user-chosen (primary) mods over the per-instance cap.
+ * @param newPrimaryCount how many *new* primary mods this action would add (not updates, not deps)
+ */
+export function assertOfflineCanAddPrimaryMods(
+  instance: GameInstance,
+  newPrimaryCount: number,
+): void {
+  if (!isActiveAccountOffline()) return
+  if (newPrimaryCount <= 0) return
+  const current = countPrimaryMods(instance.mods)
+  if (current + newPrimaryCount > OFFLINE_MAX_PRIMARY_MODS) {
+    throw new Error(offlineModLimitMessage(current, newPrimaryCount))
+  }
+}
+
+/** Offline tier: pack install must fit within primary mod cap (all pack files count as primary). */
+export function assertOfflineCanInstallPackModCount(packModCount: number): void {
+  if (!isActiveAccountOffline()) return
+  if (packModCount > OFFLINE_MAX_PRIMARY_MODS) {
+    throw new Error(offlinePackModLimitMessage(packModCount))
+  }
 }
 
 export function getOfflinePublicStatus() {

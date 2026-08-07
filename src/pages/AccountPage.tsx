@@ -273,7 +273,7 @@ export function AccountPage() {
           <strong>Offline account active</strong>
           <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
             {offlineWarning ||
-              'You cannot join official Minecraft servers, Realms, or servers that require a paid login. Bee’s SMP cannot be installed.'}
+              'You cannot join official Minecraft servers, Realms, or servers that require a paid login. Bee’s SMP cannot be installed. Limited to 2 instances and 10 mods per instance (dependencies do not count).'}
           </p>
         </div>
       )}

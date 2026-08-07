@@ -128,11 +128,19 @@ export function RichTextEditor({
         contentEditable
         role="textbox"
         aria-multiline
+        tabIndex={0}
         data-placeholder={placeholder}
         style={{ minHeight }}
         onInput={emit}
         onBlur={emit}
         onFocus={() => onFocus?.()}
+        onMouseDown={(e) => {
+          // Ensure the surface takes focus on every click (Electron can leave caret dead after toolbar)
+          if (document.activeElement !== ref.current) {
+            ref.current?.focus()
+          }
+          e.stopPropagation()
+        }}
         suppressContentEditableWarning
       />
       <p className="hint rte-hint">Bold · italic · underline · color · size · lists · links (HTML stored safely)</p>

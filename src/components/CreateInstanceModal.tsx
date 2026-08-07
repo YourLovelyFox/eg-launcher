@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react'
+import {
+  OFFLINE_MAX_INSTANCES,
+  offlineInstanceLimitMessage,
+} from '../../shared/offlineLimits'
 import type { LoaderType, MinecraftVersionInfo } from '../../shared/types'
 import { loaderLabel, useAppStore } from '../store'
 
@@ -13,6 +17,14 @@ const LOADERS: LoaderType[] = ['vanilla', 'fabric', 'forge', 'neoforge']
 export function CreateInstanceModal({ open, onClose, onCreated }: Props) {
   const showToast = useAppStore((s) => s.showToast)
   const refreshAll = useAppStore((s) => s.refreshAll)
+  const instances = useAppStore((s) => s.instances)
+  const accounts = useAppStore((s) => s.accounts)
+  const activeAccountId = useAppStore((s) => s.activeAccountId)
+  const active = accounts.find((a) => a.id === activeAccountId)
+  const offlineActive = Boolean(
+    active && (active.type === 'offline' || active.id.startsWith('offline-')),
+  )
+  const offlineAtInstanceCap = offlineActive && instances.length >= OFFLINE_MAX_INSTANCES
 
   const [name, setName] = useState('')
   const [loader, setLoader] = useState<LoaderType>('fabric')
@@ -81,6 +93,10 @@ export function CreateInstanceModal({ open, onClose, onCreated }: Props) {
 
   async function handleCreate() {
     if (!gameVersion) return
+    if (offlineAtInstanceCap) {
+      showToast('error', offlineInstanceLimitMessage(instances.length))
+      return
+    }
     if (loader !== 'vanilla' && !loaderVersion) {
       showToast('error', `No ${loaderLabel(loader)} builds found for ${gameVersion}`)
       return
@@ -113,6 +129,14 @@ export function CreateInstanceModal({ open, onClose, onCreated }: Props) {
         <p className="hint">
           Install Vanilla, Fabric, Forge, or NeoForge — then add Minecraft content from the catalog.
         </p>
+        {offlineActive && (
+          <p className="hint" style={{ color: 'var(--amber)' }}>
+            Offline account: max {OFFLINE_MAX_INSTANCES} instances
+            {offlineAtInstanceCap
+              ? ` — limit reached (${instances.length}/${OFFLINE_MAX_INSTANCES}). Sign in with Microsoft to create more.`
+              : ` (${instances.length}/${OFFLINE_MAX_INSTANCES} used).`}
+          </p>
+        )}
 
         <div className="form-grid">
           <div className="form-row">
@@ -184,7 +208,11 @@ export function CreateInstanceModal({ open, onClose, onCreated }: Props) {
           <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button className="btn btn-primary" onClick={handleCreate} disabled={busy || !gameVersion}>
+          <button
+            className="btn btn-primary"
+            onClick={handleCreate}
+            disabled={busy || !gameVersion || offlineAtInstanceCap}
+          >
             {busy ? 'Creating…' : 'Create'}
           </button>
         </div>

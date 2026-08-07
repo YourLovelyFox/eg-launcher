@@ -11,6 +11,7 @@ import {
   readJsonFile,
   writeJsonFile,
 } from '../paths'
+import { assertOfflineCanCreateInstance } from './offlineAuth'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -280,6 +281,8 @@ export function createInstance(input: {
 }): GameInstance {
   ensureMigrated()
   const instances = loadIndex()
+  // Offline accounts: max 2 instances (see shared/offlineLimits.ts)
+  assertOfflineCanCreateInstance(instances.length)
   const displayName = input.name.trim() || `${input.loader} ${input.gameVersion}`
   const id = uniqueInstanceFolderName(displayName)
 
@@ -376,8 +379,16 @@ export function addModToInstance(instanceId: string, mod: InstalledMod): GameIns
   const instance = getInstance(instanceId)
   if (!instance) throw new Error('Instance not found')
 
+  const existing = instance.mods.find((m) => m.projectId === mod.projectId)
+  // Once installed as a user-chosen (primary) mod, never demote to dependency-only
+  const merged: InstalledMod = {
+    ...mod,
+    isDependency:
+      existing?.isDependency === false ? false : mod.isDependency === true ? true : false,
+  }
+
   const mods = instance.mods.filter((m) => m.projectId !== mod.projectId)
-  mods.push(mod)
+  mods.push(merged)
   return updateInstance(instanceId, { mods })
 }
 

@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  OFFLINE_MAX_INSTANCES,
+  OFFLINE_MAX_PRIMARY_MODS,
+  offlineInstanceLimitMessage,
+} from '../../shared/offlineLimits'
 import { CreateInstanceModal } from '../components/CreateInstanceModal'
 import { IconPlay, IconPlus, IconStop, IconTrash } from '../components/Icons'
 import { checkModsUpdates } from '../modUpdates'
@@ -29,6 +34,11 @@ export function InstancesPage() {
     null,
   )
   const loggedIn = accounts.some((a) => a.id === activeAccountId)
+  const activeAcc = accounts.find((a) => a.id === activeAccountId)
+  const offlineActive = Boolean(
+    activeAcc && (activeAcc.type === 'offline' || activeAcc.id.startsWith('offline-')),
+  )
+  const offlineAtInstanceCap = offlineActive && instances.length >= OFFLINE_MAX_INSTANCES
 
   const sorted = useMemo(() => {
     const pinned = loadQolPrefs().pinnedInstanceIds
@@ -132,6 +142,10 @@ export function InstancesPage() {
 
   async function importPack() {
     if (importing) return
+    if (offlineAtInstanceCap) {
+      showToast('error', offlineInstanceLimitMessage(instances.length))
+      return
+    }
     setImporting(true)
     setPackProgress({ message: 'Choose a pack…', progress: 0 })
     const off = window.hive.instances.onPackProgress((e) => {
@@ -186,15 +200,51 @@ export function InstancesPage() {
               Stop
             </button>
           )}
-          <button className="btn btn-secondary" onClick={() => void importPack()} disabled={importing}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => void importPack()}
+            disabled={importing || offlineAtInstanceCap}
+            title={
+              offlineAtInstanceCap
+                ? offlineInstanceLimitMessage(instances.length)
+                : offlineActive
+                  ? `Offline: packs limited to ${OFFLINE_MAX_PRIMARY_MODS} mods`
+                  : undefined
+            }
+          >
             {importing ? 'Importing…' : 'Import pack'}
           </button>
-          <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+          <button
+            className="btn btn-primary"
+            onClick={() => setCreateOpen(true)}
+            disabled={offlineAtInstanceCap}
+            title={
+              offlineAtInstanceCap ? offlineInstanceLimitMessage(instances.length) : undefined
+            }
+          >
             <IconPlus />
             New instance
           </button>
         </div>
       </div>
+
+      {offlineActive && (
+        <div
+          className="panel"
+          style={{
+            marginBottom: 16,
+            borderColor: 'rgba(245, 158, 11, 0.45)',
+            background: 'rgba(245, 158, 11, 0.08)',
+          }}
+        >
+          <strong>Offline account limits</strong>
+          <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
+            Max <strong>{OFFLINE_MAX_INSTANCES}</strong> instances ({instances.length}/
+            {OFFLINE_MAX_INSTANCES}) and <strong>{OFFLINE_MAX_PRIMARY_MODS}</strong> mods per
+            instance (required dependencies do not count). Sign in with Microsoft for full access.
+          </p>
+        </div>
+      )}
 
       {packProgress && (
         <div className="panel" style={{ marginBottom: 16 }}>
