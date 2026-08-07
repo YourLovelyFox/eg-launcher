@@ -6,6 +6,20 @@ Format: each release section is published as the GitHub Release body.
 
 ---
 
+## [2.7.3] — 2026-08-07
+
+### Added
+- **Offline account limits**: max **2 instances** and **10 mods per instance**. Required **dependency** mods do not count toward the mod cap. Microsoft accounts stay unlimited.
+
+### Fixed
+- **Text fields unclickable** after drag-and-drop or menus (stuck overlay / rich-text focus).
+- Privacy policy contacts (`info@` / `abuse@`) and Store-oriented wording (already on `master`).
+
+### Downloads
+- Linux: `EG-Launcher-2.7.3-linux-x86_64.AppImage`
+
+---
+
 ## [2.7.2] — 2026-08-05
 
 ### Fixed (Microsoft Store certification)
