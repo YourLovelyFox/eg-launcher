@@ -1,0 +1,14 @@
+# EG Launcher public website
+Options -Indexes
+DirectoryIndex index.php index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Block config
+  RewriteRule ^config\.php$ - [F,L]
+</IfModule>
+
+# Deny direct access to config if rewrite missing
+<Files "config.php">
+  Require all denied
+</Files>

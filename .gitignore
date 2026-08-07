@@ -47,3 +47,7 @@ docs/mail-dns/dkim_private*
 # DKIM private keys (server only)
 cms-api/keys/
 
+
+# Public website server config
+website/config.php
+
