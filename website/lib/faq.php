@@ -76,7 +76,8 @@ function eg_faq_items(): array
             'a' =>
                 "Use the web form at {$site}/contact/ (recommended — you get a confirmation with an inquiry number).\n" .
                 "• General: {$info}\n" .
-                "• Abuse / reports: {$abuse}",
+                "• Abuse / reports: {$abuse}\n" .
+                "• Automated confirmations come from testemail@eg-launcher.xyz — that is a **no-reply** mailbox; do not reply there.",
         ],
         [
             'id' => 'ticket',

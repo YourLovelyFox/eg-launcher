@@ -52,8 +52,9 @@ return [
     'smtp_port' => 587,
     'smtp_user' => 'testemail@eg-launcher.xyz',
     'smtp_pass' => 'YOUR_SMTP_PASSWORD',
+    // Outbound From (shown on confirmations) — treat as no-reply / not monitored
     'smtp_from' => 'testemail@eg-launcher.xyz',
-    'smtp_from_name' => 'EG Launcher',
+    'smtp_from_name' => 'EG Launcher (no-reply)',
     'smtp_secure' => 'tls',
     'dkim_domain' => 'eg-launcher.xyz',
     'dkim_selector' => 'default',

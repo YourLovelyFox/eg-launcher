@@ -428,6 +428,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         "Reply to the sender using Reply in your mail client (Reply-To is set to their address).\n" .
         "Web archive: {$siteUrl}/admin/contact.php (admins)\n";
 
+    $fromAddr = (string) cfg('smtp_from', 'testemail@eg-launcher.xyz');
     $confirmSubject = "{$siteName} — we received your inquiry {$inquiry}";
     $confirmBody =
         "Hi {$name},\n\n" .
@@ -442,7 +443,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         "-------------\n" .
         $message . "\n\n" .
         "We aim to respond when we can. Abuse reports and security issues are prioritised.\n\n" .
-        "This is an automated confirmation — replies to this email go to {$destEmail}.\n\n" .
+        "IMPORTANT: This message was sent from {$fromAddr}, which is a no-reply / automated mailbox.\n" .
+        "Do not reply to {$fromAddr} — replies there are not monitored.\n" .
+        "To continue this conversation, reply to this form at {$siteUrl}/contact/ or email {$destEmail}.\n" .
+        "(Mail clients may show Reply-To as {$destEmail}; that address is the correct one if available.)\n\n" .
         "— {$siteName}\n" .
         "{$siteUrl}/contact/\n";
 
@@ -540,11 +544,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         error_log('[eg-web] contact DB update fail: ' . $e->getMessage());
     }
 
+    $fromAddr = (string) cfg('smtp_from', 'testemail@eg-launcher.xyz');
+    $noreplyNote =
+        ' The confirmation is from ' . $fromAddr .
+        ' (no-reply / automated — do not reply there; use this form or ' . $destEmail . ' instead).';
+
     if ($staffOk && $confirmOk) {
         flash_set(
             'success',
             'Inquiry ' . $inquiry . ' sent. A confirmation email was sent to ' . $email .
-            '. Check inbox and spam. Keep this number for reference.'
+            '. Check inbox and spam. Keep this number for reference.' . $noreplyNote
         );
     } elseif ($staffOk && !$confirmOk) {
         flash_set(
@@ -555,7 +564,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!$staffOk && $confirmOk) {
         flash_set(
             'success',
-            'Inquiry ' . $inquiry . ' was saved and a confirmation was emailed to you. Keep this number.'
+            'Inquiry ' . $inquiry . ' was saved and a confirmation was emailed to you. Keep this number.' .
+            $noreplyNote
         );
     } else {
         flash_set(
@@ -595,12 +605,16 @@ layout_header(
   <p class="hint" style="margin-bottom: 16px;">
     General questions go to <strong>info@</strong>. Abuse reports go to <strong>abuse@</strong>,
     require a <strong>logged-in account</strong>, and can include <strong>screenshots</strong>.
+    Automated confirmations come from <code>testemail@eg-launcher.xyz</code>
+    (<strong>no-reply</strong> — not monitored).
   </p>
 
   <?php if ($sentInq !== ''): ?>
     <div class="flash flash-success" style="margin-bottom: 16px;">
-      Your inquiry number is <code><?= e($sentInq) ?></code>. Check inbox/spam for mail from
+      Your inquiry number is <code><?= e($sentInq) ?></code>. Check inbox/spam for the confirmation from
       <strong><?= e((string) cfg('smtp_from', 'testemail@eg-launcher.xyz')) ?></strong>.
+      That address is a <strong>no-reply</strong> mailbox (automated only — do not reply there).
+      Follow up via this form or <code>info@</code> / <code>abuse@</code>.
     </div>
   <?php endif; ?>
 
@@ -758,7 +772,11 @@ layout_header(
     </div>
   </form>
   <p class="hint" style="margin-top: 16px;">
-    Confirmations come from <code><?= e((string) cfg('smtp_from', 'testemail@eg-launcher.xyz')) ?></code>.
+    Confirmations are sent from
+    <code><?= e((string) cfg('smtp_from', 'testemail@eg-launcher.xyz')) ?></code>
+    — this is a <strong>no-reply</strong> / automated address (not monitored).
+    Do not email <code>testemail@</code> for support; use this form or
+    <code>info@</code> / <code>abuse@</code> instead.
   </p>
 </div>
 <script>
