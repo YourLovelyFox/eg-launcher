@@ -7,7 +7,7 @@ if ($username === '') {
 }
 
 $st = db()->prepare(
-    'SELECT id, username, role, display_name, bio, created_at, last_login_at, enabled
+    'SELECT id, username, role, display_name, bio, created_at, last_login_at, enabled, staff_id, email
      FROM web_users WHERE username = ? LIMIT 1'
 );
 $st->execute([$username]);
@@ -78,10 +78,21 @@ layout_header('@' . $username, '');
         <?php if (!(int) $profile['enabled']): ?> · <span class="badge" style="color:var(--red)">Disabled</span><?php endif; ?>
       </p>
     </div>
-    <?php if ($me && is_admin($me) && $me['id'] !== $profile['id']): ?>
-      <a class="btn btn-secondary" href="/admin/users.php?q=<?= e(rawurlencode($username)) ?>">Manage user</a>
-    <?php endif; ?>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <?php if ($me && $me['id'] === $profile['id']): ?>
+        <a class="btn btn-secondary" href="/auth/bind-email.php">Email / recovery</a>
+      <?php endif; ?>
+      <?php if ($me && is_admin($me) && $me['id'] !== $profile['id']): ?>
+        <a class="btn btn-secondary" href="/admin/users.php?q=<?= e(rawurlencode($username)) ?>">Manage user</a>
+      <?php endif; ?>
+    </div>
   </div>
+  <?php if (!empty($profile['staff_id'])): ?>
+    <p class="hint" style="margin-top: 8px;">
+      <span class="ubadge ubadge-green">Launcher Staff</span>
+      Linked to EG Launcher Staff Menu account (shared password).
+    </p>
+  <?php endif; ?>
 
   <h2 style="margin-top: 12px;">Badges</h2>
   <?php if (!$badges): ?>

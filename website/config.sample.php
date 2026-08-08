@@ -37,4 +37,17 @@ return [
      * Set after you register, load the site once, then you can clear it.
      */
     'site_owner_username' => '',
+
+    // SMTP — same as launcher CMS (server-only). Used for forgot password / bind email.
+    'smtp_host' => '127.0.0.1',
+    'smtp_port' => 587,
+    'smtp_user' => 'testemail@eg-launcher.xyz',
+    'smtp_pass' => 'YOUR_SMTP_PASSWORD',
+    'smtp_from' => 'testemail@eg-launcher.xyz',
+    'smtp_from_name' => 'EG Launcher',
+    'smtp_secure' => 'tls',
+    'dkim_domain' => 'eg-launcher.xyz',
+    'dkim_selector' => 'default',
+    // Prefer copying keys into this site, or point at CMS keys path on the host
+    'dkim_private_key_path' => __DIR__ . '/keys/dkim_mail_private.pem',
 ];

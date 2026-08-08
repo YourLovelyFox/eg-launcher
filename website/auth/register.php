@@ -43,11 +43,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect('/auth/register.php');
     }
 
-    $exists = db()->prepare('SELECT id FROM web_users WHERE username = ? LIMIT 1');
+    $exists = db()->prepare('SELECT id FROM web_users WHERE LOWER(username) = LOWER(?) LIMIT 1');
     $exists->execute([$username]);
     if ($exists->fetch()) {
         flash_set('error', 'That username is taken.');
         redirect('/auth/register.php');
+    }
+    // Do not allow community register to steal Staff/Admin usernames
+    try {
+        $st = db()->prepare('SELECT id FROM staff_users WHERE LOWER(username) = LOWER(?) LIMIT 1');
+        $st->execute([$username]);
+        if ($st->fetch()) {
+            flash_set(
+                'error',
+                'That username belongs to a launcher Staff/Admin account. Use Log in with your staff password instead.'
+            );
+            redirect('/auth/login.php');
+        }
+    } catch (Throwable) {
     }
 
     $id = uuid_v4();
@@ -86,7 +99,11 @@ layout_header('Register', '');
 ?>
 <div class="panel" style="max-width: 440px; margin: 0 auto;">
   <h1>Register</h1>
-  <p class="hint" style="margin-bottom: 16px;">Create a forum account to post. This is not your Minecraft / Microsoft login.</p>
+  <p class="hint" style="margin-bottom: 16px;">
+    Create a <strong>community</strong> forum account. Launcher Staff/Admin should
+    <a href="/auth/login.php">log in</a> with their existing staff password (not register again).
+    This is not Microsoft Minecraft login.
+  </p>
   <form method="post">
     <?= csrf_field() ?>
     <div class="form-grid">

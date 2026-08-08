@@ -81,6 +81,8 @@ function ensure_forum_schema(PDO $pdo): void
             "ALTER TABLE web_users ADD COLUMN display_name VARCHAR(64) NULL",
             "ALTER TABLE web_users ADD COLUMN bio VARCHAR(500) NULL",
             "ALTER TABLE web_users ADD COLUMN ban_reason VARCHAR(255) NULL",
+            "ALTER TABLE web_users ADD COLUMN staff_id VARCHAR(64) NULL",
+            "ALTER TABLE web_users ADD COLUMN email_bound_at DATETIME(3) NULL",
         ] as $sql
     ) {
         try {
@@ -89,6 +91,25 @@ function ensure_forum_schema(PDO $pdo): void
             /* column exists */
         }
     }
+    try {
+        $pdo->exec('CREATE UNIQUE INDEX uq_web_staff_id ON web_users (staff_id)');
+    } catch (Throwable) {
+    }
+
+    // Forum-only password resets (staff use staff_password_resets)
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS web_password_resets (
+          id VARCHAR(64) NOT NULL PRIMARY KEY,
+          user_id CHAR(36) NOT NULL,
+          code_hash CHAR(64) NOT NULL,
+          expires_at DATETIME NOT NULL,
+          created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+          KEY idx_wpr_user (user_id),
+          KEY idx_wpr_exp (expires_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    ensure_staff_tables($pdo);
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS web_categories (
@@ -195,6 +216,231 @@ function ensure_forum_schema(PDO $pdo): void
     promote_site_owner_if_needed($pdo);
 }
 
+/** Staff tables live in the same MariaDB as the launcher CMS. */
+function ensure_staff_tables(PDO $pdo): void
+{
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS staff_users (
+          id VARCHAR(64) NOT NULL PRIMARY KEY,
+          username VARCHAR(64) NOT NULL,
+          password_hash VARCHAR(255) NOT NULL,
+          role ENUM('admin','staff') NOT NULL DEFAULT 'staff',
+          offline_quota INT NOT NULL DEFAULT 3,
+          enabled TINYINT(1) NOT NULL DEFAULT 1,
+          created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+          UNIQUE KEY uq_staff_user (username)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+    foreach (
+        [
+            'ALTER TABLE staff_users ADD COLUMN email VARCHAR(255) NULL',
+            'ALTER TABLE staff_users ADD COLUMN email_bound_at DATETIME(3) NULL',
+        ] as $sql
+    ) {
+        try {
+            $pdo->exec($sql);
+        } catch (Throwable) {
+        }
+    }
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS staff_password_resets (
+          id VARCHAR(64) NOT NULL PRIMARY KEY,
+          staff_id VARCHAR(64) NOT NULL,
+          code_hash CHAR(64) NOT NULL,
+          expires_at DATETIME NOT NULL,
+          used_at DATETIME(3) NULL,
+          created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+          KEY idx_spr_staff (staff_id),
+          KEY idx_spr_exp (expires_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+}
+
+function staff_role_to_web(string $staffRole): string
+{
+    return strtolower($staffRole) === 'admin' ? 'admin' : 'mod';
+}
+
+/**
+ * Create/update a web_users row linked to launcher Staff/Admin so they share one login.
+ * @param array $staff staff_users row
+ * @return array web_users row
+ */
+function ensure_web_user_from_staff(array $staff): array
+{
+    $pdo = db();
+    $staffId = (string) $staff['id'];
+    $username = (string) $staff['username'];
+    $webRole = staff_role_to_web((string) $staff['role']);
+    $hash = (string) $staff['password_hash'];
+    $emailRaw = trim((string) ($staff['email'] ?? ''));
+    $email = ($emailRaw !== '' && filter_var($emailRaw, FILTER_VALIDATE_EMAIL)) ? strtolower($emailRaw) : null;
+    $now = now_db();
+
+    $st = $pdo->prepare('SELECT * FROM web_users WHERE staff_id = ? LIMIT 1');
+    $st->execute([$staffId]);
+    $row = $st->fetch();
+    if (!$row) {
+        $st = $pdo->prepare('SELECT * FROM web_users WHERE LOWER(username) = LOWER(?) LIMIT 1');
+        $st->execute([$username]);
+        $row = $st->fetch();
+    }
+
+    if ($row) {
+        $pdo->prepare(
+            'UPDATE web_users
+             SET staff_id = ?, username = ?, password_hash = ?, email = ?, role = ?, enabled = 1,
+                 email_bound_at = CASE WHEN ? IS NOT NULL THEN COALESCE(email_bound_at, ?) ELSE email_bound_at END,
+                 last_login_at = ?
+             WHERE id = ?'
+        )->execute([
+            $staffId,
+            $username,
+            $hash,
+            $email,
+            $webRole,
+            $email,
+            $now,
+            $now,
+            $row['id'],
+        ]);
+        sync_role_badges($pdo, (string) $row['id'], $webRole);
+        grant_badge((string) $row['id'], 'staff', null, 'Launcher staff account');
+        $st = $pdo->prepare('SELECT * FROM web_users WHERE id = ? LIMIT 1');
+        $st->execute([$row['id']]);
+        return $st->fetch() ?: $row;
+    }
+
+    $id = uuid_v4();
+    $pdo->prepare(
+        'INSERT INTO web_users (id, username, password_hash, email, role, staff_id, email_bound_at, created_at, last_login_at, enabled)
+         VALUES (?,?,?,?,?,?,?,?,?,1)'
+    )->execute([
+        $id,
+        $username,
+        $hash,
+        $email,
+        $webRole,
+        $staffId,
+        $email ? $now : null,
+        $now,
+        $now,
+    ]);
+    sync_role_badges($pdo, $id, $webRole);
+    grant_badge($id, 'staff', null, 'Launcher staff account');
+    $st = $pdo->prepare('SELECT * FROM web_users WHERE id = ? LIMIT 1');
+    $st->execute([$id]);
+    return $st->fetch() ?: ['id' => $id, 'username' => $username, 'role' => $webRole];
+}
+
+/**
+ * Login: Staff/Admin (launcher) first, then community web_users.
+ * @return array{ok:true,user:array,mustBindEmail:bool,isStaff:bool}|array{ok:false,error:string}
+ */
+function attempt_password_login(string $username, string $password): array
+{
+    $username = trim($username);
+    if ($username === '' || $password === '') {
+        return ['ok' => false, 'error' => 'Username and password required.'];
+    }
+    $pdo = db();
+
+    // 1) Launcher staff_users
+    try {
+        $st = $pdo->prepare(
+            'SELECT id, username, password_hash, role, enabled, email
+             FROM staff_users WHERE LOWER(username) = LOWER(?) LIMIT 1'
+        );
+        $st->execute([$username]);
+        $staff = $st->fetch();
+        if ($staff && (int) $staff['enabled'] === 1 && password_verify($password, (string) $staff['password_hash'])) {
+            if (password_needs_rehash((string) $staff['password_hash'], PASSWORD_ARGON2ID)) {
+                $nh = password_hash($password, PASSWORD_ARGON2ID);
+                if ($nh !== false) {
+                    $pdo->prepare('UPDATE staff_users SET password_hash = ? WHERE id = ?')
+                        ->execute([$nh, $staff['id']]);
+                    $staff['password_hash'] = $nh;
+                }
+            }
+            $web = ensure_web_user_from_staff($staff);
+            $email = trim((string) ($staff['email'] ?? ''));
+            $mustBind = $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL);
+            return [
+                'ok' => true,
+                'user' => $web,
+                'mustBindEmail' => $mustBind,
+                'isStaff' => true,
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('[eg-web] staff login: ' . $e->getMessage());
+    }
+
+    // 2) Community web_users
+    $st = $pdo->prepare('SELECT * FROM web_users WHERE LOWER(username) = LOWER(?) LIMIT 1');
+    $st->execute([$username]);
+    $row = $st->fetch();
+    if (!$row || !(int) $row['enabled'] || !password_verify($password, (string) $row['password_hash'])) {
+        return ['ok' => false, 'error' => 'Invalid username or password.'];
+    }
+    // If linked to staff, prefer staff password/email next time (already handled above if staff exists)
+    $pdo->prepare('UPDATE web_users SET last_login_at = ? WHERE id = ?')->execute([now_db(), $row['id']]);
+    $mustBind = false;
+    if (!empty($row['staff_id'])) {
+        $email = trim((string) ($row['email'] ?? ''));
+        $mustBind = $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL);
+    }
+    return [
+        'ok' => true,
+        'user' => $row,
+        'mustBindEmail' => $mustBind,
+        'isStaff' => !empty($row['staff_id']),
+    ];
+}
+
+function purge_web_password_resets(PDO $pdo): void
+{
+    try {
+        $pdo->exec('DELETE FROM web_password_resets WHERE expires_at < UTC_TIMESTAMP()');
+    } catch (Throwable) {
+    }
+}
+
+function purge_staff_password_resets_web(PDO $pdo): void
+{
+    try {
+        $pdo->exec(
+            'DELETE FROM staff_password_resets
+             WHERE expires_at < UTC_TIMESTAMP()
+                OR (used_at IS NOT NULL AND used_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 DAY))'
+        );
+    } catch (Throwable) {
+        try {
+            $pdo->exec('DELETE FROM staff_password_resets WHERE expires_at < UTC_TIMESTAMP()');
+        } catch (Throwable) {
+        }
+    }
+}
+
+function user_must_bind_email(?array $u = null): bool
+{
+    $u = $u ?? current_user();
+    if (!$u || empty($u['staff_id'])) {
+        return false;
+    }
+    $email = trim((string) ($u['email'] ?? ''));
+    return $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL);
+}
+
+function require_mail(): void
+{
+    static $loaded = false;
+    if (!$loaded) {
+        require_once __DIR__ . '/mail.php';
+        $loaded = true;
+    }
+}
+
 function seed_default_badges(PDO $pdo): void
 {
     $defaults = [
@@ -299,7 +545,7 @@ function current_user(): ?array
     }
     $cached = true;
     $st = db()->prepare(
-        'SELECT id, username, email, role, display_name, bio, enabled, ban_reason, created_at
+        'SELECT id, username, email, role, display_name, bio, enabled, ban_reason, created_at, staff_id, email_bound_at
          FROM web_users WHERE id = ? LIMIT 1'
     );
     $st->execute([(string) $_SESSION['uid']]);
@@ -355,6 +601,10 @@ function require_mod(): array
         layout_footer();
         exit;
     }
+    if (user_must_bind_email($u)) {
+        flash_set('error', 'Bind a recovery email before using staff moderation tools.');
+        redirect('/auth/bind-email.php?next=' . rawurlencode($_SERVER['REQUEST_URI'] ?? '/mod/'));
+    }
     return $u;
 }
 
@@ -367,6 +617,10 @@ function require_admin(): array
         echo '<div class="panel"><h1>Admins only</h1><p class="hint"><a href="/">Home</a></p></div>';
         layout_footer();
         exit;
+    }
+    if (user_must_bind_email($u)) {
+        flash_set('error', 'Bind a recovery email before using admin tools.');
+        redirect('/auth/bind-email.php?next=' . rawurlencode($_SERVER['REQUEST_URI'] ?? '/admin/'));
     }
     return $u;
 }
@@ -683,6 +937,9 @@ function layout_header(string $title, string $active = ''): void
         if (is_mod($u)) {
             echo render_role_chip((string) $u['role']);
         }
+        if (!empty($u['staff_id'])) {
+            echo '<span class="ubadge ubadge-green" title="Launcher Staff/Admin account">Staff</span>';
+        }
         echo '<a class="btn btn-ghost" href="/auth/logout.php">Log out</a>';
     } else {
         echo '<a class="btn btn-ghost" href="/auth/login.php">Log in</a>';
@@ -692,6 +949,17 @@ function layout_header(string $title, string $active = ''): void
     echo '<main class="wrap">';
     if ($flash) {
         echo '<div class="flash flash-' . e($flash['type']) . '">' . e($flash['msg']) . '</div>';
+    }
+    // Staff must bind email (same rule as launcher Staff Menu)
+    if (
+        $u
+        && user_must_bind_email($u)
+        && strpos((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '/auth/') === false
+    ) {
+        echo '<div class="flash flash-error">';
+        echo 'Your launcher Staff/Admin account needs a recovery email. ';
+        echo '<a href="/auth/bind-email.php">Bind email now</a> (required for staff features and password reset).';
+        echo '</div>';
     }
 }
 

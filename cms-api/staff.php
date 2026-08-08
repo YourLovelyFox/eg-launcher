@@ -207,13 +207,13 @@ try {
                 $subject = 'Your EG Launcher staff sign-in code';
                 $bodyText =
                     "Hi {$row['username']},\n\n" .
-                    "Here is your one-time code to set a new Staff Menu password.\n\n" .
+                    "Here is your one-time code to set a new Staff/Admin password.\n\n" .
                     "Code: {$code}\n" .
                     "Expires: 5 minutes\n\n" .
-                    "How to use it:\n" .
-                    "1. Open EG Launcher\n" .
-                    "2. Settings → Staff → Forgot Password\n" .
-                    "3. Enter your username, this code, and a new password\n\n" .
+                    "Use it in either place:\n" .
+                    "• Website: https://eg-launcher.xyz/auth/reset.php\n" .
+                    "• Launcher: Settings → Staff → Forgot Password\n\n" .
+                    "The same Staff/Admin account works on the website and in the launcher.\n\n" .
                     "If you did not ask for this, you can ignore this message. Your password stays the same.\n\n" .
                     "EG Launcher\n" .
                     "https://eg-launcher.xyz\n";
