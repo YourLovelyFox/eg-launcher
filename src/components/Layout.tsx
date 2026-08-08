@@ -347,7 +347,7 @@ export function Layout() {
     >
       <video
         className="bg-video"
-        src="/synthwave-bg.mp4"
+        src="https://eg-launcher.xyz/assets/synthwave-bg.mp4"
         autoPlay
         muted
         loop
