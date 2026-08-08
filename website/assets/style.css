@@ -232,50 +232,36 @@ h3 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
 .list-item .meta { font-size: 12px; color: var(--mute); }
 .list-item .summary { font-size: 13px; color: var(--dim); margin-top: 6px; }
 
-/* News byline + Founder badge (must beat .meta / .muted parent color) */
+/* News byline — Founder is green text only (not an icon badge) */
 .news-byline,
 .news-author {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: inline;
   font-weight: 650;
   color: var(--text-dim) !important;
-  vertical-align: middle;
+  vertical-align: baseline;
 }
 .news-byline-name {
   color: var(--text-dim) !important;
   font-weight: 650;
 }
+/* Founder byline: name + “Founder” both brand green so muted parents cannot wash them out */
+.news-byline-founder,
 .news-byline-founder .news-byline-name,
+.news-byline-founder .news-byline-sep,
+.news-byline-founder .news-founder-text,
 .news-author.is-founder {
   color: var(--green) !important;
   font-weight: 700;
 }
-.news-founder-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
+.news-founder-text {
+  color: var(--green) !important;
   font-weight: 800;
-  letter-spacing: 0.02em;
-  color: #04140a !important;
-  background: linear-gradient(180deg, #47ffb8, #2ae09a);
-  border: 1px solid rgba(61, 255, 176, 0.55);
-  box-shadow: 0 0 14px rgba(61, 255, 176, 0.25);
-  line-height: 1.2;
-}
-.news-founder-fa {
-  font-size: 0.9em;
-  color: #04140a !important;
 }
 .meta .news-byline,
 .meta .news-author,
 .muted .news-byline,
 .muted .news-author {
-  color: inherit;
+  /* keep child colors; do not force inherit from .muted */
 }
 
 .badge {

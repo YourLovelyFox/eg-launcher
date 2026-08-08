@@ -1121,7 +1121,7 @@ function news_author_public(?string $username): array
     ];
 }
 
-/** HTML for news byline: “Bee” + green Founder pill, or plain username. */
+/** HTML for news byline: plain author, or Bee with green “Founder” text (no icon badge). */
 function render_news_author_html(?string $username, ?string $label = null, $isFounder = null): string
 {
     $a = news_author_public($username);
@@ -1144,11 +1144,11 @@ function render_news_author_html(?string $username, ?string $label = null, $isFo
     }
 
     if ($a['isFounder']) {
-        return '<span class="news-byline news-byline-founder">'
+        // Colored text only — “Bee · Founder” (Founder in brand green)
+        return '<span class="news-byline news-byline-founder" title="Founder of EG Launcher">'
             . '<span class="news-byline-name">Bee</span>'
-            . ' <span class="news-founder-badge" title="Founder of EG Launcher">'
-            . render_fa_icon('fa-solid fa-crown', 'news-founder-fa')
-            . ' Founder</span>'
+            . '<span class="news-byline-sep"> · </span>'
+            . '<span class="news-founder-text">Founder</span>'
             . '</span>';
     }
 
