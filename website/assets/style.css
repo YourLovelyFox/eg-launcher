@@ -232,36 +232,38 @@ h3 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
 .list-item .meta { font-size: 12px; color: var(--mute); }
 .list-item .summary { font-size: 13px; color: var(--dim); margin-top: 6px; }
 
-/* News byline — Founder is green text only (not an icon badge) */
-.news-byline,
-.news-author {
+/* News byline — normal authors muted; Founder = brand green text (no icons) */
+.news-byline:not(.news-byline-founder),
+.news-author:not(.is-founder) {
   display: inline;
   font-weight: 650;
-  color: var(--text-dim) !important;
+  color: #a8b0c0;
   vertical-align: baseline;
 }
-.news-byline-name {
-  color: var(--text-dim) !important;
+.news-byline:not(.news-byline-founder) .news-byline-name {
+  color: #a8b0c0;
   font-weight: 650;
 }
-/* Founder byline: name + “Founder” both brand green so muted parents cannot wash them out */
-.news-byline-founder,
-.news-byline-founder .news-byline-name,
-.news-byline-founder .news-byline-sep,
-.news-byline-founder .news-founder-text,
-.news-author.is-founder {
-  color: var(--green) !important;
-  font-weight: 700;
+/* Force green on every part of founder byline (beats .meta / .muted inheritance) */
+.news-byline.news-byline-founder,
+.news-byline.news-byline-founder .news-byline-name,
+.news-byline.news-byline-founder .news-byline-sep,
+.news-byline.news-byline-founder .news-founder-text,
+p.meta .news-byline.news-byline-founder,
+p.meta.muted .news-byline.news-byline-founder,
+p.meta.muted .news-byline.news-byline-founder .news-byline-name,
+p.meta.muted .news-byline.news-byline-founder .news-byline-sep,
+p.meta.muted .news-byline.news-byline-founder .news-founder-text,
+.list-item .meta .news-byline.news-byline-founder,
+.list-item .meta .news-byline.news-byline-founder .news-byline-name,
+.list-item .meta .news-byline.news-byline-founder .news-byline-sep,
+.list-item .meta .news-byline.news-byline-founder .news-founder-text {
+  color: #3dffb0 !important;
+  font-weight: 700 !important;
 }
-.news-founder-text {
-  color: var(--green) !important;
-  font-weight: 800;
-}
-.meta .news-byline,
-.meta .news-author,
-.muted .news-byline,
-.muted .news-author {
-  /* keep child colors; do not force inherit from .muted */
+.news-byline.news-byline-founder .news-founder-text {
+  font-weight: 800 !important;
+  color: #3dffb0 !important;
 }
 
 .badge {

@@ -1247,7 +1247,8 @@ function layout_header(string $title, string $active = ''): void
     echo '<title>' . e($full) . '</title>';
     // Font Awesome 6 free (icons for badges / roles) — https://fontawesome.com/
     echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">';
-    echo '<link rel="stylesheet" href="/assets/style.css">';
+    // Cache-bust so Founder green CSS is not stuck in browser/CDN cache
+    echo '<link rel="stylesheet" href="/assets/style.css?v=founder-green-3">';
     echo '</head><body>';
     echo '<div class="bg" aria-hidden="true"></div>';
     echo '<header class="top">';
