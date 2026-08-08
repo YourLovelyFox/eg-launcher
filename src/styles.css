@@ -3232,10 +3232,21 @@ textarea.input:disabled {
 }
 
 
-/* Synthwave is now handled by canvas — hide CSS backgrounds */
+/* Video background */
+.bg-video {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  pointer-events: none;
+  filter: brightness(0.7) saturate(1.2);
+}
+/* Hide old CSS backgrounds */
 .app-bg, .app-bg-base, .app-bg-mesh, .app-bg-grid, .app-bg-vignette,
-.app-bg::before, .app-bg::after, .app-bg-grid::after {
+.app-bg::before, .app-bg::after, .app-bg-grid::after,
+.app-shell::after {
   display: none !important;
 }
-.app-shell::after { display: none !important; }
 
