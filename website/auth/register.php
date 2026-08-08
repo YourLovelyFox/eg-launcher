@@ -61,6 +61,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $bucket['n'] = (int) $bucket['n'] + 1;
     $_SESSION['rate'][$key] = $bucket;
     $_SESSION['uid'] = $id;
+
+    // Early member badge for first 100 accounts
+    try {
+        $count = (int) db()->query('SELECT COUNT(*) FROM web_users')->fetchColumn();
+        if ($count <= 100) {
+            grant_badge($id, 'early', null, 'Early community member');
+        }
+    } catch (Throwable) {
+        /* ignore */
+    }
+
+    // Promote site owner from config when no admin exists
+    try {
+        promote_site_owner_if_needed(db());
+    } catch (Throwable) {
+    }
+
     flash_set('success', 'Account created. Welcome, ' . $username . '!');
     redirect('/forum/');
 }

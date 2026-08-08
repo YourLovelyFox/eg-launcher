@@ -31,4 +31,10 @@ return [
     'session_name' => 'eg_web_sess',
     'rate_limit_register' => 5,
     'rate_limit_window' => 3600,
+
+    /**
+     * If no admin exists yet, promote this forum username to admin on next page load.
+     * Set after you register, load the site once, then you can clear it.
+     */
+    'site_owner_username' => '',
 ];

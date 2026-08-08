@@ -247,6 +247,56 @@ h3 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
 .badge-green { background: var(--green-soft); color: var(--green); border-color: rgba(61, 255, 176, 0.2); }
 .badge-blue { background: rgba(106, 168, 255, 0.12); color: var(--blue); border-color: rgba(106, 168, 255, 0.2); }
 
+/* User / role badges */
+.ubadge-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  vertical-align: middle;
+}
+.ubadge-row-wrap { display: flex; }
+.ubadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--dim);
+  white-space: nowrap;
+  text-transform: none;
+}
+.ubadge-lg { padding: 5px 10px; font-size: 12px; }
+.ubadge-icon { opacity: 0.95; }
+.ubadge-green { background: var(--green-soft); color: var(--green); border-color: rgba(61, 255, 176, 0.28); }
+.ubadge-blue { background: rgba(106, 168, 255, 0.14); color: var(--blue); border-color: rgba(106, 168, 255, 0.3); }
+.ubadge-amber { background: rgba(255, 200, 87, 0.14); color: var(--amber); border-color: rgba(255, 200, 87, 0.3); }
+.ubadge-red { background: rgba(255, 107, 138, 0.14); color: var(--red); border-color: rgba(255, 107, 138, 0.32); }
+.ubadge-purple { background: rgba(196, 161, 255, 0.14); color: #c4a1ff; border-color: rgba(196, 161, 255, 0.32); }
+.ubadge-muted { background: rgba(255, 255, 255, 0.05); color: var(--mute); }
+
+.user-link { color: var(--text); font-weight: 700; text-decoration: none; }
+.user-link:hover { color: var(--green); text-decoration: underline; }
+
+.mod-bar {
+  margin-bottom: 14px;
+  border-color: rgba(196, 161, 255, 0.35);
+  background: rgba(196, 161, 255, 0.06);
+}
+.post-deleted { opacity: 0.65; border-style: dashed; }
+.profile-card .title { font-size: 1.1rem; }
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+
 .form-grid { display: grid; gap: 14px; max-width: 420px; }
 .form-row { display: grid; gap: 6px; }
 .form-row label { font-size: 12px; font-weight: 650; color: var(--dim); }
