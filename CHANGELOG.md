@@ -6,6 +6,18 @@ Format: each release section is published as the GitHub Release body.
 
 ---
 
+## [2.7.4] — 2026-08-08
+
+### Added
+- **News authors** in the launcher Home feed (and CMS). Posts show who published them.
+- **Bee · Founder** label when the author is Bee (or on legacy posts without an author).
+- Staff publish stamps the logged-in Staff/Admin username as the author.
+
+### Downloads
+- Linux: `EG-Launcher-2.7.4-linux-x86_64.AppImage`
+
+---
+
 ## [2.7.3] — 2026-08-07
 
 ### Added

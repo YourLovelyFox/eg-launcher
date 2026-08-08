@@ -1,6 +1,6 @@
 {
   "name": "eg-launcher",
-  "version": "2.7.3",
+  "version": "2.7.4",
   "description": "EG Launcher — Minecraft: Java Edition launcher with instances, Microsoft login, and community content for your game.",
   "main": "dist-electron/main.js",
   "author": "EG Launcher",
