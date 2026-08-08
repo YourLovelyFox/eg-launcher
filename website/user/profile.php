@@ -89,7 +89,10 @@ layout_header('@' . $username, '');
   </div>
   <?php if (!empty($profile['staff_id'])): ?>
     <p class="hint" style="margin-top: 8px;">
-      <span class="ubadge ubadge-green">Launcher Staff</span>
+      <span class="ubadge ubadge-green">
+        <?= render_fa_icon('fa-solid fa-id-badge', 'ubadge-fa') ?>
+        <span class="ubadge-label">Launcher Staff</span>
+      </span>
       Linked to EG Launcher Staff Menu account (shared password).
     </p>
   <?php endif; ?>
@@ -100,10 +103,10 @@ layout_header('@' . $username, '');
   <?php else: ?>
     <div class="ubadge-row ubadge-row-wrap" style="margin-top: 8px;">
       <?php foreach ($badges as $b): ?>
-        <span class="ubadge ubadge-lg ubadge-<?= e(preg_replace('/[^a-z]/', '', strtolower((string) $b['color']))) ?>"
+        <span class="ubadge ubadge-lg ubadge-<?= e(preg_replace('/[^a-z]/', '', strtolower((string) $b['color'])) ?: 'muted') ?>"
               title="<?= e((string) $b['description']) ?>">
-          <span class="ubadge-icon"><?= e((string) $b['icon']) ?></span>
-          <?= e((string) $b['title']) ?>
+          <?= render_fa_icon((string) $b['icon'], 'ubadge-fa') ?>
+          <span class="ubadge-label"><?= e((string) $b['title']) ?></span>
         </span>
       <?php endforeach; ?>
     </div>

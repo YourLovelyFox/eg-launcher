@@ -247,11 +247,11 @@ h3 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
 .badge-green { background: var(--green-soft); color: var(--green); border-color: rgba(61, 255, 176, 0.2); }
 .badge-blue { background: rgba(106, 168, 255, 0.12); color: var(--blue); border-color: rgba(106, 168, 255, 0.2); }
 
-/* User / role badges */
+/* User / role badges — Font Awesome icons + themed colors */
 .ubadge-row {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 5px;
   align-items: center;
   vertical-align: middle;
 }
@@ -259,8 +259,8 @@ h3 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
 .ubadge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 8px;
+  gap: 5px;
+  padding: 3px 9px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
@@ -269,15 +269,60 @@ h3 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
   color: var(--dim);
   white-space: nowrap;
   text-transform: none;
+  line-height: 1.2;
 }
-.ubadge-lg { padding: 5px 10px; font-size: 12px; }
-.ubadge-icon { opacity: 0.95; }
-.ubadge-green { background: var(--green-soft); color: var(--green); border-color: rgba(61, 255, 176, 0.28); }
-.ubadge-blue { background: rgba(106, 168, 255, 0.14); color: var(--blue); border-color: rgba(106, 168, 255, 0.3); }
-.ubadge-amber { background: rgba(255, 200, 87, 0.14); color: var(--amber); border-color: rgba(255, 200, 87, 0.3); }
-.ubadge-red { background: rgba(255, 107, 138, 0.14); color: var(--red); border-color: rgba(255, 107, 138, 0.32); }
-.ubadge-purple { background: rgba(196, 161, 255, 0.14); color: #c4a1ff; border-color: rgba(196, 161, 255, 0.32); }
-.ubadge-muted { background: rgba(255, 255, 255, 0.05); color: var(--mute); }
+.ubadge-lg { padding: 6px 12px; font-size: 13px; gap: 7px; }
+.ubadge-fa {
+  font-size: 0.95em;
+  width: 1em;
+  text-align: center;
+  opacity: 1;
+}
+.ubadge-lg .ubadge-fa { font-size: 1.05em; }
+.ubadge-label { font-weight: 700; letter-spacing: -0.01em; }
+
+/* Color tokens match badge.color (green / blue / amber / red / purple / muted) */
+.ubadge-green {
+  background: rgba(61, 255, 176, 0.12);
+  color: #3dffb0;
+  border-color: rgba(61, 255, 176, 0.35);
+  box-shadow: 0 0 12px rgba(61, 255, 176, 0.08);
+}
+.ubadge-blue {
+  background: rgba(106, 168, 255, 0.14);
+  color: #6aa8ff;
+  border-color: rgba(106, 168, 255, 0.38);
+  box-shadow: 0 0 12px rgba(106, 168, 255, 0.08);
+}
+.ubadge-amber {
+  background: rgba(255, 200, 87, 0.14);
+  color: #ffc857;
+  border-color: rgba(255, 200, 87, 0.4);
+  box-shadow: 0 0 12px rgba(255, 200, 87, 0.08);
+}
+.ubadge-red {
+  background: rgba(255, 107, 138, 0.14);
+  color: #ff6b8a;
+  border-color: rgba(255, 107, 138, 0.4);
+  box-shadow: 0 0 12px rgba(255, 107, 138, 0.08);
+}
+.ubadge-purple {
+  background: rgba(196, 161, 255, 0.14);
+  color: #c4a1ff;
+  border-color: rgba(196, 161, 255, 0.4);
+  box-shadow: 0 0 12px rgba(196, 161, 255, 0.08);
+}
+.ubadge-muted {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--mute);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.ubadge-green .ubadge-fa { color: #3dffb0; }
+.ubadge-blue .ubadge-fa { color: #6aa8ff; }
+.ubadge-amber .ubadge-fa { color: #ffc857; }
+.ubadge-red .ubadge-fa { color: #ff6b8a; }
+.ubadge-purple .ubadge-fa { color: #c4a1ff; }
 
 .user-link { color: var(--text); font-weight: 700; text-decoration: none; }
 .user-link:hover { color: var(--green); text-decoration: underline; }

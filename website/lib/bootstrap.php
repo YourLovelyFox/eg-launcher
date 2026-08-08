@@ -167,13 +167,17 @@ function ensure_forum_schema(PDO $pdo): void
           slug VARCHAR(64) NOT NULL,
           title VARCHAR(64) NOT NULL,
           description VARCHAR(255) NOT NULL DEFAULT '',
-          icon VARCHAR(16) NOT NULL DEFAULT '*',
+          icon VARCHAR(80) NOT NULL DEFAULT 'fa-solid fa-award',
           color VARCHAR(16) NOT NULL DEFAULT 'green',
           is_role_badge TINYINT(1) NOT NULL DEFAULT 0,
           sort_order INT NOT NULL DEFAULT 0,
           UNIQUE KEY uq_badge_slug (slug)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
+    try {
+        $pdo->exec('ALTER TABLE web_badges MODIFY icon VARCHAR(80) NOT NULL DEFAULT \'fa-solid fa-award\'');
+    } catch (Throwable) {
+    }
 
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS web_user_badges (
@@ -441,21 +445,30 @@ function require_mail(): void
     }
 }
 
+/**
+ * Font Awesome 6 free solid icon classes (https://fontawesome.com/).
+ * Stored in web_badges.icon — rendered as <i class="…">.
+ */
+function default_badge_catalog(): array
+{
+    // slug, title, description, fa-icon, color, is_role, sort
+    return [
+        ['admin', 'Admin', 'Site administrator', 'fa-solid fa-crown', 'red', 1, 10],
+        ['moderator', 'Moderator', 'Community moderator', 'fa-solid fa-shield-halved', 'purple', 1, 20],
+        ['staff', 'Staff', 'EG Launcher staff', 'fa-solid fa-id-badge', 'green', 0, 30],
+        ['helper', 'Helper', 'Helpful community member', 'fa-solid fa-handshake-angle', 'blue', 0, 40],
+        ['contributor', 'Contributor', 'Contributes ideas or content', 'fa-solid fa-code', 'amber', 0, 50],
+        ['verified', 'Verified', 'Verified account', 'fa-solid fa-circle-check', 'blue', 0, 60],
+        ['early', 'Early Member', 'Joined the community early', 'fa-solid fa-seedling', 'amber', 0, 70],
+        ['supporter', 'Supporter', 'Supports EG Launcher', 'fa-solid fa-heart', 'red', 0, 80],
+        ['bug-hunter', 'Bug Hunter', 'Reported useful bugs', 'fa-solid fa-bug', 'green', 0, 90],
+        ['og', 'OG', 'Long-time community member', 'fa-solid fa-star', 'amber', 0, 100],
+    ];
+}
+
 function seed_default_badges(PDO $pdo): void
 {
-    $defaults = [
-        // slug, title, description, icon, color, is_role, sort
-        ['admin', 'Admin', 'Site administrator', 'A', 'red', 1, 10],
-        ['moderator', 'Moderator', 'Community moderator', 'M', 'purple', 1, 20],
-        ['staff', 'Staff', 'EG Launcher staff', 'S', 'green', 0, 30],
-        ['helper', 'Helper', 'Helpful community member', 'H', 'blue', 0, 40],
-        ['contributor', 'Contributor', 'Contributes ideas or content', 'C', 'amber', 0, 50],
-        ['verified', 'Verified', 'Verified account', 'V', 'blue', 0, 60],
-        ['early', 'Early Member', 'Joined the community early', 'E', 'amber', 0, 70],
-        ['supporter', 'Supporter', 'Supports EG Launcher', '♥', 'red', 0, 80],
-        ['bug-hunter', 'Bug Hunter', 'Reported useful bugs', 'B', 'green', 0, 90],
-        ['og', 'OG', 'Long-time community member', '★', 'amber', 0, 100],
-    ];
+    $defaults = default_badge_catalog();
     $ins = $pdo->prepare(
         'INSERT IGNORE INTO web_badges (slug, title, description, icon, color, is_role_badge, sort_order)
          VALUES (?,?,?,?,?,?,?)'
@@ -463,6 +476,43 @@ function seed_default_badges(PDO $pdo): void
     foreach ($defaults as $d) {
         $ins->execute($d);
     }
+    // Keep Font Awesome icons in sync for known seeded badges
+    $upd = $pdo->prepare(
+        'UPDATE web_badges SET icon = ?, color = ?, title = ?, description = ? WHERE slug = ?'
+    );
+    foreach ($defaults as $d) {
+        $upd->execute([$d[3], $d[4], $d[1], $d[2], $d[0]]);
+    }
+}
+
+/** Sanitize FA class list for safe HTML class attribute. */
+function fa_icon_classes(string $icon): string
+{
+    $icon = trim($icon);
+    if ($icon === '') {
+        return 'fa-solid fa-award';
+    }
+    // Legacy single-char icons → generic award
+    if (!str_contains($icon, 'fa-')) {
+        return 'fa-solid fa-award';
+    }
+    $parts = preg_split('/\s+/', $icon) ?: [];
+    $safe = [];
+    foreach ($parts as $p) {
+        if (preg_match('/^fa[a-z0-9-]*$/i', $p)) {
+            $safe[] = strtolower($p);
+        }
+    }
+    return $safe ? implode(' ', $safe) : 'fa-solid fa-award';
+}
+
+function render_fa_icon(string $icon, string $extraClass = ''): string
+{
+    $cls = fa_icon_classes($icon);
+    if ($extraClass !== '') {
+        $cls .= ' ' . $extraClass;
+    }
+    return '<i class="' . e($cls) . '" aria-hidden="true"></i>';
 }
 
 function promote_site_owner_if_needed(PDO $pdo): void
@@ -760,13 +810,13 @@ function render_user_badges(string $userId, bool $compact = true): string
     }
     $html = '<span class="ubadge-row">';
     foreach ($badges as $b) {
-        $cls = 'ubadge ubadge-' . preg_replace('/[^a-z]/', '', strtolower((string) $b['color']));
+        $color = preg_replace('/[^a-z]/', '', strtolower((string) $b['color'])) ?: 'muted';
+        $cls = 'ubadge ubadge-' . $color . ($compact ? '' : ' ubadge-lg');
         $title = e((string) $b['title'] . ': ' . (string) $b['description']);
-        if ($compact) {
-            $html .= '<span class="' . e($cls) . '" title="' . $title . '">' . e((string) $b['icon']) . ' ' . e((string) $b['title']) . '</span>';
-        } else {
-            $html .= '<span class="' . e($cls) . ' ubadge-lg" title="' . $title . '"><span class="ubadge-icon">' . e((string) $b['icon']) . '</span> ' . e((string) $b['title']) . '</span>';
-        }
+        $html .= '<span class="' . e($cls) . '" title="' . $title . '">';
+        $html .= render_fa_icon((string) $b['icon'], 'ubadge-fa');
+        $html .= ' <span class="ubadge-label">' . e((string) $b['title']) . '</span>';
+        $html .= '</span>';
     }
     $html .= '</span>';
     return $html;
@@ -774,7 +824,14 @@ function render_user_badges(string $userId, bool $compact = true): string
 
 function render_role_chip(string $role): string
 {
-    return '<span class="' . e(role_badge_class($role)) . '">' . e(role_label($role)) . '</span>';
+    $icon = match ($role) {
+        'admin' => 'fa-solid fa-crown',
+        'mod' => 'fa-solid fa-shield-halved',
+        default => 'fa-solid fa-user',
+    };
+    return '<span class="' . e(role_badge_class($role)) . '">'
+        . render_fa_icon($icon, 'ubadge-fa')
+        . ' <span class="ubadge-label">' . e(role_label($role)) . '</span></span>';
 }
 
 function user_link(string $username, ?string $userId = null, ?string $role = null): string
@@ -908,6 +965,8 @@ function layout_header(string $title, string $active = ''): void
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<meta name="description" content="EG Launcher - Minecraft: Java Edition companion. News, forum, downloads.">';
     echo '<title>' . e($full) . '</title>';
+    // Font Awesome 6 free (icons for badges / roles) — https://fontawesome.com/
+    echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">';
     echo '<link rel="stylesheet" href="/assets/style.css">';
     echo '</head><body>';
     echo '<div class="bg" aria-hidden="true"></div>';
@@ -938,7 +997,9 @@ function layout_header(string $title, string $active = ''): void
             echo render_role_chip((string) $u['role']);
         }
         if (!empty($u['staff_id'])) {
-            echo '<span class="ubadge ubadge-green" title="Launcher Staff/Admin account">Staff</span>';
+            echo '<span class="ubadge ubadge-green" title="Launcher Staff/Admin account">'
+                . render_fa_icon('fa-solid fa-id-badge', 'ubadge-fa')
+                . ' <span class="ubadge-label">Staff</span></span>';
         }
         echo '<a class="btn btn-ghost" href="/auth/logout.php">Log out</a>';
     } else {
