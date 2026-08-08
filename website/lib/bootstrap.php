@@ -1287,7 +1287,7 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
     echo '<title>' . e($full) . '</title>';
     // Font Awesome 6 free (icons for badges / roles)
     echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">';
-    echo '<link rel="stylesheet" href="/assets/style.css?v=contact-1">';
+    echo '<link rel="stylesheet" href="/assets/style.css?v=faq-discord-1">';
     echo '</head><body>';
     echo '<div class="bg" aria-hidden="true"></div>';
     echo '<header class="top">';
@@ -1300,6 +1300,7 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
         'home' => ['/', 'Home'],
         'news' => ['/news/', 'News'],
         'forum' => ['/forum/', 'Forum'],
+        'faq' => ['/faq/', 'FAQ'],
         'contact' => ['/contact/', 'Contact'],
         'download' => ['/#download', 'Download'],
     ];
@@ -1369,6 +1370,11 @@ function layout_footer(): void
     echo '<div class="foot-links">';
     echo '<a href="' . e((string) cfg('github_url')) . '">GitHub</a>';
     echo '<a href="' . e((string) cfg('store_url')) . '">Microsoft Store</a>';
+    $discord = trim((string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5'));
+    if ($discord !== '') {
+        echo '<a href="' . e($discord) . '" target="_blank" rel="noopener">Discord</a>';
+    }
+    echo '<a href="/faq/">FAQ</a>';
     echo '<a href="' . e((string) cfg('privacy_url')) . '">Privacy</a>';
     echo '<a href="/contact/">Contact</a>';
     echo '<a href="/contact/?to=abuse">Abuse</a>';

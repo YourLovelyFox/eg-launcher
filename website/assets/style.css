@@ -421,6 +421,39 @@ textarea.input { min-height: 140px; resize: vertical; line-height: 1.5; }
 .article .body p { margin-bottom: 0.85em; }
 .article .body a { word-break: break-all; }
 
+.faq-list { display: grid; gap: 10px; }
+.faq-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(8, 10, 16, 0.45);
+  overflow: hidden;
+}
+.faq-item summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 14px 16px;
+  font-weight: 650;
+  color: var(--text);
+  user-select: none;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1.1em;
+  color: var(--green);
+  transition: transform 0.15s ease;
+}
+.faq-item[open] summary::before { transform: rotate(90deg); }
+.faq-item summary:hover { background: rgba(255, 255, 255, 0.03); }
+.faq-body {
+  padding: 0 16px 16px 2.2em;
+  color: var(--dim);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.faq-body a { word-break: break-all; }
+
 .post {
   border: 1px solid var(--border);
   border-radius: 12px;

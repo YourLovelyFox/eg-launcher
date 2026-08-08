@@ -26,7 +26,11 @@ layout_header('', 'home');
     <div class="hero-actions" id="download">
       <a class="btn btn-primary" href="<?= e((string) cfg('store_url')) ?>" target="_blank" rel="noopener">Windows - Microsoft Store</a>
       <a class="btn btn-secondary" href="<?= e((string) cfg('github_releases')) ?>" target="_blank" rel="noopener">Linux - AppImage</a>
+      <a class="btn btn-secondary" href="<?= e((string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5')) ?>" target="_blank" rel="noopener">
+        <i class="fa-brands fa-discord"></i> Discord
+      </a>
       <a class="btn btn-ghost" href="/news/">News</a>
+      <a class="btn btn-ghost" href="/faq/">FAQ</a>
       <a class="btn btn-ghost" href="/forum/">Forum</a>
     </div>
   </div>
@@ -93,6 +97,10 @@ layout_header('', 'home');
   <div class="hero-actions">
     <a class="btn btn-primary" href="<?= e((string) cfg('store_url')) ?>" target="_blank" rel="noopener">Microsoft Store</a>
     <a class="btn btn-secondary" href="<?= e((string) cfg('github_releases')) ?>" target="_blank" rel="noopener">GitHub Releases</a>
+    <a class="btn btn-secondary" href="<?= e((string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5')) ?>" target="_blank" rel="noopener">
+      <i class="fa-brands fa-discord"></i> Join Discord
+    </a>
+    <a class="btn btn-ghost" href="/faq/">FAQ</a>
     <a class="btn btn-ghost" href="<?= e((string) cfg('privacy_url')) ?>" target="_blank" rel="noopener">Privacy policy</a>
   </div>
 </section>

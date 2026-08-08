@@ -23,6 +23,7 @@ return [
     'github_url' => 'https://github.com/YourLovelyFox/eg-launcher',
     'github_releases' => 'https://github.com/YourLovelyFox/eg-launcher/releases/latest',
     'privacy_url' => 'https://github.com/YourLovelyFox/eg-launcher/blob/master/PRIVACY.md',
+    'discord_url' => 'https://discord.gg/qzkA3CBex5',
     'contact_email' => 'info@eg-launcher.xyz',
     'abuse_email' => 'abuse@eg-launcher.xyz',
 
