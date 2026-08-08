@@ -66,10 +66,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = uuid_v4();
     $hash = password_hash($password, PASSWORD_DEFAULT);
     $now = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s.v');
+    $defs = new_user_default_permissions();
     db()->prepare(
-        'INSERT INTO web_users (id, username, password_hash, email, role, created_at, enabled)
-         VALUES (?,?,?,?,\'user\',?,1)'
-    )->execute([$id, $username, $hash, $email !== '' ? $email : null, $now]);
+        'INSERT INTO web_users (id, username, password_hash, email, role, created_at, enabled,
+          forum_locked, can_create_topics, can_reply)
+         VALUES (?,?,?,?,\'user\',?,1,0,?,?)'
+    )->execute([
+        $id,
+        $username,
+        $hash,
+        $email !== '' ? $email : null,
+        $now,
+        $defs['can_create_topics'] ? 1 : 0,
+        $defs['can_reply'] ? 1 : 0,
+    ]);
 
     $bucket['n'] = (int) $bucket['n'] + 1;
     $_SESSION['rate'][$key] = $bucket;

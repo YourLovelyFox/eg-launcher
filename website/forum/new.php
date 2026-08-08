@@ -2,11 +2,29 @@
 require dirname(__DIR__) . '/lib/bootstrap.php';
 
 $user = require_login();
+if (!user_can_create_topics($user)) {
+    layout_header('Cannot post', 'forum');
+    echo '<div class="panel"><h1>Posting restricted</h1>';
+    if (user_is_forum_locked($user)) {
+        echo '<p class="hint">Your account is forum-locked'
+            . (!empty($user['locked_reason']) ? ': ' . e((string) $user['locked_reason']) : '.')
+            . '</p>';
+    } else {
+        echo '<p class="hint">You do not have permission to create topics. Contact staff if this is a mistake.</p>';
+    }
+    echo '<p><a href="/forum/">Back to forum</a></p></div>';
+    layout_footer();
+    exit;
+}
 $cats = db()->query('SELECT * FROM web_categories ORDER BY sort_order, id')->fetchAll();
 $pre = trim((string) ($_GET['cat'] ?? ''));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf();
+    if (!user_can_create_topics($user)) {
+        flash_set('error', 'You cannot create topics.');
+        redirect('/forum/');
+    }
     $catId = (int) ($_POST['category_id'] ?? 0);
     $title = trim((string) ($_POST['title'] ?? ''));
     $body = trim((string) ($_POST['body'] ?? ''));

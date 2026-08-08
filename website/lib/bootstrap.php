@@ -83,6 +83,13 @@ function ensure_forum_schema(PDO $pdo): void
             "ALTER TABLE web_users ADD COLUMN ban_reason VARCHAR(255) NULL",
             "ALTER TABLE web_users ADD COLUMN staff_id VARCHAR(64) NULL",
             "ALTER TABLE web_users ADD COLUMN email_bound_at DATETIME(3) NULL",
+            // Forum permissions (1 = allow, 0 = deny). New users get site defaults on register.
+            "ALTER TABLE web_users ADD COLUMN forum_locked TINYINT(1) NOT NULL DEFAULT 0",
+            "ALTER TABLE web_users ADD COLUMN can_create_topics TINYINT(1) NOT NULL DEFAULT 1",
+            "ALTER TABLE web_users ADD COLUMN can_reply TINYINT(1) NOT NULL DEFAULT 1",
+            "ALTER TABLE web_users ADD COLUMN locked_reason VARCHAR(255) NULL",
+            "ALTER TABLE web_users ADD COLUMN locked_at DATETIME(3) NULL",
+            "ALTER TABLE web_users ADD COLUMN locked_by CHAR(36) NULL",
         ] as $sql
     ) {
         try {
@@ -91,6 +98,16 @@ function ensure_forum_schema(PDO $pdo): void
             /* column exists */
         }
     }
+
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS web_settings (
+          setting_key VARCHAR(64) NOT NULL PRIMARY KEY,
+          setting_value TEXT NOT NULL,
+          updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+    // Default permissions for newly registered community users
+    seed_site_settings($pdo);
     try {
         $pdo->exec('CREATE UNIQUE INDEX uq_web_staff_id ON web_users (staff_id)');
     } catch (Throwable) {
@@ -593,12 +610,14 @@ function current_user(): ?array
     }
     $cached = true;
     $st = db()->prepare(
-        'SELECT id, username, email, role, display_name, bio, enabled, ban_reason, created_at, staff_id, email_bound_at
+        'SELECT id, username, email, role, display_name, bio, enabled, ban_reason, created_at, staff_id, email_bound_at,
+                forum_locked, can_create_topics, can_reply, locked_reason, locked_at, locked_by
          FROM web_users WHERE id = ? LIMIT 1'
     );
     $st->execute([(string) $_SESSION['uid']]);
     $row = $st->fetch();
     if (!$row || !(int) $row['enabled']) {
+        // Hard-banned accounts cannot stay signed in
         unset($_SESSION['uid']);
         $user = null;
         return null;
@@ -637,6 +656,180 @@ function is_mod(?array $u = null): bool
 {
     $r = user_role($u);
     return $r === 'mod' || $r === 'admin';
+}
+
+/** Role rank: higher can moderate lower. */
+function role_rank(string $role): int
+{
+    return match ($role) {
+        'admin' => 3,
+        'mod' => 2,
+        'user' => 1,
+        default => 0,
+    };
+}
+
+/**
+ * Whether actor may moderate target (ban/lock/change perms).
+ * Mods cannot touch admins or other mods; admins can touch anyone except themselves (caller checks).
+ */
+function can_moderate_user(array $actor, array $target): bool
+{
+    if (($actor['id'] ?? '') === ($target['id'] ?? '')) {
+        return false;
+    }
+    if (!is_mod($actor)) {
+        return false;
+    }
+    $ar = role_rank((string) ($actor['role'] ?? 'user'));
+    $tr = role_rank((string) ($target['role'] ?? 'user'));
+    if (is_admin($actor)) {
+        return true;
+    }
+    // Moderators may only act on regular members
+    return $tr < 2 && $ar >= 2;
+}
+
+function seed_site_settings(PDO $pdo): void
+{
+    $defaults = [
+        'new_user_can_create_topics' => '1',
+        'new_user_can_reply' => '1',
+        'new_user_role' => 'user',
+    ];
+    $ins = $pdo->prepare(
+        'INSERT IGNORE INTO web_settings (setting_key, setting_value) VALUES (?,?)'
+    );
+    foreach ($defaults as $k => $v) {
+        $ins->execute([$k, $v]);
+    }
+}
+
+function site_setting(string $key, string $default = ''): string
+{
+    try {
+        $st = db()->prepare('SELECT setting_value FROM web_settings WHERE setting_key = ? LIMIT 1');
+        $st->execute([$key]);
+        $v = $st->fetchColumn();
+        return $v === false ? $default : (string) $v;
+    } catch (Throwable) {
+        return $default;
+    }
+}
+
+function set_site_setting(string $key, string $value): void
+{
+    db()->prepare(
+        'INSERT INTO web_settings (setting_key, setting_value) VALUES (?,?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)'
+    )->execute([$key, $value]);
+}
+
+function user_is_forum_locked(?array $u = null): bool
+{
+    $u = $u ?? current_user();
+    if (!$u) {
+        return true;
+    }
+    if (is_mod($u)) {
+        return false; // staff always can post
+    }
+    return (int) ($u['forum_locked'] ?? 0) === 1;
+}
+
+function user_can_create_topics(?array $u = null): bool
+{
+    $u = $u ?? current_user();
+    if (!$u) {
+        return false;
+    }
+    if (is_mod($u)) {
+        return true;
+    }
+    if (user_is_forum_locked($u)) {
+        return false;
+    }
+    return (int) ($u['can_create_topics'] ?? 1) === 1;
+}
+
+function user_can_reply(?array $u = null): bool
+{
+    $u = $u ?? current_user();
+    if (!$u) {
+        return false;
+    }
+    if (is_mod($u)) {
+        return true;
+    }
+    if (user_is_forum_locked($u)) {
+        return false;
+    }
+    return (int) ($u['can_reply'] ?? 1) === 1;
+}
+
+/**
+ * Ban = hard disable (cannot log in).
+ * Lock = forum lock (can log in, cannot post).
+ */
+function ban_user(string $actorId, string $targetId, string $reason = ''): void
+{
+    $reason = trim($reason) !== '' ? trim($reason) : 'Banned by staff';
+    db()->prepare(
+        'UPDATE web_users SET enabled = 0, ban_reason = ?, forum_locked = 1, locked_reason = ?, locked_at = ?, locked_by = ?
+         WHERE id = ?'
+    )->execute([$reason, $reason, now_db(), $actorId, $targetId]);
+    mod_log($actorId, 'ban_user', 'user', $targetId, $reason);
+}
+
+function unban_user(string $actorId, string $targetId): void
+{
+    db()->prepare(
+        'UPDATE web_users SET enabled = 1, ban_reason = NULL WHERE id = ?'
+    )->execute([$targetId]);
+    mod_log($actorId, 'unban_user', 'user', $targetId, null);
+}
+
+function forum_lock_user(string $actorId, string $targetId, string $reason = ''): void
+{
+    $reason = trim($reason) !== '' ? trim($reason) : 'Forum locked by staff';
+    db()->prepare(
+        'UPDATE web_users SET forum_locked = 1, locked_reason = ?, locked_at = ?, locked_by = ? WHERE id = ?'
+    )->execute([$reason, now_db(), $actorId, $targetId]);
+    mod_log($actorId, 'forum_lock_user', 'user', $targetId, $reason);
+}
+
+function forum_unlock_user(string $actorId, string $targetId): void
+{
+    db()->prepare(
+        'UPDATE web_users SET forum_locked = 0, locked_reason = NULL, locked_at = NULL, locked_by = NULL WHERE id = ?'
+    )->execute([$targetId]);
+    mod_log($actorId, 'forum_unlock_user', 'user', $targetId, null);
+}
+
+function set_user_forum_permissions(
+    string $actorId,
+    string $targetId,
+    bool $canTopics,
+    bool $canReply
+): void {
+    db()->prepare(
+        'UPDATE web_users SET can_create_topics = ?, can_reply = ? WHERE id = ?'
+    )->execute([$canTopics ? 1 : 0, $canReply ? 1 : 0, $targetId]);
+    mod_log(
+        $actorId,
+        'set_permissions',
+        'user',
+        $targetId,
+        'topics=' . ($canTopics ? '1' : '0') . ',reply=' . ($canReply ? '1' : '0')
+    );
+}
+
+function new_user_default_permissions(): array
+{
+    return [
+        'can_create_topics' => site_setting('new_user_can_create_topics', '1') === '1',
+        'can_reply' => site_setting('new_user_can_reply', '1') === '1',
+    ];
 }
 
 function require_mod(): array
@@ -1103,6 +1296,22 @@ function layout_header(string $title, string $active = ''): void
         echo '<div class="flash flash-error">';
         echo 'Your launcher Staff/Admin account needs a recovery email. ';
         echo '<a href="/auth/bind-email.php">Bind email now</a> (required for staff features and password reset).';
+        echo '</div>';
+    }
+    // Forum lock notice for members
+    if (
+        $u
+        && user_is_forum_locked($u)
+        && strpos((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '/auth/') === false
+    ) {
+        echo '<div class="flash flash-error">';
+        echo 'Your account is <strong>forum-locked</strong>';
+        if (!empty($u['locked_reason'])) {
+            echo ': ' . e((string) $u['locked_reason']);
+        } else {
+            echo '.';
+        }
+        echo ' You can browse but cannot post until staff unlocks you.';
         echo '</div>';
     }
 }

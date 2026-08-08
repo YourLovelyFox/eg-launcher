@@ -17,8 +17,14 @@ layout_header('Forum', 'forum');
     <h1>Forum</h1>
     <p class="hint">Discuss EG Launcher, get support, and share feedback. Be respectful.</p>
   </div>
-  <?php if (current_user()): ?>
+  <?php
+  $cu = current_user();
+  if ($cu && user_can_create_topics($cu)): ?>
     <a class="btn btn-primary" href="/forum/new.php">New topic</a>
+  <?php elseif ($cu && user_is_forum_locked($cu)): ?>
+    <span class="hint">Forum locked — you cannot create topics</span>
+  <?php elseif ($cu): ?>
+    <span class="hint">No permission to create topics</span>
   <?php else: ?>
     <a class="btn btn-secondary" href="/auth/login.php?next=/forum/new.php">Log in to post</a>
   <?php endif; ?>

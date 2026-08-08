@@ -32,6 +32,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('error', 'This topic is locked.');
             redirect('/forum/topic.php?id=' . rawurlencode($id));
         }
+        if (!user_can_reply($user)) {
+            flash_set(
+                'error',
+                user_is_forum_locked($user)
+                    ? ('Your account is forum-locked'
+                        . (!empty($user['locked_reason']) ? ': ' . $user['locked_reason'] : '.'))
+                    : 'You do not have permission to reply.'
+            );
+            redirect('/forum/topic.php?id=' . rawurlencode($id));
+        }
         $body = trim((string) ($_POST['body'] ?? ''));
         if (mb_strlen($body) < 2) {
             flash_set('error', 'Reply is too short.');
@@ -93,6 +103,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         )->execute([now_db(), $mod['id'], '[deleted by moderator]', $pid]);
         mod_log($mod['id'], 'delete_post', 'post', $pid, $id);
         flash_set('success', 'Post removed.');
+    } elseif ($action === 'ban_user' || $action === 'lock_user') {
+        $tid = (string) ($_POST['target_user_id'] ?? '');
+        $reason = trim((string) ($_POST['reason'] ?? ''));
+        $st = db()->prepare('SELECT * FROM web_users WHERE id = ? LIMIT 1');
+        $st->execute([$tid]);
+        $target = $st->fetch();
+        if (!$target || !can_moderate_user($mod, $target)) {
+            flash_set('error', 'Cannot moderate that user.');
+            redirect('/forum/topic.php?id=' . rawurlencode($id));
+        }
+        if ($action === 'ban_user') {
+            ban_user($mod['id'], $tid, $reason !== '' ? $reason : 'Banned from forum topic');
+            flash_set('success', '@' . $target['username'] . ' banned.');
+        } else {
+            forum_lock_user($mod['id'], $tid, $reason !== '' ? $reason : 'Forum locked from topic');
+            flash_set('success', '@' . $target['username'] . ' forum-locked.');
+        }
     }
     redirect('/forum/topic.php?id=' . rawurlencode($id));
 }
@@ -114,7 +141,7 @@ $total = (int) $cst->fetchColumn();
 $pages = max(1, (int) ceil($total / max(1, $per)));
 
 $pst = db()->prepare(
-    'SELECT p.*, u.username, u.role
+    'SELECT p.*, u.username, u.role, u.enabled AS user_enabled, u.forum_locked
      FROM web_posts p
      INNER JOIN web_users u ON u.id = p.user_id
      WHERE p.topic_id = ?' . $whereDel . '
@@ -173,14 +200,37 @@ layout_header((string) $topic['title'], 'forum');
       <div>
         <?= user_link((string) $p['username'], (string) $p['user_id'], (string) $p['role']) ?>
       </div>
-      <span>
+      <span class="post-mod-actions">
         <?= e(format_dt((string) $p['created_at'])) ?>
+        <?php
+        $targetRow = [
+            'id' => (string) $p['user_id'],
+            'role' => (string) $p['role'],
+        ];
+        $canModUser = $me && is_mod($me) && can_moderate_user($me, $targetRow);
+        ?>
         <?php if ($me && is_mod($me) && empty($p['deleted_at'])): ?>
-          <form method="post" style="display:inline;margin-left:8px;" onsubmit="return confirm('Delete this post?');">
+          <form method="post" style="display:inline;margin-left:6px;" onsubmit="return confirm('Delete this post?');">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="delete_post">
             <input type="hidden" name="post_id" value="<?= e((string) $p['id']) ?>">
-            <button class="btn btn-ghost" type="submit" style="padding:2px 8px;font-size:11px;">Delete</button>
+            <button class="btn btn-ghost" type="submit" style="padding:2px 8px;font-size:11px;">Delete post</button>
+          </form>
+        <?php endif; ?>
+        <?php if ($canModUser): ?>
+          <form method="post" style="display:inline;margin-left:4px;" onsubmit="return confirm('Forum-lock this user?');">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="lock_user">
+            <input type="hidden" name="target_user_id" value="<?= e((string) $p['user_id']) ?>">
+            <input type="hidden" name="reason" value="Locked from forum post">
+            <button class="btn btn-ghost" type="submit" style="padding:2px 8px;font-size:11px;">Lock user</button>
+          </form>
+          <form method="post" style="display:inline;margin-left:4px;" onsubmit="return confirm('Ban this user? They cannot log in.');">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="ban_user">
+            <input type="hidden" name="target_user_id" value="<?= e((string) $p['user_id']) ?>">
+            <input type="hidden" name="reason" value="Banned from forum post">
+            <button class="btn btn-ghost" type="submit" style="padding:2px 8px;font-size:11px;color:var(--red);">Ban user</button>
           </form>
         <?php endif; ?>
       </span>
@@ -206,6 +256,16 @@ layout_header((string) $topic['title'], 'forum');
 
 <?php if ((int) $topic['locked'] && !($me && is_mod($me))): ?>
   <div class="panel" style="margin-top: 18px;"><p class="hint">This topic is locked. No new replies.</p></div>
+<?php elseif ($me && !user_can_reply($me)): ?>
+  <div class="panel" style="margin-top: 18px;">
+    <p class="hint">
+      <?php if (user_is_forum_locked($me)): ?>
+        Your account is forum-locked<?= !empty($me['locked_reason']) ? ': ' . e((string) $me['locked_reason']) : '.' ?>
+      <?php else: ?>
+        You do not have permission to reply.
+      <?php endif; ?>
+    </p>
+  </div>
 <?php elseif ($me): ?>
   <div class="panel" style="margin-top: 18px;">
     <h2>Reply</h2>

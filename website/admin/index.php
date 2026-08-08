@@ -33,7 +33,9 @@ layout_header('Admin', 'admin');
   <section class="panel">
     <h2>Manage</h2>
     <div class="hero-actions">
-      <a class="btn btn-primary" href="/admin/users.php">Users and roles</a>
+      <a class="btn btn-primary" href="/admin/users.php">Roles and badges</a>
+      <a class="btn btn-secondary" href="/mod/users.php">Ban / lock / permissions</a>
+      <a class="btn btn-secondary" href="/admin/settings.php">New-user defaults</a>
       <a class="btn btn-secondary" href="/admin/badges.php">Badges</a>
       <a class="btn btn-ghost" href="/forum/">Forum</a>
     </div>

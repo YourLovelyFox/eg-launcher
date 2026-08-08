@@ -16,19 +16,24 @@ layout_header('Moderation', 'mod');
   <div>
     <div class="kicker">Staff</div>
     <h1>Moderation</h1>
-    <p class="hint">Pin / lock topics and remove posts from any thread. Admins manage roles and badges.</p>
+    <p class="hint">Ban / lock users, delete posts, pin/lock topics. Set per-user posting permissions.</p>
   </div>
-  <?php if (is_admin($me)): ?>
-    <a class="btn btn-primary" href="/admin/">Admin panel</a>
-  <?php endif; ?>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a class="btn btn-primary" href="/mod/users.php">Users</a>
+    <?php if (is_admin($me)): ?>
+      <a class="btn btn-secondary" href="/admin/">Admin panel</a>
+      <a class="btn btn-ghost" href="/admin/settings.php">New-user defaults</a>
+    <?php endif; ?>
+  </div>
 </div>
 
 <div class="grid-2">
   <section class="panel">
     <h2>Quick tools</h2>
     <ul class="hint" style="margin-left: 18px; line-height: 1.8;">
-      <li>Open any topic → use the <strong>Mod tools</strong> bar (pin, lock, delete topic)</li>
-      <li>On each post → <strong>Delete post</strong> (soft-delete, visible to staff)</li>
+      <li><a href="/mod/users.php"><strong>Users</strong></a> — ban, forum-lock, topic/reply permissions</li>
+      <li>Open any topic → <strong>Mod tools</strong> (pin, lock, delete topic)</li>
+      <li>On each post → <strong>Delete post</strong>, <strong>Lock user</strong>, <strong>Ban user</strong></li>
       <li>Report serious abuse to <a href="mailto:<?= e((string) cfg('abuse_email')) ?>"><?= e((string) cfg('abuse_email')) ?></a></li>
     </ul>
     <p style="margin-top: 14px;"><a class="btn btn-secondary" href="/forum/">Open forum</a></p>
@@ -37,7 +42,7 @@ layout_header('Moderation', 'mod');
     <h2>Your role</h2>
     <p><?= render_user_badges((string) $me['id'], false) ?></p>
     <p class="hint" style="margin-top: 10px;">
-      Moderators can moderate content. Admins can change roles, ban users, and award badges.
+      Moderators act on members only. Admins set roles, badges, and default permissions for new accounts.
     </p>
   </section>
 </div>
