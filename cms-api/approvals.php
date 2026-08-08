@@ -193,10 +193,18 @@ function apply_approval(PDO $pdo, string $type, array $payload, string $staffId)
         if (!is_array($items)) {
             throw new RuntimeException('Invalid news items');
         }
+        try {
+            $pdo->exec('ALTER TABLE news_items ADD COLUMN author_username VARCHAR(64) NULL');
+        } catch (Throwable) {
+        }
+        try {
+            $pdo->exec('ALTER TABLE news_items ADD COLUMN author_staff_id VARCHAR(64) NULL');
+        } catch (Throwable) {
+        }
         $pdo->prepare('DELETE FROM news_items WHERE feed_kind = ?')->execute(['launcher']);
         $ins = $pdo->prepare(
-            'INSERT INTO news_items (id, feed_kind, title, summary, body, published_at, tag, url, sort_date)
-             VALUES (?,?,?,?,?,?,?,?,?)'
+            'INSERT INTO news_items (id, feed_kind, title, summary, body, published_at, tag, url, sort_date, author_username, author_staff_id)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)'
         );
         foreach ($items as $it) {
             if (!is_array($it)) {
@@ -204,6 +212,11 @@ function apply_approval(PDO $pdo, string $type, array $payload, string $staffId)
             }
             $id = (string) ($it['id'] ?? ('n-' . bin2hex(random_bytes(4))));
             $published = date('Y-m-d H:i:s', strtotime((string) ($it['date'] ?? 'now')) ?: time());
+            $author = trim((string) ($it['authorUsername'] ?? $it['author_username'] ?? ''));
+            if ($author === '') {
+                $author = 'Bee';
+            }
+            $staffAuthor = trim((string) ($it['authorStaffId'] ?? $it['author_staff_id'] ?? $staffId));
             $ins->execute([
                 $id,
                 'launcher',
@@ -214,6 +227,8 @@ function apply_approval(PDO $pdo, string $type, array $payload, string $staffId)
                 (string) ($it['tag'] ?? 'info'),
                 $it['url'] ?? null,
                 $published,
+                $author,
+                $staffAuthor !== '' ? $staffAuthor : null,
             ]);
         }
         $pdo->prepare(

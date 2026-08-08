@@ -911,13 +911,34 @@ function format_body(string $body): string
     return $html !== '' ? $html : '<p></p>';
 }
 
+/**
+ * @return array{authorUsername:string,authorLabel:string,isFounder:bool}
+ */
+function news_author_public(?string $username): array
+{
+    $u = trim((string) $username);
+    if ($u === '') {
+        $u = 'Bee';
+    }
+    $isFounder = strcasecmp($u, 'Bee') === 0;
+    return [
+        'authorUsername' => $u,
+        'authorLabel' => $isFounder ? 'Bee · Founder' : $u,
+        'isFounder' => $isFounder,
+    ];
+}
+
 function load_news_items(int $limit = 50): array
 {
     $limit = max(1, min(100, $limit));
     if (cfg('news_from_db', true)) {
         try {
+            try {
+                db()->exec('ALTER TABLE news_items ADD COLUMN author_username VARCHAR(64) NULL');
+            } catch (Throwable) {
+            }
             $st = db()->prepare(
-                "SELECT id, title, summary, body, published_at, tag, url
+                "SELECT id, title, summary, body, published_at, tag, url, author_username
                  FROM news_items WHERE feed_kind = 'launcher'
                  ORDER BY sort_date DESC LIMIT {$limit}"
             );
@@ -925,6 +946,7 @@ function load_news_items(int $limit = 50): array
             $rows = $st->fetchAll();
             $items = [];
             foreach ($rows as $row) {
+                $author = news_author_public($row['author_username'] ?? null);
                 $items[] = [
                     'id' => $row['id'],
                     'title' => $row['title'],
@@ -933,6 +955,9 @@ function load_news_items(int $limit = 50): array
                     'date' => $row['published_at'],
                     'tag' => $row['tag'] ?: 'info',
                     'url' => $row['url'] ?: null,
+                    'authorUsername' => $author['authorUsername'],
+                    'authorLabel' => $author['authorLabel'],
+                    'isFounder' => $author['isFounder'],
                 ];
             }
             if ($items) {
@@ -959,7 +984,26 @@ function load_news_items(int $limit = 50): array
     if (!is_array($data) || empty($data['items']) || !is_array($data['items'])) {
         return [];
     }
-    return array_slice($data['items'], 0, $limit);
+    $out = [];
+    foreach (array_slice($data['items'], 0, $limit) as $it) {
+        if (!is_array($it)) {
+            continue;
+        }
+        $author = news_author_public($it['authorUsername'] ?? $it['author_username'] ?? null);
+        $out[] = [
+            'id' => $it['id'] ?? '',
+            'title' => $it['title'] ?? '',
+            'summary' => $it['summary'] ?? '',
+            'body' => $it['body'] ?? '',
+            'date' => $it['date'] ?? '',
+            'tag' => $it['tag'] ?? 'info',
+            'url' => $it['url'] ?? null,
+            'authorUsername' => $author['authorUsername'],
+            'authorLabel' => $author['authorLabel'],
+            'isFounder' => $author['isFounder'],
+        ];
+    }
+    return $out;
 }
 
 function layout_header(string $title, string $active = ''): void

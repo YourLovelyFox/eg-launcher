@@ -8,13 +8,18 @@ if ($id === '') {
 
 $item = null;
 try {
+    try {
+        db()->exec('ALTER TABLE news_items ADD COLUMN author_username VARCHAR(64) NULL');
+    } catch (Throwable) {
+    }
     $st = db()->prepare(
-        "SELECT id, title, summary, body, published_at, tag, url
+        "SELECT id, title, summary, body, published_at, tag, url, author_username
          FROM news_items WHERE feed_kind = 'launcher' AND id = ? LIMIT 1"
     );
     $st->execute([$id]);
     $row = $st->fetch();
     if ($row) {
+        $author = news_author_public($row['author_username'] ?? null);
         $item = [
             'id' => $row['id'],
             'title' => $row['title'],
@@ -23,6 +28,9 @@ try {
             'date' => $row['published_at'],
             'tag' => $row['tag'] ?: 'info',
             'url' => $row['url'] ?: null,
+            'authorUsername' => $author['authorUsername'],
+            'authorLabel' => $author['authorLabel'],
+            'isFounder' => $author['isFounder'],
         ];
     }
 } catch (Throwable) {
@@ -52,7 +60,13 @@ layout_header((string) $item['title'], 'news');
   <p class="hint"><a href="/news/">← News</a></p>
   <div class="kicker"><?= e((string) $item['tag']) ?></div>
   <h1><?= e((string) $item['title']) ?></h1>
-  <p class="meta muted"><?= e(format_dt((string) $item['date'])) ?></p>
+  <p class="meta muted">
+    <?= e(format_dt((string) $item['date'])) ?>
+    · by
+    <span class="<?= !empty($item['isFounder']) ? 'news-author is-founder' : 'news-author' ?>">
+      <?= e((string) ($item['authorLabel'] ?? 'Bee · Founder')) ?>
+    </span>
+  </p>
   <?php if (!empty($item['summary'])): ?>
     <p class="hint" style="margin-top: 12px; font-size: 15px;"><?= e((string) $item['summary']) ?></p>
   <?php endif; ?>

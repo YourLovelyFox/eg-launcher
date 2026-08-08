@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { formatNewsAuthor } from '../../shared/newsAuthor'
 import type { NewsFeedResult, NewsItem } from '../../shared/types'
 import { NewsHtml } from './NewsHtml'
 import { htmlToPlain } from '../utils/newsHtml'
@@ -41,10 +42,20 @@ function feedFingerprint(feed: NewsFeedResult | null): string {
     feed.items
       .map(
         (i) =>
-          `${i.id}|${i.date}|${i.title}|${i.tag || ''}|${i.summary || ''}|${i.body || ''}|${i.url || ''}`,
+          `${i.id}|${i.date}|${i.title}|${i.tag || ''}|${i.summary || ''}|${i.body || ''}|${i.url || ''}|${i.authorUsername || ''}|${i.authorLabel || ''}`,
       )
       .join('||'),
   ].join('::')
+}
+
+function withAuthorDisplay(item: NewsItem): NewsItem {
+  const a = formatNewsAuthor(item.authorUsername || item.authorLabel)
+  return {
+    ...item,
+    authorUsername: a.authorUsername,
+    authorLabel: item.authorLabel?.trim() || a.authorLabel,
+    isFounder: a.isFounder,
+  }
 }
 
 export function HomeNews() {
@@ -58,10 +69,14 @@ export function HomeNews() {
 
     function applyFeed(data: NewsFeedResult, always = false) {
       if (cancelled) return
-      const nextFp = feedFingerprint(data)
+      const normalized: NewsFeedResult = {
+        ...data,
+        items: (data.items || []).map(withAuthorDisplay),
+      }
+      const nextFp = feedFingerprint(normalized)
       if (always || nextFp !== fingerprintRef.current || !fingerprintRef.current) {
         fingerprintRef.current = nextFp
-        setFeed(data)
+        setFeed(normalized)
       }
     }
 
@@ -150,6 +165,16 @@ export function HomeNews() {
                   <div className="home-news-card-meta">
                     <span className={tagClass(item.tag)}>{item.tag || 'info'}</span>
                     <time dateTime={item.date}>{formatNewsDate(item.date)}</time>
+                    <span
+                      className={`home-news-author${item.isFounder ? ' is-founder' : ''}`}
+                      title={
+                        item.isFounder
+                          ? 'Founder of EG Launcher'
+                          : `Posted by ${item.authorLabel || item.authorUsername || 'Bee'}`
+                      }
+                    >
+                      {item.authorLabel || formatNewsAuthor(item.authorUsername).authorLabel}
+                    </span>
                   </div>
                   <h3 className="home-news-title">{item.title}</h3>
                   {!open && previewPlain && (

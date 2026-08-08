@@ -200,6 +200,12 @@ export type NewsItem = {
   date: string
   tag?: NewsTag
   url?: string | null
+  /** Staff username who authored the post (e.g. Bee). */
+  authorUsername?: string | null
+  /** Display label, e.g. "Bee · Founder". */
+  authorLabel?: string | null
+  /** True when author is the launcher founder (Bee). */
+  isFounder?: boolean
 }
 
 export type NewsFeedResult = {

@@ -971,6 +971,7 @@ a:hover {
 .home-news-card-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 6px;
 }
@@ -978,6 +979,16 @@ a:hover {
 .home-news-card-meta time {
   font-size: 12px;
   color: var(--text-mute);
+}
+
+.home-news-author {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-dim);
+}
+
+.home-news-author.is-founder {
+  color: var(--green);
 }
 
 .home-news-title {

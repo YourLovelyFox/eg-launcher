@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { formatNewsAuthor } from '../../shared/newsAuthor'
 import type { NewsItem } from '../../shared/types'
 import { useAppStore } from '../store'
 import { AdminOfflinePanel } from './AdminOfflinePanel'
@@ -13,7 +14,8 @@ import { RichTextEditor } from '../components/RichTextEditor'
 const SESSION_KEY = 'eg-admin-session'
 const SESSION_EXPIRES_KEY = 'eg-admin-session-expires'
 
-function emptyItem(id: string): NewsItem {
+function emptyItem(id: string, authorUsername?: string | null): NewsItem {
+  const a = formatNewsAuthor(authorUsername)
   return {
     id,
     title: '',
@@ -22,7 +24,22 @@ function emptyItem(id: string): NewsItem {
     date: new Date().toISOString(),
     tag: 'announcement',
     url: null,
+    authorUsername: a.authorUsername,
+    authorLabel: a.authorLabel,
+    isFounder: a.isFounder,
   }
+}
+
+function withAuthors(list: NewsItem[], fallbackUsername?: string | null): NewsItem[] {
+  return list.map((i) => {
+    const a = formatNewsAuthor(i.authorUsername || fallbackUsername)
+    return {
+      ...i,
+      authorUsername: a.authorUsername,
+      authorLabel: a.authorLabel,
+      isFounder: a.isFounder,
+    }
+  })
 }
 
 function toLocalInput(iso: string): string {
@@ -143,7 +160,7 @@ export function AdminPage() {
           showToast('error', res.error)
           return
         }
-        const list = res.feed.items || []
+        const list = withAuthors(res.feed.items || [])
         setItems(list)
         setTitle(res.feed.title || 'EG Launcher News')
 
@@ -317,7 +334,8 @@ export function AdminPage() {
 
   async function addItem() {
     const id = await window.hive.admin.newId()
-    const item = emptyItem(id)
+    const me = await window.hive.admin.staffMe().catch(() => null)
+    const item = emptyItem(id, me?.staff?.username || staffInfo?.username || 'Bee')
     setItems((list) => [item, ...list])
     setSelectedId(id)
     setDraft({ ...item })
@@ -331,32 +349,40 @@ export function AdminPage() {
         ? list.map((i) => (i.id === draft.id ? draft : i))
         : list
 
-    const cleaned = withDraft
-      .map((i) => ({
-        ...i,
-        title: i.title.trim(),
-        summary: (i.summary || '').trim(),
-        body: (i.body || '').trim(),
-        tag: (i.tag || 'info').trim() || 'info',
-        url: null,
-      }))
-      .filter((i) => i.title)
+    const fallback = staffInfo?.username || 'Bee'
+    const cleaned = withAuthors(
+      withDraft
+        .map((i) => ({
+          ...i,
+          title: i.title.trim(),
+          summary: (i.summary || '').trim(),
+          body: (i.body || '').trim(),
+          tag: (i.tag || 'info').trim() || 'info',
+          url: null as string | null,
+        }))
+        .filter((i) => i.title),
+      fallback,
+    )
 
     if (!allowEmpty && cleaned.length === 0) return null
     return cleaned
   }
 
   function sanitizeNewsList(list: NewsItem[]): NewsItem[] {
-    return list
-      .map((i) => ({
-        ...i,
-        title: (i.title || '').trim(),
-        summary: (i.summary || '').trim(),
-        body: (i.body || '').trim(),
-        tag: (i.tag || 'info').trim() || 'info',
-        url: null as string | null,
-      }))
-      .filter((i) => Boolean(i.title))
+    const fallback = staffInfo?.username || 'Bee'
+    return withAuthors(
+      list
+        .map((i) => ({
+          ...i,
+          title: (i.title || '').trim(),
+          summary: (i.summary || '').trim(),
+          body: (i.body || '').trim(),
+          tag: (i.tag || 'info').trim() || 'info',
+          url: null as string | null,
+        }))
+        .filter((i) => Boolean(i.title)),
+      fallback,
+    )
   }
 
   async function publishList(
@@ -1024,6 +1050,9 @@ export function AdminPage() {
                 <strong>{item.title || '(untitled)'}</strong>
                 <span>
                   {item.tag || 'info'} · {item.date ? new Date(item.date).toLocaleDateString() : '—'}
+                  {' · '}
+                  {item.authorLabel ||
+                    formatNewsAuthor(item.authorUsername).authorLabel}
                 </span>
               </button>
             ))}
@@ -1050,6 +1079,20 @@ export function AdminPage() {
                   Delete
                 </button>
               </div>
+              <p className="hint" style={{ marginBottom: 12 }}>
+                Author:{' '}
+                <strong>
+                  {draft.authorLabel ||
+                    formatNewsAuthor(draft.authorUsername || staffInfo?.username).authorLabel}
+                </strong>
+                {(draft.isFounder ||
+                  formatNewsAuthor(draft.authorUsername || staffInfo?.username).isFounder) && (
+                  <span className="badge badge-green" style={{ marginLeft: 8 }}>
+                    Founder
+                  </span>
+                )}
+                <span className="muted"> · set from Staff login when published</span>
+              </p>
               <div className="form-grid">
                 <div className="form-row">
                   <label htmlFor="news-title">Title</label>

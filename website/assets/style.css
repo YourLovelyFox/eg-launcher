@@ -232,6 +232,14 @@ h3 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
 .list-item .meta { font-size: 12px; color: var(--mute); }
 .list-item .summary { font-size: 13px; color: var(--dim); margin-top: 6px; }
 
+.news-author {
+  font-weight: 650;
+  color: var(--dim);
+}
+.news-author.is-founder {
+  color: var(--green);
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
