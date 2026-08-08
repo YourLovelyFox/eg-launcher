@@ -64,10 +64,7 @@ layout_header('@' . $username, '');
   <div class="toolbar">
     <div>
       <div class="kicker">Profile</div>
-      <h1>
-        @<?= e((string) $profile['username']) ?>
-        <?= render_role_chip((string) $profile['role']) ?>
-      </h1>
+      <h1>@<?= e((string) $profile['username']) ?></h1>
       <?php if (!empty($profile['display_name'])): ?>
         <p class="hint"><?= e((string) $profile['display_name']) ?></p>
       <?php endif; ?>
@@ -76,6 +73,7 @@ layout_header('@' . $username, '');
         · <?= $topics ?> topic<?= $topics === 1 ? '' : 's' ?>
         · <?= $posts ?> post<?= $posts === 1 ? '' : 's' ?>
         <?php if (!(int) $profile['enabled']): ?> · <span class="badge" style="color:var(--red)">Disabled</span><?php endif; ?>
+        <?php if (!empty($profile['staff_id'])): ?> · launcher Staff Menu account<?php endif; ?>
       </p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -87,22 +85,32 @@ layout_header('@' . $username, '');
       <?php endif; ?>
     </div>
   </div>
-  <?php if (!empty($profile['staff_id'])): ?>
-    <p class="hint" style="margin-top: 8px;">
-      <span class="ubadge ubadge-green">
-        <?= render_fa_icon('fa-solid fa-id-badge', 'ubadge-fa') ?>
-        <span class="ubadge-label">Launcher Staff</span>
-      </span>
-      Linked to EG Launcher Staff Menu account (shared password).
-    </p>
-  <?php endif; ?>
 
   <h2 style="margin-top: 12px;">Badges</h2>
-  <?php if (!$badges): ?>
+  <?php
+  // Drop redundant "Staff" if they already have Admin or Moderator
+  $hasElevated = false;
+  foreach ($badges as $b) {
+      if (in_array((string) $b['slug'], ['admin', 'moderator'], true)) {
+          $hasElevated = true;
+          break;
+      }
+  }
+  $showBadges = array_values(array_filter(
+      $badges,
+      static function ($b) use ($hasElevated) {
+          if ($hasElevated && (string) $b['slug'] === 'staff') {
+              return false;
+          }
+          return true;
+      }
+  ));
+  ?>
+  <?php if (!$showBadges): ?>
     <p class="hint">No badges yet.</p>
   <?php else: ?>
     <div class="ubadge-row ubadge-row-wrap" style="margin-top: 8px;">
-      <?php foreach ($badges as $b): ?>
+      <?php foreach ($showBadges as $b): ?>
         <span class="ubadge ubadge-lg ubadge-<?= e(preg_replace('/[^a-z]/', '', strtolower((string) $b['color'])) ?: 'muted') ?>"
               title="<?= e((string) $b['description']) ?>">
           <?= render_fa_icon((string) $b['icon'], 'ubadge-fa') ?>

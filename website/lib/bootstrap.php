@@ -309,7 +309,6 @@ function ensure_web_user_from_staff(array $staff): array
             $row['id'],
         ]);
         sync_role_badges($pdo, (string) $row['id'], $webRole);
-        grant_badge((string) $row['id'], 'staff', null, 'Launcher staff account');
         $st = $pdo->prepare('SELECT * FROM web_users WHERE id = ? LIMIT 1');
         $st->execute([$row['id']]);
         return $st->fetch() ?: $row;
@@ -331,7 +330,6 @@ function ensure_web_user_from_staff(array $staff): array
         $now,
     ]);
     sync_role_badges($pdo, $id, $webRole);
-    grant_badge($id, 'staff', null, 'Launcher staff account');
     $st = $pdo->prepare('SELECT * FROM web_users WHERE id = ? LIMIT 1');
     $st->execute([$id]);
     return $st->fetch() ?: ['id' => $id, 'username' => $username, 'role' => $webRole];
@@ -757,8 +755,8 @@ function revoke_badge(string $userId, string $badgeSlug): bool
 
 function sync_role_badges(PDO $pdo, string $userId, string $role): void
 {
-    // Remove automatic role badges, then re-grant for current role
-    $roleSlugs = ['admin', 'moderator'];
+    // One role badge only: Admin OR Moderator — never both, never auto "Staff"
+    $roleSlugs = ['admin', 'moderator', 'staff'];
     foreach ($roleSlugs as $slug) {
         $b = $pdo->prepare('SELECT id FROM web_badges WHERE slug = ? LIMIT 1');
         $b->execute([$slug]);
@@ -769,10 +767,8 @@ function sync_role_badges(PDO $pdo, string $userId, string $role): void
     }
     if ($role === 'admin') {
         grant_badge($userId, 'admin', null, 'Role');
-        grant_badge($userId, 'staff', null, 'Role');
     } elseif ($role === 'mod') {
         grant_badge($userId, 'moderator', null, 'Role');
-        grant_badge($userId, 'staff', null, 'Role');
     }
 }
 
@@ -808,8 +804,19 @@ function render_user_badges(string $userId, bool $compact = true): string
     if (!$badges) {
         return '';
     }
+    // Hide "Staff" when Admin or Moderator is already present (no triple labels)
+    $hasElevated = false;
+    foreach ($badges as $b) {
+        if (in_array((string) $b['slug'], ['admin', 'moderator'], true)) {
+            $hasElevated = true;
+            break;
+        }
+    }
     $html = '<span class="ubadge-row">';
     foreach ($badges as $b) {
+        if ($hasElevated && (string) $b['slug'] === 'staff') {
+            continue;
+        }
         $color = preg_replace('/[^a-z]/', '', strtolower((string) $b['color'])) ?: 'muted';
         $cls = 'ubadge ubadge-' . $color . ($compact ? '' : ' ubadge-lg');
         $title = e((string) $b['title'] . ': ' . (string) $b['description']);
@@ -837,11 +844,11 @@ function render_role_chip(string $role): string
 function user_link(string $username, ?string $userId = null, ?string $role = null): string
 {
     $html = '<a class="user-link" href="/user/profile.php?u=' . e(rawurlencode($username)) . '">@' . e($username) . '</a>';
-    if ($role && $role !== 'user') {
-        $html .= ' ' . render_role_chip($role);
-    }
+    // Prefer stored badges (single Admin/Moderator pill). Avoid role chip + badge doubles.
     if ($userId) {
         $html .= ' ' . render_user_badges($userId, true);
+    } elseif ($role && $role !== 'user') {
+        $html .= ' ' . render_role_chip($role);
     }
     return $html;
 }
@@ -993,13 +1000,9 @@ function layout_header(string $title, string $active = ''): void
     echo '<div class="auth-links">';
     if ($u) {
         echo '<a class="who" href="/user/profile.php?u=' . e(rawurlencode((string) $u['username'])) . '">@' . e($u['username']) . '</a>';
+        // One role badge only (Admin or Moderator) — no extra Staff chip
         if (is_mod($u)) {
-            echo render_role_chip((string) $u['role']);
-        }
-        if (!empty($u['staff_id'])) {
-            echo '<span class="ubadge ubadge-green" title="Launcher Staff/Admin account">'
-                . render_fa_icon('fa-solid fa-id-badge', 'ubadge-fa')
-                . ' <span class="ubadge-label">Staff</span></span>';
+            echo render_user_badges((string) $u['id'], true);
         }
         echo '<a class="btn btn-ghost" href="/auth/logout.php">Log out</a>';
     } else {

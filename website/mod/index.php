@@ -35,7 +35,7 @@ layout_header('Moderation', 'mod');
   </section>
   <section class="panel">
     <h2>Your role</h2>
-    <p><?= render_role_chip((string) $me['role']) ?> <?= render_user_badges((string) $me['id']) ?></p>
+    <p><?= render_user_badges((string) $me['id'], false) ?></p>
     <p class="hint" style="margin-top: 10px;">
       Moderators can moderate content. Admins can change roles, ban users, and award badges.
     </p>
