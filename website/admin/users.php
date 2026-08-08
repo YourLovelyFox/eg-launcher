@@ -1,4 +1,7 @@
 <?php
+/**
+ * Admin user directory: search, create, open full editor.
+ */
 require dirname(__DIR__) . '/lib/bootstrap.php';
 $me = require_admin();
 
@@ -6,80 +9,102 @@ $q = trim((string) ($_GET['q'] ?? ''));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf();
-    $uid = (string) ($_POST['user_id'] ?? '');
     $action = (string) ($_POST['action'] ?? '');
-    if ($uid === '' || $uid === $me['id']) {
-        flash_set('error', 'Invalid target user.');
-        redirect('/admin/users.php?q=' . rawurlencode($q));
-    }
 
-    $st = db()->prepare('SELECT * FROM web_users WHERE id = ? LIMIT 1');
-    $st->execute([$uid]);
-    $target = $st->fetch();
-    if (!$target) {
-        flash_set('error', 'User not found.');
-        redirect('/admin/users.php');
-    }
-
-    if ($action === 'set_role') {
+    if ($action === 'create') {
+        $username = trim((string) ($_POST['username'] ?? ''));
+        $password = (string) ($_POST['password'] ?? '');
+        $email = trim((string) ($_POST['email'] ?? ''));
         $role = (string) ($_POST['role'] ?? 'user');
-        set_user_role($uid, $role, $me['id']);
-        flash_set('success', 'Role updated to ' . role_label($role) . '.');
-    } elseif ($action === 'toggle_enable') {
-        $en = (int) $target['enabled'] ? 0 : 1;
-        $reason = trim((string) ($_POST['ban_reason'] ?? ''));
-        db()->prepare('UPDATE web_users SET enabled = ?, ban_reason = ? WHERE id = ?')->execute([
-            $en,
-            $en ? null : ($reason !== '' ? $reason : 'Disabled by admin'),
-            $uid,
-        ]);
-        mod_log($me['id'], $en ? 'enable_user' : 'disable_user', 'user', $uid, $reason);
-        flash_set('success', $en ? 'User re-enabled.' : 'User disabled.');
-    } elseif ($action === 'grant_badge') {
-        $slug = trim((string) ($_POST['badge_slug'] ?? ''));
-        if (grant_badge($uid, $slug, $me['id'], 'Admin grant')) {
-            mod_log($me['id'], 'grant_badge', 'user', $uid, $slug);
-            flash_set('success', 'Badge granted.');
-        } else {
-            flash_set('error', 'Could not grant badge.');
+        $canTopics = !empty($_POST['can_create_topics']);
+        $canReply = !empty($_POST['can_reply']);
+        $res = admin_create_web_user(
+            $username,
+            $password,
+            $role,
+            $email !== '' ? $email : null,
+            $canTopics,
+            $canReply,
+            (string) $me['id']
+        );
+        if (!$res['ok']) {
+            flash_set('error', $res['error']);
+            redirect('/admin/users.php');
         }
-    } elseif ($action === 'revoke_badge') {
-        $slug = trim((string) ($_POST['badge_slug'] ?? ''));
-        if (revoke_badge($uid, $slug)) {
-            mod_log($me['id'], 'revoke_badge', 'user', $uid, $slug);
-            flash_set('success', 'Badge removed.');
-        } else {
-            flash_set('error', 'Badge not found on user.');
-        }
+        flash_set('success', 'User @' . $username . ' created.');
+        redirect('/admin/user-edit.php?id=' . rawurlencode($res['id']));
     }
-    redirect('/admin/users.php?q=' . rawurlencode($q !== '' ? $q : (string) $target['username']));
+
+    flash_set('error', 'Unknown action.');
+    redirect('/admin/users.php');
 }
 
 if ($q !== '') {
     $st = db()->prepare(
-        'SELECT * FROM web_users WHERE username LIKE ? OR email LIKE ? ORDER BY created_at DESC LIMIT 50'
+        'SELECT * FROM web_users WHERE username LIKE ? OR email LIKE ? OR id = ?
+         ORDER BY created_at DESC LIMIT 80'
     );
     $like = '%' . $q . '%';
-    $st->execute([$like, $like]);
+    $st->execute([$like, $like, $q]);
     $users = $st->fetchAll();
 } else {
-    $users = db()->query('SELECT * FROM web_users ORDER BY created_at DESC LIMIT 40')->fetchAll();
+    $users = db()->query(
+        'SELECT * FROM web_users ORDER BY
+          (role = \'admin\') DESC, (role = \'mod\') DESC, created_at DESC LIMIT 60'
+    )->fetchAll();
 }
-
-$allBadges = db()->query('SELECT slug, title FROM web_badges ORDER BY sort_order, title')->fetchAll();
 
 layout_header('Users', 'admin');
 ?>
 <div class="toolbar">
   <div>
     <p class="hint"><a href="/admin/">← Admin</a></p>
-    <h1>Users and roles</h1>
+    <h1>Users</h1>
+    <p class="hint">Create accounts, then open <strong>Edit</strong> to change role, permissions, badges, password, or delete.</p>
   </div>
+  <a class="btn btn-secondary" href="/mod/users.php">Quick ban / lock</a>
 </div>
 
+<section class="panel" style="margin-bottom: 18px;">
+  <h2>Create user</h2>
+  <form method="post" class="form-grid" style="max-width: 520px;" autocomplete="off">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="create">
+    <div class="form-row">
+      <label for="username">Username <span class="req">*</span></label>
+      <input class="input" id="username" name="username" required maxlength="32" pattern="[A-Za-z0-9_]{3,32}"
+             placeholder="new_member" autocomplete="off">
+    </div>
+    <div class="form-row">
+      <label for="password">Password <span class="req">*</span></label>
+      <input class="input" id="password" name="password" type="password" required minlength="8"
+             autocomplete="new-password">
+    </div>
+    <div class="form-row">
+      <label for="email">Email <span class="opt">(optional)</span></label>
+      <input class="input" id="email" name="email" type="email" maxlength="255" autocomplete="off">
+    </div>
+    <div class="form-row">
+      <label for="role">Role</label>
+      <select class="input select" id="role" name="role">
+        <option value="user">Member</option>
+        <option value="mod">Moderator</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <label class="checkbox-row" style="display:flex;gap:8px;align-items:center;">
+      <input type="checkbox" name="can_create_topics" value="1" checked> Can create topics
+    </label>
+    <label class="checkbox-row" style="display:flex;gap:8px;align-items:center;">
+      <input type="checkbox" name="can_reply" value="1" checked> Can reply
+    </label>
+    <button class="btn btn-primary" type="submit">Create user</button>
+  </form>
+</section>
+
 <form class="panel" method="get" style="margin-bottom: 16px;">
-  <div class="form-row" style="max-width: 360px;">
-    <label for="q">Search username / email</label>
+  <div class="form-row" style="max-width: 420px;">
+    <label for="q">Search username / email / id</label>
     <div style="display:flex;gap:8px;">
       <input class="input" id="q" name="q" value="<?= e($q) ?>" placeholder="username">
       <button class="btn btn-primary" type="submit">Search</button>
@@ -87,93 +112,41 @@ layout_header('Users', 'admin');
   </div>
 </form>
 
-<?php foreach ($users as $u): ?>
-  <div class="panel" style="margin-bottom: 12px;">
-    <div class="toolbar">
-      <div>
-        <div class="title">
-          <a href="/user/profile.php?u=<?= e(rawurlencode((string) $u['username'])) ?>">@<?= e((string) $u['username']) ?></a>
-          <?= render_role_chip((string) $u['role']) ?>
-          <?php if (!(int) $u['enabled']): ?><span class="badge" style="color:var(--red)">Disabled</span><?php endif; ?>
-        </div>
-        <div class="meta muted">
-          Joined <?= e(format_dt((string) $u['created_at'])) ?>
-          <?php if (!empty($u['email'])): ?> · <?= e((string) $u['email']) ?><?php endif; ?>
-        </div>
-        <div style="margin-top: 8px;"><?= render_user_badges((string) $u['id'], true) ?></div>
-      </div>
-    </div>
-
-    <?php if ($u['id'] === $me['id']): ?>
-      <p class="hint">This is you — manage other accounts from here.</p>
-    <?php else: ?>
-      <div class="grid-2" style="margin-top: 12px;">
-        <form method="post">
-          <?= csrf_field() ?>
-          <input type="hidden" name="user_id" value="<?= e((string) $u['id']) ?>">
-          <input type="hidden" name="action" value="set_role">
-          <div class="form-row">
-            <label>Role</label>
-            <select class="select" name="role">
-              <?php foreach (['user', 'mod', 'admin'] as $r): ?>
-                <option value="<?= $r ?>" <?= $u['role'] === $r ? 'selected' : '' ?>><?= e(role_label($r)) ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <button class="btn btn-secondary" type="submit" style="margin-top: 8px;">Save role</button>
-        </form>
-
-        <form method="post">
-          <?= csrf_field() ?>
-          <input type="hidden" name="user_id" value="<?= e((string) $u['id']) ?>">
-          <input type="hidden" name="action" value="toggle_enable">
-          <?php if ((int) $u['enabled']): ?>
-            <div class="form-row">
-              <label>Disable reason</label>
-              <input class="input" name="ban_reason" maxlength="255" placeholder="Optional">
-            </div>
-            <button class="btn btn-danger" type="submit" style="margin-top: 8px;">Disable user</button>
-          <?php else: ?>
-            <p class="hint">Reason: <?= e((string) ($u['ban_reason'] ?? '—')) ?></p>
-            <button class="btn btn-primary" type="submit">Re-enable user</button>
-          <?php endif; ?>
-        </form>
-      </div>
-
-      <form method="post" style="margin-top: 12px; display:flex; flex-wrap:wrap; gap:8px; align-items:end;">
-        <?= csrf_field() ?>
-        <input type="hidden" name="user_id" value="<?= e((string) $u['id']) ?>">
-        <input type="hidden" name="action" value="grant_badge">
-        <div class="form-row" style="min-width: 200px;">
-          <label>Grant badge</label>
-          <select class="select" name="badge_slug">
-            <?php foreach ($allBadges as $b): ?>
-              <option value="<?= e((string) $b['slug']) ?>"><?= e((string) $b['title']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <button class="btn btn-primary" type="submit">Grant</button>
-      </form>
-
-      <form method="post" style="margin-top: 8px; display:flex; flex-wrap:wrap; gap:8px; align-items:end;">
-        <?= csrf_field() ?>
-        <input type="hidden" name="user_id" value="<?= e((string) $u['id']) ?>">
-        <input type="hidden" name="action" value="revoke_badge">
-        <div class="form-row" style="min-width: 200px;">
-          <label>Revoke badge</label>
-          <select class="select" name="badge_slug">
-            <?php foreach (user_badges((string) $u['id']) as $b): ?>
-              <option value="<?= e((string) $b['slug']) ?>"><?= e((string) $b['title']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <button class="btn btn-ghost" type="submit">Revoke</button>
-      </form>
-    <?php endif; ?>
-  </div>
-<?php endforeach; ?>
-
 <?php if (!$users): ?>
   <div class="panel"><p class="hint">No users match.</p></div>
+<?php else: ?>
+  <div class="list">
+    <?php foreach ($users as $u): ?>
+      <?php
+      $banned = !(int) $u['enabled'];
+      $locked = (int) ($u['forum_locked'] ?? 0) === 1;
+      ?>
+      <div class="list-item" style="cursor:default;">
+        <div class="toolbar" style="margin:0;">
+          <div>
+            <div class="title">
+              <a href="/user/profile.php?u=<?= e(rawurlencode((string) $u['username'])) ?>">@<?= e((string) $u['username']) ?></a>
+              <?= render_role_chip((string) $u['role']) ?>
+              <?= render_user_badges((string) $u['id'], true) ?>
+              <?php if ($banned): ?><span class="badge" style="color:var(--red)">Disabled</span><?php endif; ?>
+              <?php if ($locked && !$banned): ?><span class="badge" style="color:var(--amber)">Forum locked</span><?php endif; ?>
+              <?php if ((string) $u['id'] === (string) $me['id']): ?><span class="badge">You</span><?php endif; ?>
+            </div>
+            <div class="meta muted">
+              topics <?= (int) ($u['can_create_topics'] ?? 1) ? 'yes' : 'no' ?>
+              · replies <?= (int) ($u['can_reply'] ?? 1) ? 'yes' : 'no' ?>
+              · joined <?= e(format_dt((string) $u['created_at'])) ?>
+              <?php if (!empty($u['email'])): ?> · <?= e((string) $u['email']) ?><?php endif; ?>
+              <?php if (!empty($u['staff_id'])): ?> · launcher staff link<?php endif; ?>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a class="btn btn-primary" href="/admin/user-edit.php?id=<?= e(rawurlencode((string) $u['id'])) ?>">Edit</a>
+            <a class="btn btn-ghost" href="/mod/users.php?q=<?= e(rawurlencode((string) $u['username'])) ?>">Mod tools</a>
+          </div>
+        </div>
+      </div>
+    <?php endforeach; ?>
+  </div>
 <?php endif; ?>
 <?php layout_footer(); ?>

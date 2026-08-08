@@ -389,7 +389,7 @@ code {
 .form-grid { display: grid; gap: 14px; max-width: 420px; }
 .form-row { display: grid; gap: 6px; }
 .form-row label { font-size: 12px; font-weight: 650; color: var(--dim); }
-.input, .select, textarea.input {
+.input, .select, select.input, textarea.input {
   width: 100%;
   background: rgba(8, 10, 16, 0.72);
   border: 1px solid var(--border);
@@ -398,12 +398,33 @@ code {
   color: var(--text);
   font: inherit;
   outline: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  -webkit-appearance: auto;
+  appearance: auto;
 }
-.input:focus, textarea.input:focus {
+input.input, textarea.input { cursor: text; }
+.input:focus, .select:focus, select.input:focus, textarea.input:focus {
   border-color: rgba(61, 255, 176, 0.55);
   box-shadow: 0 0 0 3px var(--green-soft);
 }
 textarea.input { min-height: 140px; resize: vertical; line-height: 1.5; }
+button.btn, .btn {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+}
+.checkbox-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--green);
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
+}
 
 .flash {
   padding: 12px 14px;

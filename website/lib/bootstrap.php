@@ -941,25 +941,8 @@ function get_badge_by_slug(string $slug): ?array
 
 function grant_badge(string $userId, string $badgeSlug, ?string $grantedBy = null, ?string $note = null): bool
 {
-    $badge = get_badge_by_slug($badgeSlug);
-    if (!$badge) {
-        return false;
-    }
-    try {
-        db()->prepare(
-            'INSERT IGNORE INTO web_user_badges (user_id, badge_id, granted_at, granted_by, note)
-             VALUES (?,?,?,?,?)'
-        )->execute([
-            $userId,
-            (int) $badge['id'],
-            (new DateTimeImmutable('now'))->format('Y-m-d H:i:s.v'),
-            $grantedBy,
-            $note,
-        ]);
-        return true;
-    } catch (Throwable) {
-        return false;
-    }
+    $r = grant_badge_result($userId, $badgeSlug, $grantedBy, $note);
+    return !empty($r['ok']);
 }
 
 function revoke_badge(string $userId, string $badgeSlug): bool
@@ -1001,6 +984,159 @@ function set_user_role(string $userId, string $role, ?string $actorId = null): v
     sync_role_badges(db(), $userId, $role);
     if ($actorId) {
         mod_log($actorId, 'set_role', 'user', $userId, $role);
+    }
+}
+
+/**
+ * Create a community web user (admin tool).
+ *
+ * @return array{ok:true,id:string}|array{ok:false,error:string}
+ */
+function admin_create_web_user(
+    string $username,
+    string $password,
+    string $role = 'user',
+    ?string $email = null,
+    bool $canTopics = true,
+    bool $canReply = true,
+    ?string $actorId = null
+): array {
+    $username = trim($username);
+    if (!preg_match('/^[A-Za-z0-9_]{3,32}$/', $username)) {
+        return ['ok' => false, 'error' => 'Username must be 3–32 chars (letters, numbers, underscore).'];
+    }
+    if (strlen($password) < (int) cfg('min_password_len', 8)) {
+        return ['ok' => false, 'error' => 'Password too short (min ' . (int) cfg('min_password_len', 8) . ').'];
+    }
+    if (!in_array($role, ['user', 'mod', 'admin'], true)) {
+        $role = 'user';
+    }
+    $email = $email !== null ? strtolower(trim($email)) : '';
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return ['ok' => false, 'error' => 'Invalid email.'];
+    }
+
+    $st = db()->prepare('SELECT id FROM web_users WHERE LOWER(username) = LOWER(?) LIMIT 1');
+    $st->execute([$username]);
+    if ($st->fetch()) {
+        return ['ok' => false, 'error' => 'Username already taken.'];
+    }
+    try {
+        $st = db()->prepare('SELECT id FROM staff_users WHERE LOWER(username) = LOWER(?) LIMIT 1');
+        $st->execute([$username]);
+        if ($st->fetch()) {
+            return ['ok' => false, 'error' => 'Username belongs to a launcher Staff/Admin account.'];
+        }
+    } catch (Throwable) {
+    }
+
+    $id = uuid_v4();
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+    $now = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s.v');
+    try {
+        db()->prepare(
+            'INSERT INTO web_users (id, username, password_hash, email, role, created_at, enabled,
+              forum_locked, can_create_topics, can_reply)
+             VALUES (?,?,?,?,?,?,1,0,?,?)'
+        )->execute([
+            $id,
+            $username,
+            $hash,
+            $email !== '' ? $email : null,
+            $role,
+            $now,
+            $canTopics ? 1 : 0,
+            $canReply ? 1 : 0,
+        ]);
+        sync_role_badges(db(), $id, $role);
+        if ($actorId) {
+            mod_log($actorId, 'create_user', 'user', $id, $username . ' role=' . $role);
+        }
+        return ['ok' => true, 'id' => $id];
+    } catch (Throwable $e) {
+        error_log('[eg-web] admin_create_web_user: ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'Database error creating user.'];
+    }
+}
+
+/**
+ * Permanently delete a web user (not self). Cleans related rows.
+ *
+ * @return array{ok:true}|array{ok:false,error:string}
+ */
+function admin_delete_web_user(string $targetId, string $actorId): array
+{
+    if ($targetId === '' || $targetId === $actorId) {
+        return ['ok' => false, 'error' => 'Cannot delete this account.'];
+    }
+    $st = db()->prepare('SELECT id, username, role, staff_id FROM web_users WHERE id = ? LIMIT 1');
+    $st->execute([$targetId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return ['ok' => false, 'error' => 'User not found.'];
+    }
+    // Do not delete launcher-linked staff accounts from here (use Staff Menu)
+    if (!empty($row['staff_id'])) {
+        return [
+            'ok' => false,
+            'error' => 'This account is linked to launcher Staff/Admin. Unlink or manage it from the Staff Menu / disable instead of delete.',
+        ];
+    }
+
+    $pdo = db();
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare('DELETE FROM web_user_badges WHERE user_id = ?')->execute([$targetId]);
+        $pdo->prepare('DELETE FROM web_password_resets WHERE user_id = ?')->execute([$targetId]);
+        // Soft-delete posts stay; keep content attribution as deleted user text optional
+        // Null-out actor references that would block delete
+        try {
+            $pdo->prepare('UPDATE web_users SET locked_by = NULL WHERE locked_by = ?')->execute([$targetId]);
+        } catch (Throwable) {
+        }
+        $pdo->prepare('DELETE FROM web_users WHERE id = ?')->execute([$targetId]);
+        $pdo->commit();
+        mod_log($actorId, 'delete_user', 'user', $targetId, (string) $row['username']);
+        return ['ok' => true];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log('[eg-web] admin_delete_web_user: ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'Could not delete user (database constraint). Disable the account instead.'];
+    }
+}
+
+/**
+ * @return array{ok:true,status:string}|array{ok:false,error:string}
+ * status: granted|already|missing
+ */
+function grant_badge_result(string $userId, string $badgeSlug, ?string $grantedBy = null, ?string $note = null): array
+{
+    $badge = get_badge_by_slug($badgeSlug);
+    if (!$badge) {
+        return ['ok' => false, 'error' => 'Badge not found.', 'status' => 'missing'];
+    }
+    $chk = db()->prepare('SELECT 1 FROM web_user_badges WHERE user_id = ? AND badge_id = ? LIMIT 1');
+    $chk->execute([$userId, (int) $badge['id']]);
+    if ($chk->fetch()) {
+        return ['ok' => true, 'status' => 'already'];
+    }
+    try {
+        db()->prepare(
+            'INSERT INTO web_user_badges (user_id, badge_id, granted_at, granted_by, note)
+             VALUES (?,?,?,?,?)'
+        )->execute([
+            $userId,
+            (int) $badge['id'],
+            (new DateTimeImmutable('now'))->format('Y-m-d H:i:s.v'),
+            $grantedBy,
+            $note,
+        ]);
+        return ['ok' => true, 'status' => 'granted'];
+    } catch (Throwable $e) {
+        error_log('[eg-web] grant_badge: ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'Could not grant badge.', 'status' => 'missing'];
     }
 }
 
@@ -1314,7 +1450,7 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
     echo '<title>' . e($full) . '</title>';
     // Font Awesome 6 free (icons for badges / roles)
     echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">';
-    echo '<link rel="stylesheet" href="/assets/style.css?v=abuse-login-shots-1">';
+    echo '<link rel="stylesheet" href="/assets/style.css?v=user-admin-1">';
     echo '</head><body>';
     echo '<div class="bg" aria-hidden="true"></div>';
     echo '<header class="top">';

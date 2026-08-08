@@ -83,9 +83,12 @@ layout_header('Moderate users', 'mod');
       Mods can only act on regular members (not other staff).
     </p>
   </div>
-  <?php if (is_admin($me)): ?>
-    <a class="btn btn-secondary" href="/admin/settings.php">New-user defaults</a>
-  <?php endif; ?>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <?php if (is_admin($me)): ?>
+      <a class="btn btn-primary" href="/admin/users.php">Full user editor</a>
+      <a class="btn btn-secondary" href="/admin/settings.php">New-user defaults</a>
+    <?php endif; ?>
+  </div>
 </div>
 
 <form class="panel" method="get" style="margin-bottom: 16px;">
@@ -191,7 +194,7 @@ layout_header('Moderate users', 'mod');
             <?php if (is_admin($me)): ?>
               <div class="form-row" style="margin-top:8px;">
                 <label>Role (admin only)</label>
-                <select class="select" name="role">
+                <select class="input select" name="role">
                   <?php foreach (['user', 'mod', 'admin'] as $r): ?>
                     <option value="<?= $r ?>" <?= ($u['role'] ?? '') === $r ? 'selected' : '' ?>><?= e(role_label($r)) ?></option>
                   <?php endforeach; ?>
