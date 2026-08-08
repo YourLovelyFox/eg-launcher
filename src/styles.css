@@ -206,8 +206,8 @@ a:hover {
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
   height: 100%;
-  overflow: hidden;
-  /* Avoid isolation + fixed overlays stealing hit-testing from inputs in Electron */
+  overflow: clip;
+  /* overflow:clip keeps bounds but allows 3D transforms to render */
 }
 
 /* Full-window drop hint — never intercepts clicks (stuck drag used to block text fields) */
@@ -230,20 +230,20 @@ a:hover {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  overflow: hidden;
 }
 
 .app-bg-base {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(170deg, #060910 0%, #0b101c 40%, #080c14 100%);
+    linear-gradient(180deg, #020010 0%, #0a0028 15%, #1a0040 30%, #380058 50%, #600040 70%, #901028 88%, #d04018 100%);
 }
 
 /* Aurora blobs — static, no animation */
 .app-bg-mesh {
   position: absolute;
   inset: 0;
+  z-index: 1;
   background:
     radial-gradient(2px 2px at 10% 15%, rgba(255,255,255,0.8), transparent),
     radial-gradient(1px 1px at 25% 8%, rgba(255,255,255,0.5), transparent),
@@ -267,11 +267,13 @@ a:hover {
     radial-gradient(2px 2px at 28% 32%, rgba(255,180,255,0.6), transparent);
   animation: starTwinkle 3s ease-in-out infinite alternate;
   will-change: opacity;
+  opacity: 0.9;
 }
 
 /* Subtle geometric grid */
 .app-bg-grid {
   position: absolute;
+  z-index: 0;
   left: 50%;
   bottom: 0;
   width: 200vw;
@@ -309,6 +311,7 @@ a:hover {
 .app-bg-vignette {
   position: absolute;
   inset: 0;
+  z-index: 3;
   background: linear-gradient(0deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 35%, rgba(0,0,0,0.1) 60%, transparent 75%);
 }
 
@@ -339,7 +342,7 @@ a:hover {
     0 0 200px rgba(255, 20, 0, 0.15),
     inset 0 0 40px rgba(255, 200, 80, 0.1);
   animation: sunGlow 3s ease-in-out infinite alternate;
-  z-index: 0;
+  z-index: 2;
   pointer-events: none;
   will-change: box-shadow;
 }
@@ -358,7 +361,7 @@ a:hover {
     transparent 100%
   );
   animation: sunReflect 2s ease-in-out infinite alternate;
-  z-index: 0;
+  z-index: 1;
   pointer-events: none;
   will-change: opacity;
 }
