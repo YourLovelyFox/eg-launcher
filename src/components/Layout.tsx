@@ -28,7 +28,6 @@ import {
   IconUser,
 } from './Icons'
 import { PlayerHeadWithFallback } from './PlayerHead'
-import { SynthwaveBg } from './SynthwaveBg'
 
 
 function partnerNavIcon(p: PartnerDefinition): string | null {
@@ -346,7 +345,16 @@ export function Layout() {
         if (e.dataTransfer?.files?.length) void onDropFiles(e.dataTransfer.files)
       }}
     >
-      <SynthwaveBg />
+      <video
+        className="bg-video"
+        src="/synthwave-bg.mp4"
+        autoPlay
+        muted
+        loop
+        playsInline
+        disablePictureInPicture
+        disableRemotePlayback
+      />
 
       {dragOver && (
         <div
