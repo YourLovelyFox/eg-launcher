@@ -28,6 +28,7 @@ import {
   IconUser,
 } from './Icons'
 import { PlayerHeadWithFallback } from './PlayerHead'
+import { SynthwaveBg } from './SynthwaveBg'
 
 
 function partnerNavIcon(p: PartnerDefinition): string | null {
@@ -345,12 +346,7 @@ export function Layout() {
         if (e.dataTransfer?.files?.length) void onDropFiles(e.dataTransfer.files)
       }}
     >
-      <div className="app-bg" aria-hidden>
-        <div className="app-bg-base" />
-        <div className="app-bg-mesh" />
-        <div className="app-bg-grid" />
-        <div className="app-bg-vignette" />
-      </div>
+      <SynthwaveBg />
 
       {dragOver && (
         <div
