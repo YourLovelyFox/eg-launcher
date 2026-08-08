@@ -50,6 +50,7 @@ type AppState = {
   setInstallProgress: (p: ProgressEvent | null) => void
   setDownloadProgress: (p: ProgressEvent | null) => void
   setRunning: (running: RunningGameInfo) => void
+  setHydrating: (v: boolean) => void
   showToast: (type: Toast['type'], message: string) => void
   clearToast: () => void
   setLoading: (v: boolean) => void
@@ -144,6 +145,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setInstallProgress: (p) => set({ installProgress: p }),
   setDownloadProgress: (p) => set({ downloadProgress: p }),
   setRunning: (running) => set({ running }),
+  setHydrating: (v) => set({ hydrating: v }),
   showToast: (type, message) => {
     const id = toastSeq++
     set({ toast: { id, type, message } })
