@@ -68,7 +68,10 @@ function smtp_try_targets(array $cfg): array
     return $out;
 }
 
-function smtp_send(string $to, string $subject, string $bodyText): bool
+/**
+ * @param string|null $replyTo Optional Reply-To address (e.g. contact form sender or department).
+ */
+function smtp_send(string $to, string $subject, string $bodyText, ?string $replyTo = null): bool
 {
     smtp_last_error('');
     $cfg = smtp_config();
@@ -82,6 +85,10 @@ function smtp_send(string $to, string $subject, string $bodyText): bool
         smtp_last_error('Invalid recipient');
         return false;
     }
+    $replyTo = $replyTo !== null ? trim($replyTo) : '';
+    if ($replyTo !== '' && !filter_var($replyTo, FILTER_VALIDATE_EMAIL)) {
+        $replyTo = '';
+    }
 
     $errors = [];
     foreach (smtp_try_targets($cfg) as $t) {
@@ -90,7 +97,7 @@ function smtp_send(string $to, string $subject, string $bodyText): bool
         $try['port'] = $t['port'];
         $try['secure'] = $t['secure'];
         try {
-            if (smtp_send_raw($try, $to, $subject, $bodyText)) {
+            if (smtp_send_raw($try, $to, $subject, $bodyText, $replyTo !== '' ? $replyTo : null)) {
                 smtp_last_error('');
                 return true;
             }
@@ -110,7 +117,7 @@ function smtp_send(string $to, string $subject, string $bodyText): bool
 /**
  * @param array<string,mixed> $cfg
  */
-function smtp_send_raw(array $cfg, string $to, string $subject, string $bodyText): bool
+function smtp_send_raw(array $cfg, string $to, string $subject, string $bodyText, ?string $replyTo = null): bool
 {
     $host = (string) $cfg['host'];
     $port = (int) $cfg['port'] > 0 ? (int) $cfg['port'] : 465;
@@ -213,11 +220,19 @@ function smtp_send_raw(array $cfg, string $to, string $subject, string $bodyText
     $msgId = '<' . bin2hex(random_bytes(12)) . '@' . $fromDomain . '>';
     $date = gmdate('D, d M Y H:i:s') . ' +0000';
 
+    $reply = $from;
+    if ($replyTo !== null) {
+        $rt = trim($replyTo);
+        if ($rt !== '' && filter_var($rt, FILTER_VALIDATE_EMAIL)) {
+            $reply = $rt;
+        }
+    }
+
     // Header map (order matters for DKIM h= list)
     $headerMap = [
         'From' => $fromName . ' <' . $from . '>',
         'To' => '<' . $to . '>',
-        'Reply-To' => '<' . $from . '>',
+        'Reply-To' => '<' . $reply . '>',
         'Subject' => $subjectEnc,
         'MIME-Version' => '1.0',
         'Content-Type' => 'text/plain; charset=UTF-8',

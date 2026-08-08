@@ -1287,7 +1287,7 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
     echo '<title>' . e($full) . '</title>';
     // Font Awesome 6 free (icons for badges / roles)
     echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">';
-    echo '<link rel="stylesheet" href="/assets/style.css?v=brand-meta-1">';
+    echo '<link rel="stylesheet" href="/assets/style.css?v=contact-1">';
     echo '</head><body>';
     echo '<div class="bg" aria-hidden="true"></div>';
     echo '<header class="top">';
@@ -1300,6 +1300,7 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
         'home' => ['/', 'Home'],
         'news' => ['/news/', 'News'],
         'forum' => ['/forum/', 'Forum'],
+        'contact' => ['/contact/', 'Contact'],
         'download' => ['/#download', 'Download'],
     ];
     if ($u && is_mod($u)) {
@@ -1369,8 +1370,8 @@ function layout_footer(): void
     echo '<a href="' . e((string) cfg('github_url')) . '">GitHub</a>';
     echo '<a href="' . e((string) cfg('store_url')) . '">Microsoft Store</a>';
     echo '<a href="' . e((string) cfg('privacy_url')) . '">Privacy</a>';
-    echo '<a href="mailto:' . e((string) cfg('contact_email')) . '">Contact</a>';
-    echo '<a href="mailto:' . e((string) cfg('abuse_email')) . '">Abuse</a>';
+    echo '<a href="/contact/">Contact</a>';
+    echo '<a href="/contact/?to=abuse">Abuse</a>';
     echo '</div></div>';
     echo '<p class="copy muted">&copy; ' . date('Y') . ' EpicTeam Studios. Not affiliated with Mojang or Microsoft.</p>';
     echo '</footer></body></html>';

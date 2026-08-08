@@ -34,7 +34,7 @@ layout_header('Moderation', 'mod');
       <li><a href="/mod/users.php"><strong>Users</strong></a> — ban, forum-lock, topic/reply permissions</li>
       <li>Open any topic → <strong>Mod tools</strong> (pin, lock, delete topic)</li>
       <li>On each post → <strong>Delete post</strong>, <strong>Lock user</strong>, <strong>Ban user</strong></li>
-      <li>Report serious abuse to <a href="mailto:<?= e((string) cfg('abuse_email')) ?>"><?= e((string) cfg('abuse_email')) ?></a></li>
+      <li>Report serious abuse via <a href="/contact/?to=abuse">Contact → Abuse</a> (<?= e((string) cfg('abuse_email')) ?>)</li>
     </ul>
     <p style="margin-top: 14px;"><a class="btn btn-secondary" href="/forum/">Open forum</a></p>
   </section>

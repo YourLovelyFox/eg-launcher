@@ -32,6 +32,7 @@ return [
     'min_password_len' => 8,
     'session_name' => 'eg_web_sess',
     'rate_limit_register' => 5,
+    'rate_limit_contact' => 8,
     'rate_limit_window' => 3600,
 
     /**
