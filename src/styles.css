@@ -3231,3 +3231,11 @@ textarea.input:disabled {
   100% { background-position: 0 6px; }
 }
 
+
+/* Synthwave is now handled by canvas — hide CSS backgrounds */
+.app-bg, .app-bg-base, .app-bg-mesh, .app-bg-grid, .app-bg-vignette,
+.app-bg::before, .app-bg::after, .app-bg-grid::after {
+  display: none !important;
+}
+.app-shell::after { display: none !important; }
+
