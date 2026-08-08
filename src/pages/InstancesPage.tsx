@@ -195,13 +195,13 @@ export function InstancesPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {running.running && (
-            <button className="btn btn-danger" onClick={() => stopGame()}>
+            <button className="btn btn-danger btn-lg" onClick={() => stopGame()}>
               <IconStop />
               Stop
             </button>
           )}
           <button
-            className="btn btn-secondary"
+            className="btn btn-secondary btn-lg"
             onClick={() => void importPack()}
             disabled={importing || offlineAtInstanceCap}
             title={
@@ -215,7 +215,7 @@ export function InstancesPage() {
             {importing ? 'Importing…' : 'Import pack'}
           </button>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-lg"
             onClick={() => setCreateOpen(true)}
             disabled={offlineAtInstanceCap}
             title={
@@ -233,8 +233,8 @@ export function InstancesPage() {
           className="panel"
           style={{
             marginBottom: 16,
-            borderColor: 'rgba(245, 158, 11, 0.45)',
-            background: 'rgba(245, 158, 11, 0.08)',
+            borderColor: 'rgba(251, 191, 36, 0.35)',
+            background: 'rgba(251, 191, 36, 0.06)',
           }}
         >
           <strong>Offline account limits</strong>
@@ -296,22 +296,36 @@ export function InstancesPage() {
         <div className="empty">
           <h3>Nothing here yet</h3>
           <p>Create an instance, install the game files, then add mods from Browse.</p>
-          <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+          <button className="btn btn-primary btn-lg" onClick={() => setCreateOpen(true)}>
             <IconPlus />
             Create instance
           </button>
         </div>
       ) : (
         <div className="grid grid-instances">
-          {sorted.map((inst) => {
+          {sorted.map((inst, i) => {
             const isLive = running.running && running.instanceId === inst.id
             const updates = updateCounts[inst.id] ?? 0
             const pinned = loadQolPrefs().pinnedInstanceIds.includes(inst.id)
             const last = loadQolPrefs().lastInstanceId === inst.id
+            const cardStyle: React.CSSProperties = {
+              opacity: 0,
+              animation: 'instanceCardIn 0.28s ease forwards',
+              animationDelay: `${i * 40}ms`,
+            }
             return (
               <div
                 key={inst.id}
                 className="card card-clickable instance-card"
+                style={
+                  isLive
+                    ? {
+                        ...cardStyle,
+                        boxShadow:
+                          '0 0 0 1px rgba(52, 211, 153, 0.45), 0 12px 40px rgba(0, 0, 0, 0.45)',
+                      }
+                    : cardStyle
+                }
                 onClick={() => {
                   setSelectedInstanceId(inst.id)
                   navigate(`/instances/${encodeURIComponent(inst.id)}`)
@@ -397,6 +411,19 @@ export function InstancesPage() {
           })}
         </div>
       )}
+
+      <style>{`
+        @keyframes instanceCardIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
 
       <CreateInstanceModal
         open={createOpen}
