@@ -1144,11 +1144,12 @@ function render_news_author_html(?string $username, ?string $label = null, $isFo
     }
 
     if ($a['isFounder']) {
-        // Colored text only — “Bee · Founder” (Founder in brand green)
-        return '<span class="news-byline news-byline-founder" title="Founder of EG Launcher">'
-            . '<span class="news-byline-name">Bee</span>'
-            . '<span class="news-byline-sep"> · </span>'
-            . '<span class="news-founder-text">Founder</span>'
+        // Inline color so parent .muted / cached CSS cannot wash out Founder green
+        $g = 'color:#3dffb0;font-weight:800';
+        return '<span class="news-byline news-byline-founder" title="Founder of EG Launcher" style="' . $g . '">'
+            . '<span class="news-byline-name" style="' . $g . '">Bee</span>'
+            . '<span class="news-byline-sep" style="' . $g . '"> · </span>'
+            . '<span class="news-founder-text" style="' . $g . '">Founder</span>'
             . '</span>';
     }
 
