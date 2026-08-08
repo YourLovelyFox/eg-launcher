@@ -243,73 +243,93 @@ a:hover {
 /* Aurora blobs — static, no animation */
 .app-bg-mesh {
   position: absolute;
-  inset: -20%;
+  inset: 0;
   background:
-    radial-gradient(ellipse 900px 500px at 0% 0%, rgba(255, 96, 144, 0.06), transparent 50%),
-    radial-gradient(ellipse 800px 450px at 100% 5%, rgba(179, 136, 255, 0.07), transparent 50%),
-    radial-gradient(ellipse 1000px 500px at 50% 90%, rgba(24, 229, 255, 0.05), transparent 50%),
-    radial-gradient(ellipse 600px 400px at 30% 60%, rgba(0, 255, 168, 0.04), transparent 48%),
-    radial-gradient(ellipse 500px 350px at 80% 40%, rgba(255, 140, 66, 0.03), transparent 50%);
-  animation: auroraDrift 25s ease-in-out infinite alternate;
-  will-change: transform;
-  transform: translateZ(0);
-  backface-visibility: hidden;
+    radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 25% 8%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1px 1px at 40% 22%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 55% 12%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1px 1px at 70% 18%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 85% 6%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1.5px 1.5px at 15% 30%, rgba(255,200,255,0.6), transparent),
+    radial-gradient(1px 1px at 33% 25%, rgba(255,255,255,0.35), transparent),
+    radial-gradient(1.5px 1.5px at 60% 28%, rgba(255,180,255,0.5), transparent),
+    radial-gradient(1px 1px at 78% 20%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1px 1px at 92% 35%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1px 1px at 5% 40%, rgba(255,255,255,0.25), transparent),
+    radial-gradient(1px 1px at 48% 35%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1.5px 1.5px at 20% 10%, rgba(255,255,255,0.7), transparent),
+    radial-gradient(1px 1px at 65% 5%, rgba(255,255,255,0.5), transparent);
+  animation: starTwinkle 4s ease-in-out infinite alternate;
+  will-change: opacity;
 }
 
 /* Subtle geometric grid */
 .app-bg-grid {
   position: absolute;
-  inset: 0;
-  opacity: 0.12;
+  left: 50%;
+  bottom: 0;
+  width: 200vw;
+  height: 60vh;
+  transform: translateX(-50%) perspective(400px) rotateX(60deg);
+  transform-origin: bottom center;
   background:
-    linear-gradient(rgba(179, 136, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(179, 136, 255, 0.04) 1px, transparent 1px);
-  background-size: 60px 60px;
-  mask-image: radial-gradient(ellipse 90% 80% at 50% 35%, black 15%, transparent 80%);
-  animation: gridFloat 60s linear infinite;
+    linear-gradient(rgba(255, 60, 144, 0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 60, 144, 0.15) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 40%, transparent 100%);
+  -webkit-mask-image: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 40%, transparent 100%);
+  animation: synthGridPulse 3s ease-in-out infinite alternate;
   will-change: transform;
-  transform: translateZ(0);
   backface-visibility: hidden;
 }
 .app-bg-grid::after {
   content: '';
   position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(24, 229, 255, 0.3), rgba(179, 136, 255, 0.3), transparent);
-  animation: laserSweep 4s ease-in-out infinite;
+  inset: 0;
+  background: linear-gradient(0deg, rgba(255, 40, 100, 0.15) 0%, transparent 30%);
+  pointer-events: none;
 }
 
 .app-bg-vignette {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 90% 80% at 50% 45%, transparent 25%, rgba(0, 0, 0, 0.75) 100%);
+  background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 40%, transparent 70%);
 }
 
 .app-bg::after {
   content: "";
   position: absolute;
-  width: 400px;
-  height: 400px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(179, 136, 255, 0.04) 0%, transparent 70%);
-  top: 15%;
-  left: 60%;
-  animation: orbFloat1 14s ease-in-out infinite;
-  will-change: transform, opacity;
-  backface-visibility: hidden;
+  left: 50%;
+  bottom: 25vh;
+  transform: translateX(-50%);
+  width: 340px;
+  height: 170px;
+  border-radius: 0 0 170px 170px;
+  background: linear-gradient(180deg,
+    #ff8030 0%, #ff4020 25%, #e02010 45%,
+    #b01810 65%, #801010 85%, #400808 100%
+  );
+  box-shadow:
+    0 0 60px rgba(255, 80, 30, 0.5),
+    0 0 120px rgba(255, 40, 10, 0.3),
+    0 0 200px rgba(255, 20, 0, 0.15);
+  animation: sunGlow 3s ease-in-out infinite alternate;
+  z-index: 0;
+  pointer-events: none;
+  will-change: box-shadow;
 }
 
 .app-bg::before {
   content: "";
   position: absolute;
-  width: 300px;
-  height: 300px;
+  width: 260px;
+  height: 260px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(24, 229, 255, 0.03) 0%, transparent 70%);
-  top: 60%;
-  left: 25%;
-  animation: orbFloat2 18s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(255, 96, 144, 0.04) 0%, transparent 70%);
+  top: 10%;
+  left: 70%;
+  animation: orbFloat2 20s ease-in-out infinite;
   will-change: transform, opacity;
   backface-visibility: hidden;
 }
@@ -3066,19 +3086,17 @@ textarea.input:disabled {
 /* ========== MODERN ANIMATIONS ========== */
 @keyframes auroraDrift {
   0% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(1.5%, -0.8%) scale(1.02); }
-  66% { transform: translate(-0.8%, 1.2%) scale(0.98); }
-  100% { transform: translate(1.2%, -0.4%) scale(1.015); }
+  33% { transform: translate(0.3%, -0.2%) scale(1.005); }
+  66% { transform: translate(-0.2%, 0.3%) scale(0.995); }
+  100% { transform: translate(0.2%, -0.1%) scale(1.003); }
 }
 @keyframes gridFloat {
-  from { transform: translateY(0); }
-  to { transform: translateY(-24px); }
+  0% { opacity: 0.7; }
+  100% { opacity: 1; }
 }
 @keyframes orbFloat1 {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
-  25% { transform: translate(-30px, -22px) scale(1.1); }
-  50% { transform: translate(-15px, 15px) scale(0.92); opacity: 0.65; }
-  75% { transform: translate(22px, -8px) scale(1.07); }
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
 }
 @keyframes orbFloat2 {
   0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
