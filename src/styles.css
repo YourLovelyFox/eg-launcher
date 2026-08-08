@@ -245,22 +245,27 @@ a:hover {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.6), transparent),
-    radial-gradient(1px 1px at 25% 8%, rgba(255,255,255,0.4), transparent),
-    radial-gradient(1px 1px at 40% 22%, rgba(255,255,255,0.5), transparent),
-    radial-gradient(1px 1px at 55% 12%, rgba(255,255,255,0.3), transparent),
-    radial-gradient(1px 1px at 70% 18%, rgba(255,255,255,0.5), transparent),
-    radial-gradient(1px 1px at 85% 6%, rgba(255,255,255,0.4), transparent),
-    radial-gradient(1.5px 1.5px at 15% 30%, rgba(255,200,255,0.6), transparent),
-    radial-gradient(1px 1px at 33% 25%, rgba(255,255,255,0.35), transparent),
-    radial-gradient(1.5px 1.5px at 60% 28%, rgba(255,180,255,0.5), transparent),
-    radial-gradient(1px 1px at 78% 20%, rgba(255,255,255,0.3), transparent),
-    radial-gradient(1px 1px at 92% 35%, rgba(255,255,255,0.4), transparent),
-    radial-gradient(1px 1px at 5% 40%, rgba(255,255,255,0.25), transparent),
-    radial-gradient(1px 1px at 48% 35%, rgba(255,255,255,0.3), transparent),
-    radial-gradient(1.5px 1.5px at 20% 10%, rgba(255,255,255,0.7), transparent),
-    radial-gradient(1px 1px at 65% 5%, rgba(255,255,255,0.5), transparent);
-  animation: starTwinkle 4s ease-in-out infinite alternate;
+    radial-gradient(2px 2px at 10% 15%, rgba(255,255,255,0.8), transparent),
+    radial-gradient(1px 1px at 25% 8%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1.5px 1.5px at 40% 22%, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 55% 12%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(2px 2px at 70% 18%, rgba(255,255,255,0.7), transparent),
+    radial-gradient(1px 1px at 85% 6%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1.5px 1.5px at 15% 30%, rgba(255,200,255,0.7), transparent),
+    radial-gradient(1px 1px at 33% 25%, rgba(255,255,255,0.45), transparent),
+    radial-gradient(2px 2px at 60% 28%, rgba(255,180,255,0.6), transparent),
+    radial-gradient(1px 1px at 78% 20%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1.5px 1.5px at 92% 35%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 5% 40%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(2px 2px at 48% 35%, rgba(255,255,255,0.65), transparent),
+    radial-gradient(1.5px 1.5px at 20% 10%, rgba(255,255,255,0.9), transparent),
+    radial-gradient(1px 1px at 65% 5%, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1.5px 1.5px at 82% 42%, rgba(255,200,255,0.5), transparent),
+    radial-gradient(2px 2px at 35% 38%, rgba(255,255,255,0.55), transparent),
+    radial-gradient(1px 1px at 8% 22%, rgba(255,255,255,0.35), transparent),
+    radial-gradient(1.5px 1.5px at 58% 8%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(2px 2px at 28% 32%, rgba(255,180,255,0.6), transparent);
+  animation: starTwinkle 3s ease-in-out infinite alternate;
   will-change: opacity;
 }
 
@@ -270,50 +275,69 @@ a:hover {
   left: 50%;
   bottom: 0;
   width: 200vw;
-  height: 60vh;
-  transform: translateX(-50%) perspective(400px) rotateX(60deg);
+  height: 70vh;
+  transform: translateX(-50%) perspective(300px) rotateX(55deg);
   transform-origin: bottom center;
   background:
-    linear-gradient(rgba(255, 60, 144, 0.15) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 60, 144, 0.15) 1px, transparent 1px);
-  background-size: 40px 40px;
-  mask-image: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 40%, transparent 100%);
-  -webkit-mask-image: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 40%, transparent 100%);
-  animation: synthGridPulse 3s ease-in-out infinite alternate;
-  will-change: transform;
+    linear-gradient(rgba(255, 50, 120, 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 50, 120, 0.2) 1px, transparent 1px);
+  background-size: 50px 50px;
+  background-position: 0 0;
+  mask-image: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.3) 50%, transparent 100%);
+  -webkit-mask-image: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.3) 50%, transparent 100%);
+  animation: synthGridDrive 2s linear infinite;
+  will-change: background-position;
   backface-visibility: hidden;
 }
+/* Mountain silhouette on the grid */
 .app-bg-grid::after {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(0deg, rgba(255, 40, 100, 0.15) 0%, transparent 30%);
+  left: -10%;
+  right: -10%;
+  bottom: 30%;
+  height: 200px;
+  background: #050010;
+  clip-path: polygon(
+    0% 100%, 0% 60%, 8% 35%, 15% 55%, 22% 20%, 30% 50%,
+    38% 15%, 45% 45%, 52% 25%, 58% 50%, 65% 18%,
+    72% 40%, 78% 28%, 85% 48%, 92% 22%, 100% 55%, 100% 100%
+  );
   pointer-events: none;
 }
 
 .app-bg-vignette {
   position: absolute;
   inset: 0;
-  background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 40%, transparent 70%);
+  background: linear-gradient(0deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 35%, rgba(0,0,0,0.1) 60%, transparent 75%);
 }
 
 .app-bg::after {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: 25vh;
+  bottom: 24vh;
   transform: translateX(-50%);
-  width: 340px;
-  height: 170px;
-  border-radius: 0 0 170px 170px;
-  background: linear-gradient(180deg,
-    #ff8030 0%, #ff4020 25%, #e02010 45%,
-    #b01810 65%, #801010 85%, #400808 100%
-  );
+  width: 380px;
+  height: 190px;
+  border-radius: 0 0 190px 190px;
+  background:
+    /* horizontal line segments */
+    repeating-linear-gradient(0deg,
+      transparent, transparent 14px,
+      rgba(0,0,0,0.15) 14px, rgba(0,0,0,0.15) 15px
+    ),
+    /* sun gradient */
+    linear-gradient(180deg,
+      #ffe060 0%, #ffc030 8%, #ff9020 20%, #ff6020 35%,
+      #e03010 50%, #c02010 65%, #901010 80%, #600808 100%
+    );
+  border-top: 2px solid rgba(255,200,80,0.6);
   box-shadow:
-    0 0 60px rgba(255, 80, 30, 0.5),
-    0 0 120px rgba(255, 40, 10, 0.3),
-    0 0 200px rgba(255, 20, 0, 0.15);
+    0 0 60px rgba(255, 120, 30, 0.5),
+    0 0 120px rgba(255, 60, 10, 0.3),
+    0 0 200px rgba(255, 20, 0, 0.15),
+    inset 0 0 40px rgba(255, 200, 80, 0.1);
   animation: sunGlow 3s ease-in-out infinite alternate;
   z-index: 0;
   pointer-events: none;
@@ -323,15 +347,20 @@ a:hover {
 .app-bg::before {
   content: "";
   position: absolute;
-  width: 260px;
-  height: 260px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 96, 144, 0.04) 0%, transparent 70%);
-  top: 10%;
-  left: 70%;
-  animation: orbFloat2 20s ease-in-out infinite;
-  will-change: transform, opacity;
-  backface-visibility: hidden;
+  left: 50%;
+  bottom: 20vh;
+  transform: translateX(-50%);
+  width: 500px;
+  height: 80px;
+  background: linear-gradient(180deg,
+    rgba(255, 100, 30, 0.3) 0%,
+    rgba(255, 60, 10, 0.15) 40%,
+    transparent 100%
+  );
+  animation: sunReflect 2s ease-in-out infinite alternate;
+  z-index: 0;
+  pointer-events: none;
+  will-change: opacity;
 }
 
 .sidebar,
@@ -3175,5 +3204,27 @@ textarea.input:disabled {
 @keyframes laserSweep {
   0%, 100% { opacity: 0.3; transform: translateX(-5%); }
   50% { opacity: 1; transform: translateX(5%); }
+}
+
+/* ========== VCR SCANLINES OVERLAY ========== */
+.app-shell::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 998;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.025) 3px,
+    rgba(0, 0, 0, 0.025) 6px
+  );
+  animation: scanlines 0.08s linear infinite;
+  opacity: 0.4;
+}
+@keyframes scanlines {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 6px; }
 }
 
