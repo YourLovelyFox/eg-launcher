@@ -47,9 +47,35 @@ layout_header('Contact inbox', 'admin');
     <?php endif; ?>
     <p><strong>From:</strong> <?= e((string) $view['name']) ?>
       &lt;<a href="mailto:<?= e((string) $view['email']) ?>"><?= e((string) $view['email']) ?></a>&gt;</p>
+    <?php if (!empty($view['user_id'])): ?>
+      <p class="hint"><strong>Account id:</strong> <code><?= e((string) $view['user_id']) ?></code></p>
+    <?php endif; ?>
     <p><strong>Subject:</strong> <?= e((string) $view['subject']) ?></p>
     <p><strong>IP:</strong> <?= e((string) ($view['ip'] ?? '')) ?></p>
     <div class="faq-body" style="margin-top: 14px; padding-left: 0; white-space: pre-wrap;"><?= e((string) $view['message']) ?></div>
+    <?php
+    $atts = json_decode((string) ($view['attachments'] ?? '[]'), true);
+    if (is_array($atts) && $atts !== []):
+    ?>
+      <div style="margin-top: 18px;">
+        <h3 style="font-size:1rem;margin-bottom:10px;">Screenshots</h3>
+        <div class="contact-shots" style="display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));">
+          <?php foreach ($atts as $a):
+              if (!is_array($a) || empty($a['stored'])) {
+                  continue;
+              }
+              $href = '/admin/contact-file.php?id=' . rawurlencode((string) $view['id'])
+                  . '&f=' . rawurlencode((string) $a['stored']);
+              ?>
+            <a href="<?= e($href) ?>" target="_blank" rel="noopener" class="list-item" style="padding:8px;text-align:center;">
+              <img src="<?= e($href) ?>" alt="<?= e((string) ($a['name'] ?? 'screenshot')) ?>"
+                   style="max-width:100%;max-height:160px;border-radius:8px;display:block;margin:0 auto 6px;object-fit:contain;background:rgba(0,0,0,.25);">
+              <span class="meta"><?= e((string) ($a['name'] ?? 'file')) ?></span>
+            </a>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    <?php endif; ?>
     <p style="margin-top: 16px;">
       <a class="btn btn-primary" href="mailto:<?= e((string) $view['email']) ?>?subject=Re:%20<?= e(rawurlencode('[' . $view['inquiry_number'] . '] ' . $view['subject'])) ?>">Reply by email</a>
       <a class="btn btn-ghost" href="/admin/contact.php">All inquiries</a>

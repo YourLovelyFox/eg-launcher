@@ -254,6 +254,11 @@ function ensure_forum_schema(PDO $pdo): void
           KEY idx_contact_created (created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
+    try {
+        $pdo->exec('ALTER TABLE web_contact_inquiries ADD COLUMN attachments TEXT NULL');
+    } catch (Throwable) {
+        /* column exists */
+    }
 
     seed_default_badges($pdo);
     promote_site_owner_if_needed($pdo);
@@ -1309,7 +1314,7 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
     echo '<title>' . e($full) . '</title>';
     // Font Awesome 6 free (icons for badges / roles)
     echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">';
-    echo '<link rel="stylesheet" href="/assets/style.css?v=abuse-form-1">';
+    echo '<link rel="stylesheet" href="/assets/style.css?v=abuse-login-shots-1">';
     echo '</head><body>';
     echo '<div class="bg" aria-hidden="true"></div>';
     echo '<header class="top">';
