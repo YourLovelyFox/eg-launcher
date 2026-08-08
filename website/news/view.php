@@ -63,9 +63,11 @@ layout_header((string) $item['title'], 'news');
   <p class="meta muted">
     <?= e(format_dt((string) $item['date'])) ?>
     · by
-    <span class="<?= !empty($item['isFounder']) ? 'news-author is-founder' : 'news-author' ?>">
-      <?= e((string) ($item['authorLabel'] ?? 'Bee · Founder')) ?>
-    </span>
+    <?= render_news_author_html(
+        $item['authorUsername'] ?? null,
+        $item['authorLabel'] ?? null,
+        $item['isFounder'] ?? null
+    ) ?>
   </p>
   <?php if (!empty($item['summary'])): ?>
     <p class="hint" style="margin-top: 12px; font-size: 15px;"><?= e((string) $item['summary']) ?></p>

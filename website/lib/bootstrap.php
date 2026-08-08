@@ -928,6 +928,42 @@ function news_author_public(?string $username): array
     ];
 }
 
+/** HTML for news byline: “Bee” + green Founder pill, or plain username. */
+function render_news_author_html(?string $username, ?string $label = null, $isFounder = null): string
+{
+    $a = news_author_public($username);
+    if ($label !== null && trim($label) !== '') {
+        $a['authorLabel'] = trim($label);
+    }
+    if ($isFounder !== null) {
+        $a['isFounder'] = (bool) $isFounder;
+    }
+    // Detect founder from label/username if flag missing
+    if (
+        !$a['isFounder']
+        && (
+            strcasecmp($a['authorUsername'], 'Bee') === 0
+            || stripos($a['authorLabel'], 'founder') !== false
+        )
+    ) {
+        $a['isFounder'] = true;
+        $a['authorUsername'] = 'Bee';
+    }
+
+    if ($a['isFounder']) {
+        return '<span class="news-byline news-byline-founder">'
+            . '<span class="news-byline-name">Bee</span>'
+            . ' <span class="news-founder-badge" title="Founder of EG Launcher">'
+            . render_fa_icon('fa-solid fa-crown', 'news-founder-fa')
+            . ' Founder</span>'
+            . '</span>';
+    }
+
+    return '<span class="news-byline">'
+        . '<span class="news-byline-name">' . e($a['authorUsername']) . '</span>'
+        . '</span>';
+}
+
 function load_news_items(int $limit = 50): array
 {
     $limit = max(1, min(100, $limit));

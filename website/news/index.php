@@ -22,9 +22,11 @@ layout_header('News', 'news');
         <div class="meta">
           <span class="badge badge-green"><?= e((string) ($item['tag'] ?? 'info')) ?></span>
           · <?= e(format_dt((string) ($item['date'] ?? ''))) ?>
-          · <span class="<?= !empty($item['isFounder']) ? 'news-author is-founder' : 'news-author' ?>">
-            <?= e((string) ($item['authorLabel'] ?? 'Bee · Founder')) ?>
-          </span>
+          · <?= render_news_author_html(
+              $item['authorUsername'] ?? null,
+              $item['authorLabel'] ?? null,
+              $item['isFounder'] ?? null
+          ) ?>
         </div>
         <?php if (!empty($item['summary'])): ?>
           <div class="summary"><?= e((string) $item['summary']) ?></div>
