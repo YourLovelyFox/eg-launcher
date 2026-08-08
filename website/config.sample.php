@@ -12,6 +12,8 @@ return [
 
     'site_name' => 'EG Launcher',
     'site_url' => 'https://eg-launcher.xyz',
+    'site_description' =>
+        'EG Launcher — Minecraft: Java Edition companion. News, community forum, Microsoft Store (Windows) and AppImage (Linux).',
     // Public launcher news feed API (same host or CMS host)
     'news_api_url' => 'https://client116.ddns.net/news.php?kind=launcher',
     // Prefer reading news from local DB when available

@@ -1236,24 +1236,65 @@ function load_news_items(int $limit = 50): array
     return $out;
 }
 
-function layout_header(string $title, string $active = ''): void
+function layout_header(string $title, string $active = '', ?string $metaDescription = null, ?string $metaImage = null): void
 {
     $site = (string) cfg('site_name', 'EG Launcher');
+    $siteUrl = rtrim((string) cfg('site_url', 'https://eg-launcher.xyz'), '/');
     $full = $title === '' ? $site : $title . ' - ' . $site;
+    $desc = $metaDescription
+        ?: (string) cfg(
+            'site_description',
+            'EG Launcher — Minecraft: Java Edition companion. Browse news, join the community forum, and download for Windows (Microsoft Store) and Linux (AppImage).'
+        );
+    $img = $metaImage ?: ($siteUrl . '/assets/og-image.png');
+    $canonical = $siteUrl . (string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
     $u = current_user();
     $flash = flash_get();
+
     echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">';
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
-    echo '<meta name="description" content="EG Launcher - Minecraft: Java Edition companion. News, forum, downloads.">';
+    echo '<meta name="theme-color" content="#0b0e14">';
+    echo '<meta name="color-scheme" content="dark">';
+    echo '<meta name="description" content="' . e($desc) . '">';
+    echo '<meta name="author" content="EpicTeam Studios / EG Launcher">';
+    echo '<meta name="robots" content="index,follow">';
+    echo '<link rel="canonical" href="' . e($canonical) . '">';
+
+    // Favicons / app icons (launcher brand — not the browser globe)
+    echo '<link rel="icon" href="/assets/favicon.ico" sizes="any">';
+    echo '<link rel="icon" type="image/png" sizes="32x32" href="/assets/icon-32.png">';
+    echo '<link rel="icon" type="image/png" sizes="128x128" href="/assets/icon-128.png">';
+    echo '<link rel="icon" type="image/png" sizes="256x256" href="/assets/icon-256.png">';
+    echo '<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">';
+    echo '<link rel="manifest" href="/site.webmanifest">';
+
+    // Open Graph
+    echo '<meta property="og:type" content="website">';
+    echo '<meta property="og:site_name" content="' . e($site) . '">';
+    echo '<meta property="og:title" content="' . e($full) . '">';
+    echo '<meta property="og:description" content="' . e($desc) . '">';
+    echo '<meta property="og:url" content="' . e($canonical) . '">';
+    echo '<meta property="og:image" content="' . e($img) . '">';
+    echo '<meta property="og:image:alt" content="' . e($site) . ' icon">';
+    echo '<meta property="og:locale" content="en_US">';
+
+    // Twitter / X card
+    echo '<meta name="twitter:card" content="summary">';
+    echo '<meta name="twitter:title" content="' . e($full) . '">';
+    echo '<meta name="twitter:description" content="' . e($desc) . '">';
+    echo '<meta name="twitter:image" content="' . e($img) . '">';
+
     echo '<title>' . e($full) . '</title>';
-    // Font Awesome 6 free (icons for badges / roles) — https://fontawesome.com/
+    // Font Awesome 6 free (icons for badges / roles)
     echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">';
-    // Cache-bust so Founder green CSS is not stuck in browser/CDN cache
-    echo '<link rel="stylesheet" href="/assets/style.css?v=founder-green-3">';
+    echo '<link rel="stylesheet" href="/assets/style.css?v=brand-meta-1">';
     echo '</head><body>';
     echo '<div class="bg" aria-hidden="true"></div>';
     echo '<header class="top">';
-    echo '<a class="brand" href="/"><span class="mark">EG</span><span class="brand-text"><strong>EG Launcher</strong><small>News / Forum / Downloads</small></span></a>';
+    echo '<a class="brand" href="/">'
+        . '<img class="brand-icon" src="/assets/icon-128.png" width="36" height="36" alt="' . e($site) . '" decoding="async">'
+        . '<span class="brand-text"><strong>EG Launcher</strong><small>News / Forum / Downloads</small></span>'
+        . '</a>';
     echo '<nav class="nav">';
     $links = [
         'home' => ['/', 'Home'],
