@@ -16,6 +16,39 @@ function contact_inquiry_number(): string
     return $out;
 }
 
+/**
+ * Addresses that should receive staff copies of contact form mail.
+ * Always includes contact_notify_email / SMTP user so mail is not "lost" in unread aliases.
+ *
+ * @return list<string>
+ */
+function contact_staff_recipients(string $departmentEmail): array
+{
+    $list = [];
+    $add = static function (string $addr) use (&$list): void {
+        $addr = strtolower(trim($addr));
+        if ($addr !== '' && filter_var($addr, FILTER_VALIDATE_EMAIL) && !in_array($addr, $list, true)) {
+            $list[] = $addr;
+        }
+    };
+
+    // Monitored inbox first (config), then department (info@ / abuse@), then SMTP account
+    $add((string) cfg('contact_notify_email', ''));
+    $add($departmentEmail);
+    $add((string) cfg('smtp_user', ''));
+    $add((string) cfg('smtp_from', ''));
+
+    // Extra comma-separated notifies: contact_notify_extra
+    $extra = (string) cfg('contact_notify_extra', '');
+    if ($extra !== '') {
+        foreach (preg_split('/[\s,;]+/', $extra) ?: [] as $part) {
+            $add((string) $part);
+        }
+    }
+
+    return $list;
+}
+
 $infoEmail = (string) cfg('contact_email', 'info@eg-launcher.xyz');
 $abuseEmail = (string) cfg('abuse_email', 'abuse@eg-launcher.xyz');
 $siteUrl = rtrim((string) cfg('site_url', 'https://eg-launcher.xyz'), '/');
@@ -85,6 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $when = gmdate('Y-m-d H:i:s') . ' UTC';
     $ip = client_ip();
     $usernameNote = $u ? '@' . (string) $u['username'] : '(not signed in)';
+    $staffRecipients = contact_staff_recipients($destEmail);
 
     $staffSubject = "[{$siteName} inquiry {$inquiry}] {$subject}";
     $staffBody =
@@ -92,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         "========================\n\n" .
         "Inquiry number: {$inquiry}\n" .
         "Department:     {$deptLabel} <{$destEmail}>\n" .
+        "Also notified:  " . implode(', ', $staffRecipients) . "\n" .
         "Received:       {$when}\n" .
         "From name:      {$name}\n" .
         "From email:     {$email}\n" .
@@ -103,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $message . "\n\n" .
         "---\n" .
         "Reply to the sender using Reply in your mail client (Reply-To is set to their address).\n" .
-        "Confirmations were also emailed to the sender with this inquiry number.\n";
+        "Web archive: {$siteUrl}/admin/contact.php (admins)\n";
 
     $confirmSubject = "{$siteName} — we received your inquiry {$inquiry}";
     $confirmBody =
@@ -122,28 +157,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         "— {$siteName}\n" .
         "{$siteUrl}/contact/\n";
 
-    $staffOk = smtp_send($destEmail, $staffSubject, $staffBody, $email);
-    if (!$staffOk) {
-        error_log('[eg-web] contact staff mail fail: ' . smtp_last_error());
+    // Persist first so the inquiry is never lost if SMTP flakes
+    $rowId = 'inq-' . bin2hex(random_bytes(8));
+    $now = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s.v');
+    try {
+        db()->prepare(
+            'INSERT INTO web_contact_inquiries
+              (id, inquiry_number, department, dest_email, name, email, subject, message,
+               user_id, ip, staff_mail_ok, confirm_mail_ok, mail_error, created_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,0,0,NULL,?)'
+        )->execute([
+            $rowId,
+            $inquiry,
+            $department,
+            $destEmail,
+            $name,
+            $email,
+            $subject,
+            $message,
+            $u ? (string) $u['id'] : null,
+            $ip,
+            $now,
+        ]);
+    } catch (Throwable $e) {
+        error_log('[eg-web] contact DB insert fail: ' . $e->getMessage());
         flash_set(
             'error',
-            'Could not send your inquiry right now. Please try again in a minute, or email ' . $destEmail . ' directly.'
+            'Could not save your inquiry. Please try again, or email ' . $destEmail . ' directly.'
         );
         redirect('/contact/?to=' . rawurlencode($department));
     }
 
-    $confirmOk = smtp_send($email, $confirmSubject, $confirmBody, $destEmail);
+    // Staff: send to department + monitored notify addresses
+    $staffOk = smtp_send_many(
+        $staffRecipients,
+        $staffSubject,
+        $staffBody,
+        $email,
+        ['auto_submitted' => true]
+    );
+    $staffErr = $staffOk ? '' : smtp_last_error();
+    if (!$staffOk) {
+        error_log('[eg-web] contact staff mail fail: ' . $staffErr);
+    }
+
+    // User confirmation — not marked auto-generated (better delivery to Gmail etc.)
+    $confirmOk = smtp_send(
+        $email,
+        $confirmSubject,
+        $confirmBody,
+        $destEmail,
+        ['auto_submitted' => false]
+    );
+    $confirmErr = $confirmOk ? '' : smtp_last_error();
     if (!$confirmOk) {
-        error_log('[eg-web] contact confirm mail fail: ' . smtp_last_error());
-        // Staff got the message; still show inquiry number so user has a reference
+        error_log('[eg-web] contact confirm mail fail: ' . $confirmErr);
+    }
+
+    $mailError = trim(($staffErr ? 'staff: ' . $staffErr : '') . ($confirmErr ? ' | confirm: ' . $confirmErr : ''));
+    try {
+        db()->prepare(
+            'UPDATE web_contact_inquiries
+             SET staff_mail_ok = ?, confirm_mail_ok = ?, mail_error = ?
+             WHERE id = ?'
+        )->execute([
+            $staffOk ? 1 : 0,
+            $confirmOk ? 1 : 0,
+            $mailError !== '' ? mb_substr($mailError, 0, 512) : null,
+            $rowId,
+        ]);
+    } catch (Throwable $e) {
+        error_log('[eg-web] contact DB update fail: ' . $e->getMessage());
+    }
+
+    // Success if we saved + (staff mail OR at least confirmation) — always show inquiry #
+    if ($staffOk && $confirmOk) {
         flash_set(
             'success',
-            'Inquiry ' . $inquiry . ' was delivered to our team. We could not send a confirmation email to you — check spam or try again later. Keep this number for reference.'
+            'Inquiry ' . $inquiry . ' sent. A confirmation email was sent to ' . $email .
+            '. Check inbox and spam. Keep this number for reference.'
+        );
+    } elseif ($staffOk && !$confirmOk) {
+        flash_set(
+            'success',
+            'Inquiry ' . $inquiry . ' was delivered to our team, but the confirmation email to you failed. ' .
+            'Keep this number. Check spam later, or try again.'
+        );
+    } elseif (!$staffOk && $confirmOk) {
+        flash_set(
+            'success',
+            'Inquiry ' . $inquiry . ' was saved and a confirmation was emailed to you. ' .
+            'Our team notification had a delay — we still have your message on file. Keep this number.'
         );
     } else {
+        // Both failed — still saved in DB for admins
         flash_set(
-            'success',
-            'Inquiry ' . $inquiry . ' sent. A confirmation email was sent to ' . $email . '. Keep that number for reference.'
+            'error',
+            'Inquiry ' . $inquiry . ' was saved on the site, but email delivery failed right now. ' .
+            'We can still read it in the admin inbox. You can also email ' . $destEmail . ' directly.'
         );
     }
 
@@ -169,12 +280,13 @@ layout_header(
   <p class="hint" style="margin-bottom: 16px;">
     Send a message to <strong>info@eg-launcher.xyz</strong> (general) or
     <strong>abuse@eg-launcher.xyz</strong> (reports). You will get an automated confirmation with a unique
-    <strong>inquiry number</strong> (9 characters).
+    <strong>inquiry number</strong> (9 characters). Check spam if it does not appear within a few minutes.
   </p>
 
   <?php if ($sentInq !== ''): ?>
     <div class="flash flash-success" style="margin-bottom: 16px;">
-      Your inquiry number is <code><?= e($sentInq) ?></code>. Check your inbox (and spam) for the confirmation email.
+      Your inquiry number is <code><?= e($sentInq) ?></code>. Check your inbox (and spam) for the confirmation email
+      from <strong><?= e((string) cfg('smtp_from', 'testemail@eg-launcher.xyz')) ?></strong>.
     </div>
   <?php endif; ?>
 
@@ -230,7 +342,8 @@ layout_header(
     </div>
   </form>
   <p class="hint" style="margin-top: 16px;">
-    After you submit, we email the chosen department and send you a confirmation with your inquiry number.
+    After you submit, we email the team and send you a confirmation with your inquiry number.
+    Confirmations come from <code><?= e((string) cfg('smtp_from', 'testemail@eg-launcher.xyz')) ?></code>.
   </p>
 </div>
 <?php layout_footer(); ?>

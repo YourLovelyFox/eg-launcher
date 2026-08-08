@@ -233,6 +233,28 @@ function ensure_forum_schema(PDO $pdo): void
         $ins->execute(['feedback', 'Feedback', 'Ideas and suggestions for EG Launcher.', 40]);
     }
 
+    // Contact form archive (emails can fail; inquiries stay here)
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS web_contact_inquiries (
+          id VARCHAR(32) NOT NULL PRIMARY KEY,
+          inquiry_number CHAR(9) NOT NULL,
+          department VARCHAR(16) NOT NULL,
+          dest_email VARCHAR(255) NOT NULL,
+          name VARCHAR(120) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          subject VARCHAR(200) NOT NULL,
+          message TEXT NOT NULL,
+          user_id CHAR(36) NULL,
+          ip VARCHAR(64) NULL,
+          staff_mail_ok TINYINT(1) NOT NULL DEFAULT 0,
+          confirm_mail_ok TINYINT(1) NOT NULL DEFAULT 0,
+          mail_error VARCHAR(512) NULL,
+          created_at DATETIME(3) NOT NULL,
+          UNIQUE KEY uq_inquiry_number (inquiry_number),
+          KEY idx_contact_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
     seed_default_badges($pdo);
     promote_site_owner_if_needed($pdo);
 }

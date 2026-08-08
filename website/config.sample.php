@@ -26,6 +26,11 @@ return [
     'discord_url' => 'https://discord.gg/qzkA3CBex5',
     'contact_email' => 'info@eg-launcher.xyz',
     'abuse_email' => 'abuse@eg-launcher.xyz',
+    // Monitored inbox that always gets a copy of contact form messages
+    'contact_notify_email' => 'testemail@eg-launcher.xyz',
+    // Optional extra notify addresses, comma-separated
+    'contact_notify_extra' => '',
+
 
     // Forum
     'posts_per_page' => 20,

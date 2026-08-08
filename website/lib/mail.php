@@ -69,9 +69,12 @@ function smtp_try_targets(array $cfg): array
 }
 
 /**
- * @param string|null $replyTo Optional Reply-To address (e.g. contact form sender or department).
+ * Send one email.
+ *
+ * @param string|null $replyTo Optional Reply-To address
+ * @param array{auto_submitted?:bool} $opts Set auto_submitted=false for human-facing mail (better inboxing).
  */
-function smtp_send(string $to, string $subject, string $bodyText, ?string $replyTo = null): bool
+function smtp_send(string $to, string $subject, string $bodyText, ?string $replyTo = null, array $opts = []): bool
 {
     smtp_last_error('');
     $cfg = smtp_config();
@@ -97,7 +100,14 @@ function smtp_send(string $to, string $subject, string $bodyText, ?string $reply
         $try['port'] = $t['port'];
         $try['secure'] = $t['secure'];
         try {
-            if (smtp_send_raw($try, $to, $subject, $bodyText, $replyTo !== '' ? $replyTo : null)) {
+            if (smtp_send_raw(
+                $try,
+                $to,
+                $subject,
+                $bodyText,
+                $replyTo !== '' ? $replyTo : null,
+                $opts
+            )) {
                 smtp_last_error('');
                 return true;
             }
@@ -115,9 +125,44 @@ function smtp_send(string $to, string $subject, string $bodyText, ?string $reply
 }
 
 /**
- * @param array<string,mixed> $cfg
+ * Send the same message to multiple recipients (separate SMTP transactions).
+ * Returns true if at least one delivery succeeds.
+ *
+ * @param list<string> $recipients
+ * @param array{auto_submitted?:bool} $opts
  */
-function smtp_send_raw(array $cfg, string $to, string $subject, string $bodyText, ?string $replyTo = null): bool
+function smtp_send_many(array $recipients, string $subject, string $bodyText, ?string $replyTo = null, array $opts = []): bool
+{
+    $seen = [];
+    $ok = false;
+    $errors = [];
+    foreach ($recipients as $to) {
+        $to = strtolower(trim((string) $to));
+        if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL) || isset($seen[$to])) {
+            continue;
+        }
+        $seen[$to] = true;
+        if (smtp_send($to, $subject, $bodyText, $replyTo, $opts)) {
+            $ok = true;
+        } else {
+            $errors[] = $to . ': ' . smtp_last_error();
+        }
+    }
+    if (!$ok && $errors !== []) {
+        smtp_last_error(implode(' | ', $errors));
+    } elseif ($ok) {
+        smtp_last_error('');
+    } elseif ($seen === []) {
+        smtp_last_error('No valid recipients');
+    }
+    return $ok;
+}
+
+/**
+ * @param array<string,mixed> $cfg
+ * @param array{auto_submitted?:bool} $opts
+ */
+function smtp_send_raw(array $cfg, string $to, string $subject, string $bodyText, ?string $replyTo = null, array $opts = []): bool
 {
     $host = (string) $cfg['host'];
     $port = (int) $cfg['port'] > 0 ? (int) $cfg['port'] : 465;
@@ -239,9 +284,15 @@ function smtp_send_raw(array $cfg, string $to, string $subject, string $bodyText
         'Content-Transfer-Encoding' => '8bit',
         'Date' => $date,
         'Message-ID' => $msgId,
-        'Auto-Submitted' => 'auto-generated',
-        'X-Auto-Response-Suppress' => 'All',
     ];
+    // Auto-Submitted helps avoid mail loops, but can hurt inbox placement for user confirmations.
+    $autoSubmitted = array_key_exists('auto_submitted', $opts)
+        ? (bool) $opts['auto_submitted']
+        : true;
+    if ($autoSubmitted) {
+        $headerMap['Auto-Submitted'] = 'auto-generated';
+        $headerMap['X-Auto-Response-Suppress'] = 'All';
+    }
 
     $body = str_replace(["\r\n", "\r"], "\n", $bodyText);
     $body = str_replace("\n", "\r\n", $body);

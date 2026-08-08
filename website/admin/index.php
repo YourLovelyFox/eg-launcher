@@ -8,7 +8,12 @@ $stats = [
     'topics' => (int) db()->query('SELECT COUNT(*) FROM web_topics')->fetchColumn(),
     'posts' => (int) db()->query('SELECT COUNT(*) FROM web_posts WHERE deleted_at IS NULL')->fetchColumn(),
     'badges' => (int) db()->query('SELECT COUNT(*) FROM web_badges')->fetchColumn(),
+    'contact' => 0,
 ];
+try {
+    $stats['contact'] = (int) db()->query('SELECT COUNT(*) FROM web_contact_inquiries')->fetchColumn();
+} catch (Throwable) {
+}
 
 layout_header('Admin', 'admin');
 ?>
@@ -29,11 +34,13 @@ layout_header('Admin', 'admin');
     <p class="hint">Topics: <strong><?= $stats['topics'] ?></strong></p>
     <p class="hint">Posts: <strong><?= $stats['posts'] ?></strong></p>
     <p class="hint">Badge types: <strong><?= $stats['badges'] ?></strong></p>
+    <p class="hint">Contact inquiries: <strong><?= $stats['contact'] ?></strong></p>
   </section>
   <section class="panel">
     <h2>Manage</h2>
     <div class="hero-actions">
       <a class="btn btn-primary" href="/admin/users.php">Roles and badges</a>
+      <a class="btn btn-secondary" href="/admin/contact.php">Contact inbox</a>
       <a class="btn btn-secondary" href="/mod/users.php">Ban / lock / permissions</a>
       <a class="btn btn-secondary" href="/admin/settings.php">New-user defaults</a>
       <a class="btn btn-secondary" href="/admin/badges.php">Badges</a>
