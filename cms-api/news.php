@@ -56,6 +56,7 @@ try {
             'sourceType' => 'json',
             'items' => $items,
             'fromCache' => false,
+            'apiVersion' => 2,
         ]);
     }
 
