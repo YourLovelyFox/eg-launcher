@@ -251,7 +251,7 @@ export function SettingsPage() {
                     {RELEASE_CHANNEL_LABEL}
                   </span>
                   <span className="hint" style={{ display: 'block', marginTop: 4, marginBottom: 0 }}>
-                    Pre-release (Beta) — features may change; report issues if something breaks.
+                    Portable BETA — not the Microsoft Store build. Things may change or break.
                   </span>
                 </>
               ) : null}

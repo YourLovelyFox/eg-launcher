@@ -457,13 +457,14 @@ a:hover {
   align-items: center;
   font-size: 10px !important;
   font-weight: 800 !important;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  padding: 2px 7px !important;
+  padding: 3px 8px !important;
   border-radius: 6px !important;
-  background: rgba(255, 200, 87, 0.16) !important;
-  color: var(--amber) !important;
-  border: 1px solid rgba(255, 200, 87, 0.4) !important;
+  background: linear-gradient(135deg, rgba(61, 255, 196, 0.18), rgba(184, 154, 255, 0.28)) !important;
+  color: #e8d8ff !important;
+  border: 1px solid rgba(184, 154, 255, 0.55) !important;
+  box-shadow: 0 0 12px rgba(184, 154, 255, 0.28);
   vertical-align: middle;
 }
 

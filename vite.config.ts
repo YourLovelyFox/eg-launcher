@@ -15,18 +15,27 @@ function resolveAdminEnabled(command: 'build' | 'serve'): boolean {
   return command === 'serve'
 }
 
-function adminDefine(enableAdmin: boolean): Record<string, string> {
+function resolveBeta(): boolean {
+  const flag = process.env.EG_BETA
+  return flag === '1' || flag === 'true'
+}
+
+function adminDefine(enableAdmin: boolean, beta: boolean): Record<string, string> {
   return {
     __EG_ENABLE_ADMIN__: JSON.stringify(enableAdmin),
+    __EG_BETA__: JSON.stringify(beta),
   }
 }
 
 export default defineConfig(({ command }) => {
   const enableAdmin = resolveAdminEnabled(command)
+  const beta = resolveBeta()
   // eslint-disable-next-line no-console
-  console.log(`[eg-launcher] Admin panel: ${enableAdmin ? 'ENABLED (dev)' : 'DISABLED (live)'}`)
+  console.log(
+    `[eg-launcher] Admin panel: ${enableAdmin ? 'ENABLED (dev)' : 'DISABLED (live)'} · channel: ${beta ? 'BETA' : 'stable'}`,
+  )
 
-  const define = adminDefine(enableAdmin)
+  const define = adminDefine(enableAdmin, beta)
 
   return {
     define,

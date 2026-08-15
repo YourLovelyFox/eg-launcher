@@ -379,14 +379,14 @@ export function Layout() {
             <strong>
               {APP_NAME}
               {IS_PRE_RELEASE ? (
-                <span className="badge badge-beta" title="Pre-release build">
+                <span className="badge badge-beta" title="BETA portable build — not the Store release">
                   {RELEASE_CHANNEL_LABEL}
                 </span>
               ) : null}
             </strong>
             <span>
               {APP_TAGLINE} · v{APP_VERSION}
-              {IS_PRE_RELEASE ? ' (pre-release)' : ''}
+              {IS_PRE_RELEASE ? ' · BETA' : ''}
             </span>
           </div>
         </div>

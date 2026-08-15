@@ -17,20 +17,44 @@ if (!version) {
   process.exit(1)
 }
 
-function githubBanner() {
+function githubBanner(ver) {
+  const isBeta = /beta|rc|pre/i.test(String(ver || ''))
+  if (isBeta) {
+    return [
+      '## Download — BETA',
+      '',
+      '> **This is a BETA build of EG Launcher.** Things may change or break. Report issues on GitHub or Discord.',
+      '>',
+      '> **Windows portable:** download `EG-Launcher-*-win-x64-portable-BETA.zip`, unzip, run `EG Launcher.exe`. No installer.',
+      '>',
+      '> Windows SmartScreen / Smart App Control may warn because this BETA is **unsigned**. That is expected.',
+      '>',
+      '> The Microsoft Store listing (stable Windows) is still pending publication.',
+      '',
+      '| Asset | Platform |',
+      '| --- | --- |',
+      '| `EG-Launcher-*-win-x64-portable-BETA.zip` | **Windows x64 portable BETA** |',
+      '',
+      'See `docs/GITHUB-SAC.md` and `docs/GITHUB-RELEASES.md`.',
+      '',
+      '---',
+      '',
+    ].join('\n')
+  }
   return [
     '## Download',
     '',
-    '> **Windows:** GitHub `setup.exe` installers have been **removed** due to Smart App Control (SAC) / SmartScreen.',
+    '> **Windows:** GitHub `setup.exe` installers are **not** published (Smart App Control / SmartScreen).',
     '>',
-    '> The **Microsoft Store** is the official Windows channel, but it is **currently unavailable** while the app finishes Microsoft’s **publishing / certification process**. **Please wait a bit** — Windows users cannot install from GitHub in the meantime.',
+    '> A **Windows portable BETA** zip may appear on a separate **prerelease**. The Microsoft Store remains the planned stable Windows channel (publishing in progress).',
     '>',
     '> **Linux:** use the **AppImage** below from this GitHub Release (available now).',
     '',
     '| Asset | Platform |',
     '| --- | --- |',
-    '| `EG-Launcher-*-linux-*.AppImage` | **Linux x64** (only installer on GitHub) |',
-    '| Windows | Microsoft Store — **pending publication** (not installable yet) |',
+    '| `EG-Launcher-*-linux-*.AppImage` | **Linux x64** |',
+    '| `EG-Launcher-*-win-x64-portable-BETA.zip` | Windows x64 portable **BETA** (prerelease only) |',
+    '| Windows stable | Microsoft Store — **pending publication** |',
     '',
     'See `docs/GITHUB-SAC.md` and `docs/GITHUB-RELEASES.md`.',
     '',
@@ -57,7 +81,7 @@ let body
 if (match) {
   const section = match[0].trim()
   body = [
-    githubBanner(),
+    githubBanner(version),
     section,
     '',
     '---',
@@ -66,7 +90,7 @@ if (match) {
   ].join('\n')
 } else {
   body = [
-    githubBanner(),
+    githubBanner(version),
     `## EG Launcher ${version}`,
     '',
     `_No CHANGELOG.md section found for this version._`,

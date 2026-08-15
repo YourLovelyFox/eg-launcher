@@ -6,6 +6,20 @@ Format: each release section is published as the GitHub Release body.
 
 ---
 
+## [2.7.4-beta.1] — 2026-08-15
+
+### Added
+- **Windows portable BETA** on GitHub Releases: unzip and run `EG Launcher.exe` (no installer).
+- In-app **BETA** badge (sidebar, boot splash, Settings) on portable builds.
+
+### Changed
+- New synthwave neon **EG** app icon (mint → purple).
+
+### Notes
+- This is an **unsigned BETA**. Windows SmartScreen / Smart App Control may warn. It is **not** the Microsoft Store build.
+
+---
+
 ## [2.7.4] — 2026-08-08
 
 ### Added

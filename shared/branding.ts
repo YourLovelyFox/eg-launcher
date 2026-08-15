@@ -12,12 +12,13 @@ export const MS_STORE_PROTOCOL_URL = `ms-windows-store://pdp/?productid=${MS_STO
 export const GITHUB_RELEASES_URL = 'https://github.com/YourLovelyFox/eg-launcher/releases/latest'
 
 /**
- * GitHub Releases: full releases for Linux AppImage downloads (manual).
- * Windows updates via Microsoft Store — no in-app auto-updater.
+ * Portable / GitHub Windows zip is built with EG_BETA=1 (Vite `__EG_BETA__`).
+ * Store and normal `npm run build` stay Stable (no badge).
  */
-export const IS_PRE_RELEASE = false
-export const RELEASE_CHANNEL = 'stable' as const
-export const RELEASE_CHANNEL_LABEL = 'Stable'
+declare const __EG_BETA__: boolean | undefined
+export const IS_PRE_RELEASE = typeof __EG_BETA__ !== 'undefined' && __EG_BETA__ === true
+export const RELEASE_CHANNEL = IS_PRE_RELEASE ? 'beta' : 'stable'
+export const RELEASE_CHANNEL_LABEL = IS_PRE_RELEASE ? 'BETA' : 'Stable'
 /** e.g. "v2.7.0" */
 export function formatAppVersion(version: string = APP_VERSION): string {
   const v = version.startsWith('v') ? version : `v${version}`
