@@ -83,7 +83,7 @@ function ColdBootScreen({ phase }: { phase: number }) {
         </div>
         <div className="boot-sub">
           {labels[Math.min(phase, labels.length - 1)]}
-          {IS_PRE_RELEASE ? ` · v${APP_VERSION} pre-release` : ''}
+          {IS_PRE_RELEASE ? ` · v${APP_VERSION} BETA` : ''}
         </div>
         <div className="boot-bar" aria-hidden>
           <div
@@ -106,7 +106,7 @@ export default function App() {
   const [shellVisible, setShellVisible] = useState(!loading)
 
   useEffect(() => {
-    document.title = APP_FULL_NAME
+    document.title = IS_PRE_RELEASE ? `${APP_FULL_NAME} BETA` : APP_FULL_NAME
     const needsColdBoot = useAppStore.getState().loading
 
     // Critical path only — no artificial min delay

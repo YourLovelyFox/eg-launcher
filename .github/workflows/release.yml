@@ -62,6 +62,14 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Resolved version: ${VERSION} (tag ${TAG}), force_rebuild=${FORCE}"
 
+          # Portable BETA tags are published manually (Windows zip). Do not rebuild Linux or mark latest.
+          if [[ "${VERSION}" =~ [Bb]eta|[Rr][Cc]|[Pp]re ]]; then
+            echo "needs_build=false" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=BETA/RC tag ${TAG}: skip Linux AppImage job. Upload the portable zip with gh release (prerelease, not latest)."
+            echo "::notice::Skipping CI package for BETA tag ${TAG}"
+            exit 0
+          fi
+
           # Public GitHub releases are Linux AppImage only (no Windows setup/uninstall — SAC / Store).
           # Re-uploading the same filename with a new binary changes SHA-256 — ship each version once.
           HAS_LINUX="false"

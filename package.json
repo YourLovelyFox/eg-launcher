@@ -21,6 +21,7 @@
     "dist": "npm run build && node scripts/run-with-env.mjs CSC_IDENTITY_AUTO_DISCOVERY=false -- npx electron-builder --win nsis --x64 --publish never && node scripts/build-win-uninstaller.mjs",
     "dist:admin": "npm run build:admin && node scripts/run-with-env.mjs CSC_IDENTITY_AUTO_DISCOVERY=false -- npx electron-builder --win nsis --x64 --publish never && node scripts/build-win-uninstaller.mjs",
     "dist:dir": "npm run build && node scripts/run-with-env.mjs CSC_IDENTITY_AUTO_DISCOVERY=false -- npx electron-builder --win --dir --x64 --publish never",
+    "dist:win-portable": "node scripts/dist-win-portable.mjs",
     "dist:linux": "npm run build && npx electron-builder --linux AppImage --x64 --publish never",
     "dist:all": "npm run dist && npm run dist:linux",
     "release:check": "node scripts/check-release-assets.mjs",

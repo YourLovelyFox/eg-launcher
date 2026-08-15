@@ -4,8 +4,9 @@
 
 | Platform | Channel |
 | --- | --- |
-| **Windows** | **Microsoft Store only** (GitHub `setup.exe` not published — SAC). **Store listing is currently unavailable** while Microsoft **publishing / certification** finishes — users must wait. |
-| **Linux** | **GitHub Releases** — `EG-Launcher-*-linux-*.AppImage` only (available now) |
+| **Windows portable BETA** | GitHub **prerelease** zip: `EG-Launcher-*-win-x64-portable-BETA.zip` (unsigned; SAC/SmartScreen may warn) |
+| **Windows stable** | **Microsoft Store** (listing still pending publication) |
+| **Linux** | **GitHub Releases** — `EG-Launcher-*-linux-*.AppImage` |
 
 Store product (when live): https://apps.microsoft.com/detail/9P32SFSJH9B1  
 

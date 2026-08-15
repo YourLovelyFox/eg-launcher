@@ -8,10 +8,22 @@ Support Discord server: Soon
 
 Modern **Minecraft: Java Edition** launcher for browsing and installing mods via mod catalog API, managing instances, and launching the game.
 
+## Windows portable BETA (GitHub)
+
+A **portable BETA** zip is on GitHub Releases (prerelease, not the Store build):
+
+1. Open [Releases](https://github.com/YourLovelyFox/eg-launcher/releases) and pick the **BETA** release.
+2. Download `EG-Launcher-*-win-x64-portable-BETA.zip`.
+3. Unzip it and run **`EG Launcher.exe`**.
+4. Windows SmartScreen / Smart App Control may warn — this BETA is **unsigned**. Use **More info → Run anyway** only if you trust this GitHub repo.
+
+The launcher shows a purple **BETA** badge. This is **not** the Microsoft Store version.
+
+---
+
 ## Windows users: build the launcher yourself (easy guide)
 
-> **Why this exists:** We **don’t** put a Windows installer on GitHub. Windows Smart App Control (SAC) / SmartScreen often blocks unsigned apps that change every release. The Microsoft Store version is coming later.  
-> **What you do instead:** Download the **source code**, build the app **on your own PC**, install it, then tell Windows “this one is OK.”  
+> **Why this exists:** We **don’t** put a Windows **installer** (`setup.exe`) on GitHub. Smart App Control / SmartScreen often blocks unsigned apps that change every release. The Microsoft Store version is coming later. A **portable BETA zip** is the only Windows binary we publish here.  
 > **Please don’t** download EG Launcher `.exe` files from random websites.
 
 You only need to do this **once** (or when you want an update). Copy and paste the commands — you don’t need to understand programming.

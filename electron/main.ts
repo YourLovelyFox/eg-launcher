@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { APP_FULL_NAME, IS_PRE_RELEASE } from '../shared/branding'
 import fs from 'fs'
 import path from 'path'
 import { migrateToHiveLauncher } from './migrate'
@@ -210,7 +211,7 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 640,
     backgroundColor: '#0b0e14',
-    title: 'EG Launcher',
+    title: IS_PRE_RELEASE ? `${APP_FULL_NAME} BETA` : APP_FULL_NAME,
     autoHideMenuBar: true,
     show: false, // show after ready-to-show so Windows doesn't mark "Not responding"
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
