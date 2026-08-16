@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  OFFLINE_MAX_INSTANCES,
   OFFLINE_MAX_PRIMARY_MODS,
   offlineInstanceLimitMessage,
+  quotasForAccount,
 } from '../../shared/offlineLimits'
 import { CreateInstanceModal } from '../components/CreateInstanceModal'
 import { IconPlay, IconPlus, IconStop, IconTrash } from '../components/Icons'
@@ -26,7 +26,9 @@ export function InstancesPage() {
   } = useAppStore()
   const [createOpen, setCreateOpen] = useState(false)
   const [launchingId, setLaunchingId] = useState<string | null>(null)
-  const [updateCounts, setUpdateCounts] = useState<Record<string, number>>({})
+  const [updateCounts, setUpdateCounts] = useState<
+    Record<string, { updates: number; incompatible: number }>
+  >({})
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [prefsTick, setPrefsTick] = useState(0)
   const [importing, setImporting] = useState(false)
@@ -38,7 +40,8 @@ export function InstancesPage() {
   const offlineActive = Boolean(
     activeAcc && (activeAcc.type === 'offline' || activeAcc.id.startsWith('offline-')),
   )
-  const offlineAtInstanceCap = offlineActive && instances.length >= OFFLINE_MAX_INSTANCES
+  const offlineQuotas = quotasForAccount(activeAcc)
+  const offlineAtInstanceCap = offlineActive && instances.length >= offlineQuotas.instances
 
   const sorted = useMemo(() => {
     const pinned = loadQolPrefs().pinnedInstanceIds
@@ -62,19 +65,23 @@ export function InstancesPage() {
         return
       }
       setCheckingUpdates(true)
-      const next: Record<string, number> = {}
+      const next: Record<string, { updates: number; incompatible: number }> = {}
       try {
         for (const inst of instances) {
           if (cancelled) return
           if (!inst.mods.length) {
-            next[inst.id] = 0
+            next[inst.id] = { updates: 0, incompatible: 0 }
             continue
           }
           try {
             const map = await checkModsUpdates(inst.mods, inst.gameVersion, inst.loader)
-            next[inst.id] = Object.values(map).filter((u) => u.hasUpdate).length
+            const values = Object.values(map)
+            next[inst.id] = {
+              updates: values.filter((u) => u.hasUpdate).length,
+              incompatible: values.filter((u) => u.incompatible).length,
+            }
           } catch {
-            next[inst.id] = 0
+            next[inst.id] = { updates: 0, incompatible: 0 }
           }
         }
         if (!cancelled) setUpdateCounts(next)
@@ -88,7 +95,8 @@ export function InstancesPage() {
     }
   }, [instances])
 
-  const totalUpdates = Object.values(updateCounts).reduce((a, b) => a + b, 0)
+  const totalUpdates = Object.values(updateCounts).reduce((a, b) => a + b.updates, 0)
+  const totalIncompatible = Object.values(updateCounts).reduce((a, b) => a + b.incompatible, 0)
 
   async function launch(id: string, acknowledgeLowMemory = false) {
     if (!loggedIn) {
@@ -206,9 +214,9 @@ export function InstancesPage() {
             disabled={importing || offlineAtInstanceCap}
             title={
               offlineAtInstanceCap
-                ? offlineInstanceLimitMessage(instances.length)
+                ? offlineInstanceLimitMessage(instances.length, offlineQuotas.instances)
                 : offlineActive
-                  ? `Offline: packs limited to ${OFFLINE_MAX_PRIMARY_MODS} mods`
+                  ? `Offline: packs limited to ${offlineQuotas.mods} mods`
                   : undefined
             }
           >
@@ -219,7 +227,9 @@ export function InstancesPage() {
             onClick={() => setCreateOpen(true)}
             disabled={offlineAtInstanceCap}
             title={
-              offlineAtInstanceCap ? offlineInstanceLimitMessage(instances.length) : undefined
+              offlineAtInstanceCap
+                ? offlineInstanceLimitMessage(instances.length, offlineQuotas.instances)
+                : undefined
             }
           >
             <IconPlus />
@@ -239,8 +249,8 @@ export function InstancesPage() {
         >
           <strong>Offline account limits</strong>
           <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
-            Max <strong>{OFFLINE_MAX_INSTANCES}</strong> instances ({instances.length}/
-            {OFFLINE_MAX_INSTANCES}) and <strong>{OFFLINE_MAX_PRIMARY_MODS}</strong> mods per
+            Max <strong>{offlineQuotas.instances}</strong> instances ({instances.length}/
+            {offlineQuotas.instances}) and <strong>{offlineQuotas.mods}</strong> mods per
             instance (required dependencies do not count). Sign in with Microsoft for full access.
           </p>
         </div>
@@ -278,15 +288,24 @@ export function InstancesPage() {
         </div>
       )}
 
-      {totalUpdates > 0 && (
+      {(totalUpdates > 0 || totalIncompatible > 0) && (
         <div className="panel" style={{ marginBottom: 16 }}>
           <div className="list-item" style={{ border: 'none', background: 'transparent', padding: 0 }}>
-            <span className="badge badge-orange">Updates</span>
+            <span className={`badge ${totalUpdates > 0 ? 'badge-orange' : 'badge-red'}`}>
+              {totalUpdates > 0 ? 'Update Mods' : 'Incompatible'}
+            </span>
             <div className="grow">
               <div className="title">
-                {totalUpdates} mod update{totalUpdates === 1 ? '' : 's'} available
+                {totalUpdates > 0
+                  ? `${totalUpdates} mod update${totalUpdates === 1 ? '' : 's'} available`
+                  : 'Incompatible mods after a version or loader change'}
+                {totalIncompatible > 0
+                  ? ` · ${totalIncompatible} incompatible`
+                  : ''}
               </div>
-              <div className="sub">Open an instance to update mods one-by-one or all at once.</div>
+              <div className="sub">
+                Open an instance to use Update Mods — replace matching builds or disable the rest.
+              </div>
             </div>
           </div>
         </div>
@@ -305,7 +324,8 @@ export function InstancesPage() {
         <div className="grid grid-instances">
           {sorted.map((inst, i) => {
             const isLive = running.running && running.instanceId === inst.id
-            const updates = updateCounts[inst.id] ?? 0
+            const updates = updateCounts[inst.id]?.updates ?? 0
+            const incompatible = updateCounts[inst.id]?.incompatible ?? 0
             const pinned = loadQolPrefs().pinnedInstanceIds.includes(inst.id)
             const last = loadQolPrefs().lastInstanceId === inst.id
             const cardStyle: React.CSSProperties = {
@@ -365,7 +385,12 @@ export function InstancesPage() {
                           {updates} update{updates === 1 ? '' : 's'}
                         </span>
                       )}
-                      {checkingUpdates && inst.mods.length > 0 && updates === 0 && (
+                      {incompatible > 0 && (
+                        <span className="badge badge-red">
+                          {incompatible} incompatible
+                        </span>
+                      )}
+                      {checkingUpdates && inst.mods.length > 0 && updates === 0 && incompatible === 0 && (
                         <span className="badge">Checking…</span>
                       )}
                       {isLive && <span className="badge badge-running">Running</span>}

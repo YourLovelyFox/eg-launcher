@@ -1407,7 +1407,7 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
     $desc = $metaDescription
         ?: (string) cfg(
             'site_description',
-            'EG Launcher — Minecraft: Java Edition companion. Browse news, join the community forum, and download for Windows (Microsoft Store) and Linux (AppImage).'
+            'EG Launcher — Minecraft: Java Edition companion. Browse news, join the community forum, and get GitHub betas (Windows build or Linux AppImage). Windows release soon.'
         );
     $img = $metaImage ?: ($siteUrl . '/assets/og-image.png');
     $canonical = $siteUrl . (string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
@@ -1529,10 +1529,9 @@ function layout_footer(): void
     echo '</main>';
     echo '<footer class="foot">';
     echo '<div class="foot-inner">';
-    echo '<div><strong>EG Launcher</strong><p class="muted">Minecraft: Java Edition companion — Microsoft Store (Windows) · AppImage (Linux)</p></div>';
+    echo '<div><strong>EG Launcher</strong><p class="muted">Minecraft: Java Edition companion — Windows release soon · GitHub beta (Windows + Linux AppImage)</p></div>';
     echo '<div class="foot-links">';
     echo '<a href="' . e((string) cfg('github_url')) . '">GitHub</a>';
-    echo '<a href="' . e((string) cfg('store_url')) . '">Microsoft Store</a>';
     $discord = trim((string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5'));
     if ($discord !== '') {
         echo '<a href="' . e($discord) . '" target="_blank" rel="noopener">Discord</a>';

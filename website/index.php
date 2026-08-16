@@ -21,11 +21,12 @@ layout_header('', 'home');
     <h1>EG Launcher</h1>
     <p>
       Manage instances, add community content, and launch Minecraft with Microsoft login.
-      Windows via the Microsoft Store; Linux AppImage on GitHub.
+      Official Windows release soon. Beta builds are on GitHub.
     </p>
     <div class="hero-actions" id="download">
-      <a class="btn btn-primary" href="<?= e((string) cfg('store_url')) ?>" target="_blank" rel="noopener">Windows - Microsoft Store</a>
-      <a class="btn btn-secondary" href="<?= e((string) cfg('github_releases')) ?>" target="_blank" rel="noopener">Linux - AppImage</a>
+      <span class="soon-pill">Windows Release Soon</span>
+      <a class="btn btn-primary" href="<?= e((string) cfg('github_releases')) ?>" target="_blank" rel="noopener">Windows Beta</a>
+      <a class="btn btn-secondary" href="<?= e((string) cfg('github_releases')) ?>" target="_blank" rel="noopener">Linux AppImage</a>
       <a class="btn btn-secondary" href="<?= e((string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5')) ?>" target="_blank" rel="noopener">
         <i class="fa-brands fa-discord"></i> Discord
       </a>
@@ -91,12 +92,13 @@ layout_header('', 'home');
 <section class="panel">
   <h2>Get EG Launcher</h2>
   <p class="hint" style="margin-bottom: 12px;">
-    Windows installers are not published on GitHub (Smart App Control). Use the Store when the listing is live.
-    Linux users: download the AppImage from GitHub Releases.
+    <strong>Windows release soon.</strong>
+    Until then, install a beta from GitHub — Windows build or Linux AppImage.
   </p>
   <div class="hero-actions">
-    <a class="btn btn-primary" href="<?= e((string) cfg('store_url')) ?>" target="_blank" rel="noopener">Microsoft Store</a>
-    <a class="btn btn-secondary" href="<?= e((string) cfg('github_releases')) ?>" target="_blank" rel="noopener">GitHub Releases</a>
+    <span class="soon-pill">Windows Release Soon</span>
+    <a class="btn btn-primary" href="<?= e((string) cfg('github_releases')) ?>" target="_blank" rel="noopener">Windows Beta</a>
+    <a class="btn btn-secondary" href="<?= e((string) cfg('github_releases')) ?>" target="_blank" rel="noopener">Linux AppImage</a>
     <a class="btn btn-secondary" href="<?= e((string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5')) ?>" target="_blank" rel="noopener">
       <i class="fa-brands fa-discord"></i> Join Discord
     </a>

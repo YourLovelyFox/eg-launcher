@@ -3,12 +3,31 @@ import type { GameInstance, InstalledMod, LoaderType, CatalogVersion } from '../
 export type ModUpdateInfo = {
   projectId: string
   hasUpdate: boolean
+  /** No catalog version exists for the instance's current Minecraft version + loader. */
+  incompatible: boolean
   latestVersionId: string | null
   latestVersionNumber: string | null
   installedVersionId: string
   installedVersionNumber: string
   checking?: boolean
   error?: string
+}
+
+function baseInfo(mod: InstalledMod, extra?: Partial<ModUpdateInfo>): ModUpdateInfo {
+  return {
+    projectId: mod.projectId,
+    hasUpdate: false,
+    incompatible: false,
+    latestVersionId: null,
+    latestVersionNumber: null,
+    installedVersionId: mod.versionId,
+    installedVersionNumber: mod.versionNumber,
+    ...extra,
+  }
+}
+
+export function needsModAction(info: ModUpdateInfo): boolean {
+  return info.hasUpdate || info.incompatible
 }
 
 /** Synthetic ids from pack disk-scan — not real mod projects. */
@@ -37,45 +56,23 @@ export async function checkModUpdate(
   loader?: LoaderType | string,
 ): Promise<ModUpdateInfo> {
   if (isLocalOnlyModId(mod.projectId)) {
-    return {
-      projectId: mod.projectId,
-      hasUpdate: false,
-      latestVersionId: null,
-      latestVersionNumber: null,
-      installedVersionId: mod.versionId,
-      installedVersionNumber: mod.versionNumber,
-    }
+    return baseInfo(mod)
+  }
+  if (loader === 'vanilla') {
+    return baseInfo(mod, { incompatible: true })
   }
   try {
     const latest = await fetchLatestCompatibleVersion(mod.projectId, gameVersion, loader)
     if (!latest) {
-      return {
-        projectId: mod.projectId,
-        hasUpdate: false,
-        latestVersionId: null,
-        latestVersionNumber: null,
-        installedVersionId: mod.versionId,
-        installedVersionNumber: mod.versionNumber,
-      }
+      return baseInfo(mod, { incompatible: true })
     }
-    return {
-      projectId: mod.projectId,
+    return baseInfo(mod, {
       hasUpdate: latest.id !== mod.versionId,
       latestVersionId: latest.id,
       latestVersionNumber: latest.version_number,
-      installedVersionId: mod.versionId,
-      installedVersionNumber: mod.versionNumber,
-    }
+    })
   } catch (err) {
-    return {
-      projectId: mod.projectId,
-      hasUpdate: false,
-      latestVersionId: null,
-      latestVersionNumber: null,
-      installedVersionId: mod.versionId,
-      installedVersionNumber: mod.versionNumber,
-      error: (err as Error).message,
-    }
+    return baseInfo(mod, { error: (err as Error).message })
   }
 }
 
@@ -92,14 +89,7 @@ export async function checkModsUpdates(
   const remote: InstalledMod[] = []
   for (const mod of mods) {
     if (isLocalOnlyModId(mod.projectId)) {
-      result[mod.projectId] = {
-        projectId: mod.projectId,
-        hasUpdate: false,
-        latestVersionId: null,
-        latestVersionNumber: null,
-        installedVersionId: mod.versionId,
-        installedVersionNumber: mod.versionNumber,
-      }
+      result[mod.projectId] = baseInfo(mod)
     } else {
       remote.push(mod)
     }

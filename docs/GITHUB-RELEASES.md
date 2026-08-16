@@ -4,13 +4,12 @@
 
 | Platform | Channel |
 | --- | --- |
-| **Windows portable BETA** | GitHub **prerelease** zip: `EG-Launcher-*-win-x64-portable-BETA.zip` (unsigned; SAC/SmartScreen may warn) |
-| **Windows stable** | **Microsoft Store** (listing still pending publication) |
+| **Windows portable BETA** | GitHub **Latest** release zip: `EG-Launcher-*-win-x64-portable-BETA.zip` (unsigned; SAC/SmartScreen may warn). In-app **BETA** badges stay. |
 | **Linux** | **GitHub Releases** — `EG-Launcher-*-linux-*.AppImage` |
 
-Store product (when live): https://apps.microsoft.com/detail/9P32SFSJH9B1  
+There is **no Microsoft Store** listing. Windows users use the portable zip (or a local self-build).
 
-Background on why Windows GitHub installers were dropped: **[GITHUB-SAC.md](./GITHUB-SAC.md)**.
+Background on unsigned Windows binaries: **[GITHUB-SAC.md](./GITHUB-SAC.md)**.
 
 ---
 
@@ -51,13 +50,13 @@ npm ci
 npm run dist:linux
 ```
 
-### Microsoft Store package (Partner Center)
+### Windows portable BETA (local)
 
 ```bash
-npm run dist:store
+npm run dist:win-portable
 ```
 
-Produces `release/EG-Launcher-<version>-win-x64-store.appx`. May also be attached to a GitHub Release for Partner Center upload / sideload testing (unsigned Store package — not a public Windows installer; SAC/SmartScreen still applies to random `.exe` setups). See [MS-STORE.md](./MS-STORE.md).
+Produces `release/EG-Launcher-<version>-win-x64-portable-BETA.zip`.
 
 ---
 
@@ -65,7 +64,7 @@ Produces `release/EG-Launcher-<version>-win-x64-store.appx`. May also be attache
 
 **Where is the Windows installer?**
 
-> Windows `setup.exe` files were removed from GitHub because of Smart App Control / SmartScreen. The Microsoft Store is the official Windows path, but the listing is **not available yet** (publishing / certification in progress). Please wait a bit — there is no public Windows download until the Store goes live.
+> There is no Microsoft Store listing and no public `setup.exe`. Download the **portable BETA zip** from GitHub Releases, unzip, and run `EG Launcher.exe`. SmartScreen may warn because the zip is unsigned.
 
 **Linux**
 

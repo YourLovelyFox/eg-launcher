@@ -1,4 +1,4 @@
-import type { GameInstance, InstalledMod } from './types'
+import type { GameInstance, InstalledMod, MinecraftAccount } from './types'
 
 /** Offline (non-premium) accounts: hard caps for a light free tier. */
 export const OFFLINE_MAX_INSTANCES = 2
@@ -14,34 +14,57 @@ export function countPrimaryMods(mods: InstalledMod[] | undefined | null): numbe
   return mods.filter(isPrimaryMod).length
 }
 
-export function offlineInstanceLimitMessage(currentCount: number): string {
+export function quotasForAccount(
+  account: MinecraftAccount | null | undefined,
+): { instances: number; mods: number } {
+  const offline =
+    account?.type === 'offline' || String(account?.id || '').startsWith('offline-')
+  if (!account || !offline) {
+    return { instances: Number.MAX_SAFE_INTEGER, mods: Number.MAX_SAFE_INTEGER }
+  }
+  const instances = Number(account.instanceQuota)
+  const mods = Number(account.modQuota)
+  return {
+    instances: Number.isFinite(instances) ? Math.max(0, Math.floor(instances)) : OFFLINE_MAX_INSTANCES,
+    mods: Number.isFinite(mods) ? Math.max(0, Math.floor(mods)) : OFFLINE_MAX_PRIMARY_MODS,
+  }
+}
+
+export function offlineInstanceLimitMessage(currentCount: number, max = OFFLINE_MAX_INSTANCES): string {
   return (
-    `Offline accounts are limited to ${OFFLINE_MAX_INSTANCES} instances ` +
+    `Offline accounts are limited to ${max} instances ` +
     `(you have ${currentCount}). Sign in with Microsoft for full access.`
   )
 }
 
-export function offlineModLimitMessage(currentPrimary: number, tryingToAdd = 1): string {
-  const room = Math.max(0, OFFLINE_MAX_PRIMARY_MODS - currentPrimary)
+export function offlineModLimitMessage(
+  currentPrimary: number,
+  tryingToAdd = 1,
+  max = OFFLINE_MAX_PRIMARY_MODS,
+): string {
+  const room = Math.max(0, max - currentPrimary)
   if (tryingToAdd <= 1) {
     return (
-      `Offline accounts are limited to ${OFFLINE_MAX_PRIMARY_MODS} mods per instance ` +
-      `(dependencies do not count). You have ${currentPrimary}/${OFFLINE_MAX_PRIMARY_MODS}. ` +
+      `Offline accounts are limited to ${max} mods per instance ` +
+      `(dependencies do not count). You have ${currentPrimary}/${max}. ` +
       `Sign in with Microsoft for full access.`
     )
   }
   return (
-    `Offline accounts are limited to ${OFFLINE_MAX_PRIMARY_MODS} mods per instance ` +
-    `(dependencies do not count). You have ${currentPrimary}/${OFFLINE_MAX_PRIMARY_MODS} ` +
+    `Offline accounts are limited to ${max} mods per instance ` +
+    `(dependencies do not count). You have ${currentPrimary}/${max} ` +
     `and only ${room} slot${room === 1 ? '' : 's'} free, but this action needs ${tryingToAdd}. ` +
     `Sign in with Microsoft for full access.`
   )
 }
 
-export function offlinePackModLimitMessage(packModCount: number): string {
+export function offlinePackModLimitMessage(
+  packModCount: number,
+  max = OFFLINE_MAX_PRIMARY_MODS,
+): string {
   return (
     `This pack has ${packModCount} mods. Offline accounts may only add up to ` +
-    `${OFFLINE_MAX_PRIMARY_MODS} mods per instance (dependencies excluded for catalog installs). ` +
+    `${max} mods per instance (dependencies excluded for catalog installs). ` +
     `Sign in with Microsoft to install larger packs.`
   )
 }

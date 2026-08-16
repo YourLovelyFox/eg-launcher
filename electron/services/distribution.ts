@@ -2,8 +2,7 @@ import { app } from 'electron'
 import path from 'path'
 
 /**
- * Microsoft Store / MSIX installs live under WindowsApps.
- * Updates come from the Store — no in-app updater.
+ * Microsoft Store / MSIX installs live under WindowsApps (not used).
  */
 export function isMicrosoftStoreInstall(): boolean {
   if (process.env.EG_MS_STORE === '1' || process.env.EG_MS_STORE === 'true') {
@@ -30,10 +29,7 @@ export function isMicrosoftStoreInstall(): boolean {
   return false
 }
 
-/**
- * In-app self-update (electron-updater / GitHub) is disabled.
- * Windows updates are handled by the Microsoft Store.
- */
+/** Windows portable builds replace themselves from a GitHub zip. */
 export function isSelfUpdateChannel(): boolean {
-  return false
+  return process.platform === 'win32' && app.isPackaged && !isMicrosoftStoreInstall()
 }

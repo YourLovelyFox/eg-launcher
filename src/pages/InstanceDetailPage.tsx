@@ -5,16 +5,18 @@ import type {
   GameInstance,
   InstanceBackupInfo,
   InstanceProfile,
+  LoaderType,
 } from '../../shared/types'
 import { ExportEgpackModal } from '../components/ExportEgpackModal'
+import { EditInstanceModal } from '../components/EditInstanceModal'
 import {
-  OFFLINE_MAX_PRIMARY_MODS,
   countPrimaryMods,
+  quotasForAccount,
 } from '../../shared/offlineLimits'
 import { IconDownload, IconFolder, IconPlay, IconStop, IconTrash } from '../components/Icons'
 import { checkModsUpdates, type ModUpdateInfo } from '../modUpdates'
 import { pushRecent } from '../qolPrefs'
-import { loaderLabel, useAppStore } from '../store'
+import { loaderIconColor, loaderLabel, useAppStore } from '../store'
 
 function formatBytes(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return '0 B'
@@ -49,9 +51,10 @@ export function InstanceDetailPage() {
   const offlineActive = Boolean(
     activeAcc && (activeAcc.type === 'offline' || activeAcc.id.startsWith('offline-')),
   )
-  const [busy, setBusy] = useState<'install' | 'launch' | 'backup' | 'restore' | 'export' | null>(
-    null,
-  )
+  const offlineQuotas = quotasForAccount(activeAcc)
+  const [busy, setBusy] = useState<
+    'install' | 'launch' | 'backup' | 'restore' | 'export' | 'edit' | null
+  >(null)
   const [packProgress, setPackProgress] = useState<{ message: string; progress: number } | null>(
     null,
   )
@@ -81,26 +84,37 @@ export function InstanceDetailPage() {
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameValue, setRenameValue] = useState('')
   const [renaming, setRenaming] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   const isLive = !!(instance && running.running && running.instanceId === instance.id)
   const loggedIn = accounts.some((a) => a.id === activeAccountId)
   const updatesAvailable = Object.values(updateMap).filter((u) => u.hasUpdate)
+  const incompatibleMods = Object.values(updateMap).filter((u) => u.incompatible)
 
   // Must stay above any conditional return (Rules of Hooks)
   const filteredMods = useMemo(() => {
     const mods = instance?.mods || []
     const q = modFilter.trim().toLowerCase()
-    if (!q) return mods
-    return mods.filter(
-      (m) =>
-        m.title.toLowerCase().includes(q) ||
-        m.slug.toLowerCase().includes(q) ||
-        m.fileName.toLowerCase().includes(q),
-    )
-  }, [instance?.mods, modFilter])
+    const filtered = !q
+      ? mods
+      : mods.filter(
+          (m) =>
+            m.title.toLowerCase().includes(q) ||
+            m.slug.toLowerCase().includes(q) ||
+            m.fileName.toLowerCase().includes(q),
+        )
+    return [...filtered].sort((a, b) => {
+      const ai = updateMap[a.projectId]
+      const bi = updateMap[b.projectId]
+      const ar = ai?.incompatible ? 0 : ai?.hasUpdate ? 1 : 2
+      const br = bi?.incompatible ? 0 : bi?.hasUpdate ? 1 : 2
+      if (ar !== br) return ar - br
+      return a.title.localeCompare(b.title)
+    })
+  }, [instance?.mods, modFilter, updateMap])
 
-  async function reload() {
-    if (!id) return
+  async function reload(): Promise<GameInstance | null> {
+    if (!id) return null
     const data = await window.hive.instances.get(id)
     setInstance(data)
     return data
@@ -134,6 +148,90 @@ export function InstanceDetailPage() {
     } finally {
       setRenaming(false)
     }
+  }
+
+  async function applyInstanceEdit(patch: {
+    gameVersion: string
+    loader: LoaderType
+    loaderVersion?: string
+  }) {
+    if (!instance) return
+    if (isLive) {
+      showToast('error', 'Stop the game before changing version or loader')
+      return
+    }
+    setBusy('edit')
+    setInstallProgress({ stage: 'start', progress: 0, message: 'Saving instance…' })
+    try {
+      const updated = await window.hive.instances.update(instance.id, {
+        gameVersion: patch.gameVersion,
+        loader: patch.loader,
+        // Empty string so IPC actually overwrites the previous loader build
+        loaderVersion: patch.loader === 'vanilla' ? '' : patch.loaderVersion || '',
+        iconColor: loaderIconColor(patch.loader),
+      })
+      setInstance(updated)
+      await window.hive.mc.install(updated.id)
+      const reloaded = await reload()
+      await refreshAll()
+      const map = await refreshUpdateChecks(reloaded)
+      const incompat = Object.values(map).filter((u) => u.incompatible)
+      const updates = Object.values(map).filter((u) => u.hasUpdate)
+      let disabled = 0
+      if (reloaded && incompat.length > 0) {
+        for (const info of incompat) {
+          const mod = reloaded.mods.find((m) => m.projectId === info.projectId)
+          if (mod?.enabled) {
+            await window.hive.instances.toggleMod(reloaded.id, info.projectId, false)
+            disabled++
+          }
+        }
+        if (disabled > 0) {
+          await reload()
+        }
+      }
+
+      const parts: string[] = [
+        `Now ${loaderLabel(patch.loader)} ${patch.gameVersion}`,
+      ]
+      if (updates.length > 0) {
+        parts.push(
+          `${updates.length} mod${updates.length === 1 ? '' : 's'} have a matching build — use Update Mods`,
+        )
+      }
+      if (incompat.length > 0) {
+        parts.push(
+          `${incompat.length} incompatible${disabled > 0 ? ` (${disabled} disabled)` : ''}`,
+        )
+      }
+      showToast(incompat.length > 0 && updates.length === 0 ? 'info' : 'success', parts.join(' · '))
+      setEditOpen(false)
+    } catch (err) {
+      showToast('error', (err as Error).message)
+    } finally {
+      setBusy(null)
+      setTimeout(() => setInstallProgress(null), 1500)
+    }
+  }
+
+  async function disableIncompatible() {
+    if (!instance || incompatibleMods.length === 0) return
+    let disabled = 0
+    for (const info of incompatibleMods) {
+      const mod = instance.mods.find((m) => m.projectId === info.projectId)
+      if (mod?.enabled) {
+        await window.hive.instances.toggleMod(instance.id, info.projectId, false)
+        disabled++
+      }
+    }
+    await reload()
+    await refreshAll()
+    showToast(
+      'success',
+      disabled > 0
+        ? `Disabled ${disabled} incompatible mod${disabled === 1 ? '' : 's'}`
+        : 'Incompatible mods are already disabled',
+    )
   }
 
   async function addProfile() {
@@ -219,12 +317,14 @@ export function InstanceDetailPage() {
     }
   }
 
-  async function refreshUpdateChecks(target?: GameInstance | null) {
+  async function refreshUpdateChecks(
+    target?: GameInstance | null,
+  ): Promise<Record<string, ModUpdateInfo>> {
     const inst = target ?? instance
     if (!inst || inst.mods.length === 0) {
       setUpdateMap({})
       setUpdateCheckProgress(null)
-      return
+      return {}
     }
     setCheckingUpdates(true)
     setUpdateCheckProgress({ done: 0, total: inst.mods.length })
@@ -237,8 +337,10 @@ export function InstanceDetailPage() {
         (done, total) => setUpdateCheckProgress({ done, total }),
       )
       setUpdateMap(map)
+      return map
     } catch (err) {
       showToast('error', (err as Error).message)
+      return {}
     } finally {
       setCheckingUpdates(false)
       setUpdateCheckProgress(null)
@@ -584,6 +686,16 @@ export function InstanceDetailPage() {
         }}
         onExport={(options) => void runExport(options)}
       />
+      <EditInstanceModal
+        open={editOpen}
+        instance={instance}
+        busy={busy === 'edit'}
+        installProgress={busy === 'edit' ? installProgress : null}
+        onClose={() => {
+          if (busy !== 'edit') setEditOpen(false)
+        }}
+        onApply={(patch) => applyInstanceEdit(patch)}
+      />
       {renameOpen && (
         <div
           className="update-modal-backdrop"
@@ -647,6 +759,16 @@ export function InstanceDetailPage() {
               title={isLive ? 'Stop the game to rename' : 'Rename instance'}
             >
               Rename
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ padding: '4px 10px', fontSize: 13 }}
+              disabled={isLive || busy === 'edit'}
+              onClick={() => setEditOpen(true)}
+              title={isLive ? 'Stop the game to edit version or loader' : 'Change version or loader'}
+            >
+              Edit
             </button>
           </h1>
           <p>
@@ -745,7 +867,7 @@ export function InstanceDetailPage() {
         </div>
       )}
 
-      {installProgress && (
+      {installProgress && !editOpen && (
         <div className="panel" style={{ marginBottom: 16 }}>
           <div className="progress-meta">
             <span>{installProgress.message}</span>
@@ -777,17 +899,23 @@ export function InstanceDetailPage() {
               <p className="hint" style={{ marginBottom: 0 }}>
                 {instance.mods.length} mod{instance.mods.length === 1 ? '' : 's'}
                 {offlineActive
-                  ? ` · ${countPrimaryMods(instance.mods)}/${OFFLINE_MAX_PRIMARY_MODS} count toward offline limit (deps free)`
+                  ? ` · ${countPrimaryMods(instance.mods)}/${offlineQuotas.mods} count toward offline limit (deps free)`
                   : ''}
                 {updatesAvailable.length > 0
                   ? ` · ${updatesAvailable.length} update${updatesAvailable.length === 1 ? '' : 's'} available`
-                  : checkingUpdates
+                  : ''}
+                {incompatibleMods.length > 0
+                  ? ` · ${incompatibleMods.length} incompatible`
+                  : ''}
+                {updatesAvailable.length === 0 && incompatibleMods.length === 0
+                  ? checkingUpdates
                     ? updateCheckProgress && updateCheckProgress.total > 0
                       ? ` · checking updates ${updateCheckProgress.done}/${updateCheckProgress.total}…`
                       : ' · checking for updates…'
                     : instance.mods.length > 0
                       ? ' · all up to date'
-                      : ''}
+                      : ''
+                  : ''}
               </p>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -824,6 +952,18 @@ export function InstanceDetailPage() {
                     : 'Check updates'}
                 </button>
               )}
+              {incompatibleMods.some((u) =>
+                instance.mods.find((m) => m.projectId === u.projectId && m.enabled),
+              ) && (
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => void disableIncompatible()}
+                  disabled={updatingAll || !!updatingId || checkingUpdates}
+                  title="Turn off mods with no matching build for this version/loader"
+                >
+                  Disable incompatible
+                </button>
+              )}
               {updatesAvailable.length > 0 && (
                 <button
                   className="btn btn-primary"
@@ -834,7 +974,7 @@ export function InstanceDetailPage() {
                   <IconDownload />
                   {updatingAll
                     ? `Updating all (${updatesAvailable.length})…`
-                    : `Update all (${updatesAvailable.length})`}
+                    : `Update Mods (${updatesAvailable.length})`}
                 </button>
               )}
               <Link className="btn btn-primary" to={`/browse?instance=${instance.id}`}>
@@ -842,6 +982,38 @@ export function InstanceDetailPage() {
               </Link>
             </div>
           </div>
+
+          {(updatesAvailable.length > 0 || incompatibleMods.length > 0) && (
+            <div
+              className="panel"
+              style={{
+                marginBottom: 12,
+                padding: 12,
+                background: 'rgba(255, 200, 87, 0.06)',
+                border: '1px solid rgba(255, 200, 87, 0.18)',
+              }}
+            >
+              <div className="title" style={{ marginBottom: 4 }}>
+                Update Mods
+              </div>
+              <p className="hint" style={{ marginBottom: 0 }}>
+                {updatesAvailable.length > 0
+                  ? `${updatesAvailable.length} mod${updatesAvailable.length === 1 ? '' : 's'} ${
+                      updatesAvailable.length === 1 ? 'has' : 'have'
+                    } a matching build for ${loaderLabel(instance.loader)} ${instance.gameVersion}.`
+                  : `No replacement builds found.`}
+                {incompatibleMods.length > 0
+                  ? ` ${incompatibleMods.length} ${
+                      incompatibleMods.length === 1 ? 'is' : 'are'
+                    } incompatible with this loader/version and ${
+                      incompatibleMods.length === 1 ? 'was' : 'were'
+                    } listed so you can disable or remove ${
+                      incompatibleMods.length === 1 ? 'it' : 'them'
+                    }.`
+                  : ''}
+              </p>
+            </div>
+          )}
 
           {instance.mods.length > 0 && (
             <input
@@ -870,6 +1042,7 @@ export function InstanceDetailPage() {
               {filteredMods.map((mod) => {
                 const info = updateMap[mod.projectId]
                 const hasUpdate = Boolean(info?.hasUpdate)
+                const incompatible = Boolean(info?.incompatible)
                 const isUpdating = updatingId === mod.projectId
                 return (
                   <div key={mod.projectId} className="list-item">
@@ -905,7 +1078,14 @@ export function InstanceDetailPage() {
                             Dependency
                           </span>
                         ) : null}
-                        {hasUpdate ? (
+                        {incompatible ? (
+                          <span
+                            className="badge badge-red"
+                            title={`No catalog build for ${loaderLabel(instance.loader)} ${instance.gameVersion}`}
+                          >
+                            Incompatible
+                          </span>
+                        ) : hasUpdate ? (
                           <span className="badge badge-orange">Update available</span>
                         ) : info && !checkingUpdates ? (
                           <span className="badge badge-green">Installed</span>
@@ -948,8 +1128,21 @@ export function InstanceDetailPage() {
         </section>
 
         <section className="panel">
-          <h2>Details</h2>
-          <p className="hint">Instance configuration</p>
+          <div className="page-header" style={{ marginBottom: 12 }}>
+            <div>
+              <h2>Details</h2>
+              <p className="hint" style={{ marginBottom: 0 }}>Instance configuration</p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={isLive || busy === 'edit'}
+              onClick={() => setEditOpen(true)}
+              title={isLive ? 'Stop the game to edit' : 'Change Minecraft version or loader'}
+            >
+              Edit
+            </button>
+          </div>
           <div className="list">
             <div className="list-item">
               <div className="grow">
@@ -979,8 +1172,9 @@ export function InstanceDetailPage() {
             </div>
           </div>
           <p className="hint" style={{ marginTop: 16, marginBottom: 0 }}>
-            Tip: run <strong>Install / Repair</strong> once before the first launch so client jars,
-            libraries, and assets are downloaded.
+            Use <strong>Edit</strong> to change Minecraft version or loader. After a change, matching
+            mods show under <strong>Update Mods</strong>; incompatible ones are disabled. Run{' '}
+            <strong>Install / Repair</strong> if you only need to redownload game files.
           </p>
         </section>
       </div>

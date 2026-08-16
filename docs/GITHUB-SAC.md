@@ -7,11 +7,8 @@
 | Channel | Status |
 | --- | --- |
 | GitHub Windows NSIS / setup.exe | **Removed / discontinued** (SAC / SmartScreen reputation) |
-| Microsoft Store (AppX) | **Official Windows path** — **currently unavailable** (Microsoft publishing / certification in progress; users must wait) |
-| GitHub Linux AppImage | **Still supported** (available now) |
-
-When the Store listing is published, Windows users should install from:  
-https://apps.microsoft.com/detail/9P32SFSJH9B1  
+| GitHub Windows portable BETA | **Supported** (unsigned zip; SAC/SmartScreen may warn) |
+| GitHub Linux AppImage | **Supported** |
 
 ## Why
 
@@ -30,6 +27,5 @@ Older GitHub releases may still list Windows assets for archival reasons. Those 
 
 ## Maintainers
 
-- Public GitHub Releases → **Linux AppImage** only.  
-- Windows → Partner Center / Store package (`npm run dist:store`, see [MS-STORE.md](./MS-STORE.md)).  
-- Do not re-enable public Windows NSIS on this repo without an intentional, documented policy change.
+- Public GitHub Releases → Linux AppImage + Windows portable BETA zip.  
+- Do not publish a Windows `setup.exe` without an intentional, documented policy change.

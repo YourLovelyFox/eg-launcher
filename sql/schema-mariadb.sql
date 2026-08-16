@@ -79,6 +79,8 @@ CREATE TABLE IF NOT EXISTS offline_users (
   password_hash VARCHAR(255) NOT NULL,
   uuid CHAR(36) NOT NULL,
   display_name VARCHAR(64) NOT NULL,
+  instance_quota INT NOT NULL DEFAULT 2,
+  mod_quota INT NOT NULL DEFAULT 10,
   created_at DATETIME(3) NOT NULL,
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_offline_username (username)

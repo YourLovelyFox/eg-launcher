@@ -5,6 +5,7 @@ import type {
   LauncherSettings,
   LauncherTheme,
   SystemMemoryInfo,
+  UpdateStatus,
 } from '../../shared/types'
 import { useAppStore } from '../store'
 import { applyTheme } from '../theme'
@@ -15,6 +16,36 @@ function formatMb(mb: number): string {
   return `${mb} MB`
 }
 
+function formatBytes(n: number): string {
+  if (n >= 1024 * 1024 * 1024) return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`
+  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`
+  return `${n} B`
+}
+
+function updateStatusLabel(status: UpdateStatus): string {
+  switch (status.state) {
+    case 'idle':
+      return 'Not checked yet'
+    case 'checking':
+      return 'Checking GitHub…'
+    case 'unavailable':
+      return status.reason === 'up-to-date' ? 'Up to date' : 'No self-update on this build (use GitHub Releases).'
+    case 'available':
+      return `Update ${status.tag} is ready to download.`
+    case 'downloading':
+      return `Downloading ${status.tag}…`
+    case 'ready':
+      return `${status.tag} downloaded. Restart to replace files.`
+    case 'installing':
+      return 'Replacing files and restarting…'
+    case 'error':
+      return status.message
+    default:
+      return ''
+  }
+}
+
 export function SettingsPage() {
   const navigate = useNavigate()
   const { settings, setSettings, showToast } = useAppStore()
@@ -22,7 +53,9 @@ export function SettingsPage() {
   const [javaInfo, setJavaInfo] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [versionInfo, setVersionInfo] = useState<AppVersionInfo | null>(null)
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
   const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [applyingUpdate, setApplyingUpdate] = useState(false)
   const [systemMemory, setSystemMemory] = useState<SystemMemoryInfo | null>(null)
 
   useEffect(() => {
@@ -54,17 +87,32 @@ export function SettingsPage() {
 
   useEffect(() => {
     window.hive.updater.getVersion().then(setVersionInfo).catch(() => undefined)
+    window.hive.updater.getStatus().then(setUpdateStatus).catch(() => undefined)
+    return window.hive.updater.onStatus(setUpdateStatus)
   }, [])
 
-  async function openUpdateChannel() {
+  async function checkUpdates() {
     setCheckingUpdate(true)
     try {
-      // Opens Microsoft Store (Windows) or GitHub Releases (other) — no in-app download
-      await window.hive.updater.check()
+      const status = await window.hive.updater.check()
+      setUpdateStatus(status)
+      if (status.state === 'unavailable' && status.reason === 'up-to-date') {
+        showToast('success', 'You are on the latest GitHub build.')
+      }
     } catch (err) {
       showToast('error', (err as Error).message)
     } finally {
       setCheckingUpdate(false)
+    }
+  }
+
+  async function applyUpdate() {
+    setApplyingUpdate(true)
+    try {
+      await window.hive.updater.apply()
+    } catch (err) {
+      showToast('error', (err as Error).message)
+      setApplyingUpdate(false)
     }
   }
 
@@ -236,52 +284,74 @@ export function SettingsPage() {
       <div className="panel">
         <h2>Updates</h2>
         <p className="hint">
-          The in-app auto-updater is <strong>disabled</strong>. On Windows, install and update EG
-          Launcher through the <strong>Microsoft Store</strong> only. Linux users can download a new
-          AppImage from GitHub Releases when available.
+          Windows portable builds check <strong>GitHub Releases</strong>, download the new zip,
+          replace this folder, and restart. Close Minecraft first.
         </p>
         <div className="form-grid">
           <div className="form-row">
             <label>Installed version</label>
             <div className="muted">
               v{versionInfo?.version || '…'}
+              {versionInfo?.tag ? ` · ${versionInfo.tag}` : ''}
               {IS_PRE_RELEASE ? (
                 <>
                   <span className="badge badge-beta" style={{ marginLeft: 8 }}>
                     {RELEASE_CHANNEL_LABEL}
                   </span>
                   <span className="hint" style={{ display: 'block', marginTop: 4, marginBottom: 0 }}>
-                    Portable BETA — not the Microsoft Store build. Things may change or break.
+                    Portable BETA from GitHub. Things may change or break.
                   </span>
                 </>
               ) : null}
               {versionInfo && !versionInfo.isPackaged ? ' (dev build)' : ''}
-              {versionInfo?.microsoftStore ? ' · Microsoft Store' : ''}
               {versionInfo ? ` · ${versionInfo.platform}/${versionInfo.arch}` : ''}
             </div>
           </div>
           <div className="form-row">
-            <label>Update channel</label>
-            <div className="muted">
-              {versionInfo?.microsoftStore || versionInfo?.platform === 'win32'
-                ? 'Microsoft Store'
-                : 'GitHub Releases (manual AppImage)'}
-            </div>
+            <label>Status</label>
+            <div className="muted">{updateStatusLabel(updateStatus)}</div>
           </div>
+          {updateStatus.state === 'downloading' ? (
+            <div className="form-row">
+              <label>Download</label>
+              <div>
+                <div className="boot-bar" aria-hidden>
+                  <div className="boot-bar-fill" style={{ width: `${Math.round(updateStatus.percent)}%` }} />
+                </div>
+                <span className="muted">
+                  {Math.round(updateStatus.percent)}% · {formatBytes(updateStatus.transferred)}
+                  {updateStatus.total ? ` / ${formatBytes(updateStatus.total)}` : ''}
+                </span>
+              </div>
+            </div>
+          ) : null}
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => void openUpdateChannel()}
-            disabled={checkingUpdate}
+            onClick={() => void checkUpdates()}
+            disabled={checkingUpdate || applyingUpdate || updateStatus.state === 'downloading'}
           >
-            {checkingUpdate
-              ? 'Opening…'
-              : versionInfo?.microsoftStore || versionInfo?.platform === 'win32'
-                ? 'Open Microsoft Store'
-                : 'Open GitHub Releases'}
+            {checkingUpdate || updateStatus.state === 'checking' ? 'Checking…' : 'Check for updates'}
           </button>
+          {(updateStatus.state === 'available' ||
+            updateStatus.state === 'ready' ||
+            updateStatus.state === 'downloading' ||
+            updateStatus.state === 'installing') && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => void applyUpdate()}
+              disabled={applyingUpdate || updateStatus.state === 'downloading' || updateStatus.state === 'installing'}
+            >
+              {updateStatus.state === 'downloading'
+                ? 'Downloading…'
+                : updateStatus.state === 'installing'
+                  ? 'Restarting…'
+                  : 'Update & restart'}
+            </button>
+          )}
         </div>
       </div>
 

@@ -133,6 +133,24 @@ function ensure_security_schema(PDO $pdo): void
     }
 
     ensure_cms_images_table($pdo);
+    ensure_offline_user_quotas($pdo);
+}
+
+/** Per-offline-account instance / mod caps (staff can raise or lower). */
+function ensure_offline_user_quotas(PDO $pdo): void
+{
+    foreach (
+        [
+            'ALTER TABLE offline_users ADD COLUMN instance_quota INT NOT NULL DEFAULT 2',
+            'ALTER TABLE offline_users ADD COLUMN mod_quota INT NOT NULL DEFAULT 10',
+        ] as $sql
+    ) {
+        try {
+            $pdo->exec($sql);
+        } catch (Throwable $e) {
+            // already exists
+        }
+    }
 }
 
 /**

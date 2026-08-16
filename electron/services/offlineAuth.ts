@@ -7,12 +7,11 @@ import type {
   OfflineAuthUser,
 } from '../../shared/types'
 import {
-  OFFLINE_MAX_INSTANCES,
-  OFFLINE_MAX_PRIMARY_MODS,
   countPrimaryMods,
   offlineInstanceLimitMessage,
   offlineModLimitMessage,
   offlinePackModLimitMessage,
+  quotasForAccount,
 } from '../../shared/offlineLimits'
 import { getDataRoot, readJsonFile, writeJsonFile } from '../paths'
 import {
@@ -21,6 +20,7 @@ import {
   cmsListOfflineUsersAdmin,
   cmsOfflineLogin,
   cmsOfflinePublicStatus,
+  cmsUpdateOfflineUser,
   loadOfflineAuthFromDb,
 } from './db/authRepo'
 import { getStaffSessionToken } from './staffSession'
@@ -134,6 +134,8 @@ export async function loginOfflineAccount(
     uuid: res.account.uuid.replace(/-/g, ''),
     accessToken: crypto.randomBytes(16).toString('hex'),
     type: 'offline',
+    instanceQuota: res.account.instanceQuota,
+    modQuota: res.account.modQuota,
   }
   upsertAccount(account)
   setActiveAccount(account.id)
@@ -220,6 +222,48 @@ export async function adminDeleteOfflineUser(
   return cmsDeleteOfflineUser(userId)
 }
 
+export async function adminUpdateOfflineUser(input: {
+  id: string
+  username?: string
+  displayName?: string
+  password?: string
+  instanceQuota?: number
+  modQuota?: number
+}): Promise<
+  | {
+      ok: true
+      message: string
+      user: {
+        id: string
+        username: string
+        uuid: string
+        displayName: string
+        instanceQuota: number
+        modQuota: number
+      }
+    }
+  | { ok: false; error: string }
+> {
+  const res = await cmsUpdateOfflineUser(input)
+  if (!res.ok) return res
+  try {
+    const stored = getAccounts()
+    const existing = stored.accounts.find((a) => a.id === res.user.id)
+    if (existing && isOfflineAccount(existing)) {
+      upsertAccount({
+        ...existing,
+        username: res.user.username,
+        uuid: res.user.uuid.replace(/-/g, ''),
+        instanceQuota: res.user.instanceQuota,
+        modQuota: res.user.modQuota,
+      })
+    }
+  } catch {
+    /* ignore local cache */
+  }
+  return res
+}
+
 export async function adminPublishOfflineAuth(): Promise<
   { ok: true; message: string; commitUrl?: string } | { ok: false; error: string }
 > {
@@ -244,7 +288,7 @@ export function offlineMultiplayerWarning(): string {
     'You are using an offline (non-premium) account. You cannot join official Minecraft servers, ' +
     'Realms, or servers that require a paid Microsoft/Minecraft login. Use cracked-friendly / offline ' +
     'servers only. Bee’s SMP requires a paid Microsoft account and cannot be installed while offline. ' +
-    `Limits: up to ${OFFLINE_MAX_INSTANCES} instances and ${OFFLINE_MAX_PRIMARY_MODS} mods per instance ` +
+    `Limits: up to ${quotasForAccount(getActiveMinecraftAccount()).instances} instances and ${quotasForAccount(getActiveMinecraftAccount()).mods} mods per instance ` +
     '(required dependencies do not count toward the mod limit). Sign in with Microsoft for full access.'
   )
 }
@@ -258,10 +302,16 @@ export function isActiveAccountOffline(): boolean {
  * Offline tier: block creating another instance when already at the cap.
  * Call before createInstance / pack import that creates a new instance.
  */
+function getActiveMinecraftAccount(): MinecraftAccount | null {
+  const accounts = getAccounts()
+  return accounts.accounts.find((a) => a.id === accounts.activeAccountId) || null
+}
+
 export function assertOfflineCanCreateInstance(currentInstanceCount: number): void {
   if (!isActiveAccountOffline()) return
-  if (currentInstanceCount >= OFFLINE_MAX_INSTANCES) {
-    throw new Error(offlineInstanceLimitMessage(currentInstanceCount))
+  const max = quotasForAccount(getActiveMinecraftAccount()).instances
+  if (currentInstanceCount >= max) {
+    throw new Error(offlineInstanceLimitMessage(currentInstanceCount, max))
   }
 }
 
@@ -276,16 +326,18 @@ export function assertOfflineCanAddPrimaryMods(
   if (!isActiveAccountOffline()) return
   if (newPrimaryCount <= 0) return
   const current = countPrimaryMods(instance.mods)
-  if (current + newPrimaryCount > OFFLINE_MAX_PRIMARY_MODS) {
-    throw new Error(offlineModLimitMessage(current, newPrimaryCount))
+  const max = quotasForAccount(getActiveMinecraftAccount()).mods
+  if (current + newPrimaryCount > max) {
+    throw new Error(offlineModLimitMessage(current, newPrimaryCount, max))
   }
 }
 
 /** Offline tier: pack install must fit within primary mod cap (all pack files count as primary). */
 export function assertOfflineCanInstallPackModCount(packModCount: number): void {
   if (!isActiveAccountOffline()) return
-  if (packModCount > OFFLINE_MAX_PRIMARY_MODS) {
-    throw new Error(offlinePackModLimitMessage(packModCount))
+  const max = quotasForAccount(getActiveMinecraftAccount()).mods
+  if (packModCount > max) {
+    throw new Error(offlinePackModLimitMessage(packModCount, max))
   }
 }
 

@@ -301,6 +301,7 @@ const api = {
     check: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:check'),
     download: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:download'),
     install: (): Promise<boolean> => ipcRenderer.invoke('updater:install'),
+    apply: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:apply'),
     onStatus: (cb: (status: UpdateStatus) => void): (() => void) => {
       const listener = (_: unknown, status: UpdateStatus) => cb(status)
       ipcRenderer.on('updater:status', listener)
@@ -469,6 +470,8 @@ const api = {
             uuid: string
             displayName: string
             createdAt: string
+            instanceQuota?: number
+            modQuota?: number
           }>
           unlockPasswordConfigured: boolean
           remoteSynced: boolean
@@ -492,6 +495,33 @@ const api = {
       userId: string,
     ): Promise<{ ok: true; message: string } | { ok: false; error: string }> => {
       return ipcRenderer.invoke('admin:deleteOfflineUser', sessionToken, userId)
+    },
+    updateOfflineUser: (
+      sessionToken: string,
+      input: {
+        id: string
+        username?: string
+        displayName?: string
+        password?: string
+        instanceQuota?: number
+        modQuota?: number
+      },
+    ): Promise<
+      | {
+          ok: true
+          message: string
+          user: {
+            id: string
+            username: string
+            uuid: string
+            displayName: string
+            instanceQuota: number
+            modQuota: number
+          }
+        }
+      | { ok: false; error: string }
+    > => {
+      return ipcRenderer.invoke('admin:updateOfflineUser', sessionToken, input)
     },
     setOfflineUnlockPassword: (
       sessionToken: string,

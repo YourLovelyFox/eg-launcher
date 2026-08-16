@@ -72,6 +72,10 @@ export type MinecraftAccount = {
   skinUrl?: string
   /** microsoft = paid MSA; offline = cracked / non-premium local account */
   type?: MinecraftAccountType
+  /** Offline-only: max instances (staff/admin override). */
+  instanceQuota?: number
+  /** Offline-only: max primary mods per instance (staff/admin override). */
+  modQuota?: number
 }
 
 export type LauncherTheme = 'dark' | 'light' | 'high-contrast'
@@ -141,6 +145,8 @@ export type OfflineAuthUser = {
   uuid: string
   displayName: string
   createdAt: string
+  instanceQuota?: number
+  modQuota?: number
 }
 
 export type OfflineAuthFile = {
@@ -427,23 +433,27 @@ export type RunningGameInfo = {
   startedAt: string | null
 }
 
-/** Launcher update status (in-app download disabled; Store / manual only) */
+/** Portable Windows GitHub zip updater */
 export type UpdateStatus =
   | { state: 'idle' }
   | { state: 'checking' }
-  | { state: 'unavailable'; currentVersion: string }
+  | { state: 'unavailable'; currentVersion: string; reason?: string }
   | {
       state: 'available'
       currentVersion: string
       version: string
+      tag: string
       releaseName: string | null
       releaseNotes: string | null
       releaseDate: string | null
+      assetName: string
+      assetSize: number
     }
   | {
       state: 'downloading'
       currentVersion: string
       version: string
+      tag: string
       percent: number
       bytesPerSecond: number
       transferred: number
@@ -453,17 +463,24 @@ export type UpdateStatus =
       state: 'ready'
       currentVersion: string
       version: string
+      tag: string
       releaseName: string | null
       releaseNotes: string | null
+    }
+  | {
+      state: 'installing'
+      currentVersion: string
+      version: string
+      tag: string
     }
   | { state: 'error'; message: string; currentVersion: string }
 
 export type AppVersionInfo = {
-  /** True when installed from Microsoft Store / WindowsApps (MSIX) */
   microsoftStore?: boolean
-  /** Always false — in-app auto-update removed */
+  /** True when this build can replace itself from a GitHub portable zip */
   selfUpdateChannel?: boolean
   version: string
+  tag?: string
   isPackaged: boolean
   platform: string
   arch: string

@@ -91,6 +91,7 @@ function catalogSiteHost(): string {
 }
 import { getSystemMemoryInfo, loadSettings, saveSettings } from './services/settings'
 import {
+  applyUpdate,
   checkForUpdates,
   downloadUpdate,
   getAppVersionInfo,
@@ -162,6 +163,7 @@ import {
   adminPublishOfflineAuth,
   getOfflinePublicStatus,
   listOfflineUsersAdmin,
+  adminUpdateOfflineUser,
   lockOfflineMode,
   loginOfflineAccount,
   offlineMultiplayerWarning,
@@ -287,7 +289,7 @@ function createWindow() {
     setNewsUpdateListener(null)
   })
 
-  // No GitHub auto-updater — Windows updates via Microsoft Store.
+  // Windows portable: check GitHub for a new zip after first paint.
   mainWindow.webContents.once('did-finish-load', () => {
     try {
       initAutoUpdater(mainWindow)
@@ -859,7 +861,6 @@ function registerIpc() {
     })
   })
 
-  // Version / open Store or releases (no in-app download/install)
   ipcMain.handle('updater:getStatus', () => getUpdateStatus())
   ipcMain.handle('updater:getVersion', () => getAppVersionInfo())
   ipcMain.handle('updater:check', async () => checkForUpdates(true))
@@ -868,6 +869,7 @@ function registerIpc() {
     installUpdate()
     return true
   })
+  ipcMain.handle('updater:apply', async () => applyUpdate())
 
   // Remote news — public mirrors; optional kind=launcher|partners, optional tag filter
   ipcMain.handle(
@@ -947,6 +949,24 @@ function registerIpc() {
       async (_e, sessionToken: string, userId: string) => {
         if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
         return adminDeleteOfflineUser(userId)
+      },
+    )
+    ipcMain.handle(
+      'admin:updateOfflineUser',
+      async (
+        _e,
+        sessionToken: string,
+        input: {
+          id: string
+          username?: string
+          displayName?: string
+          password?: string
+          instanceQuota?: number
+          modQuota?: number
+        },
+      ) => {
+        if (!requireAdmin(sessionToken)) return { ok: false as const, error: 'Not authenticated' }
+        return adminUpdateOfflineUser(input)
       },
     )
     ipcMain.handle(

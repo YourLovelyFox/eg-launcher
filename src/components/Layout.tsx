@@ -10,6 +10,7 @@ import {
   RELEASE_CHANNEL_LABEL,
 } from '../../shared/branding'
 import type { PartnerDefinition } from '../../shared/branding'
+import type { UpdateStatus } from '../../shared/types'
 import appIcon from '../assets/app-icon.png'
 import horizonsIcon from '../assets/horizons-smp.png'
 import {
@@ -64,6 +65,8 @@ export function Layout() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [partnerUnread, setPartnerUnread] = useState<Record<string, boolean>>({})
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
+  const [applyingUpdate, setApplyingUpdate] = useState(false)
   /** Nested dragenter/leave counter — avoids a stuck full-screen overlay that blocks clicks. */
   const dragDepthRef = useRef(0)
   const accountMenuRef = useRef<HTMLDivElement | null>(null)
@@ -168,6 +171,11 @@ export function Layout() {
       window.clearInterval(id)
     }
   }, [partners])
+
+  useEffect(() => {
+    window.hive.updater.getStatus().then(setUpdateStatus).catch(() => undefined)
+    return window.hive.updater.onStatus(setUpdateStatus)
+  }, [])
 
   // Ctrl+K or / → Browse search
   useEffect(() => {
@@ -640,6 +648,41 @@ export function Layout() {
       </aside>
 
       <main className="main">
+        {(updateStatus.state === 'available' ||
+          updateStatus.state === 'downloading' ||
+          updateStatus.state === 'ready' ||
+          updateStatus.state === 'installing') && (
+          <div className="update-banner">
+            <div>
+              <strong>
+                {updateStatus.state === 'downloading'
+                  ? `Downloading ${updateStatus.tag}… ${Math.round(updateStatus.percent)}%`
+                  : updateStatus.state === 'installing'
+                    ? 'Replacing files and restarting…'
+                    : `Update ${updateStatus.tag} available`}
+              </strong>
+              <span>
+                {updateStatus.state === 'ready'
+                  ? 'The zip is ready. The launcher will close, replace its files, and reopen.'
+                  : 'Downloads the GitHub zip, replaces this folder, then restarts.'}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={applyingUpdate || updateStatus.state === 'downloading' || updateStatus.state === 'installing'}
+              onClick={() => {
+                setApplyingUpdate(true)
+                void window.hive.updater.apply().catch((err: Error) => {
+                  showToast('error', err.message)
+                  setApplyingUpdate(false)
+                })
+              }}
+            >
+              {updateStatus.state === 'downloading' ? 'Downloading…' : 'Update & restart'}
+            </button>
+          </div>
+        )}
         {!loggedIn && (
           <div className="login-banner">
             <div>

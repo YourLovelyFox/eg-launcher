@@ -8,8 +8,7 @@
 function eg_faq_items(): array
 {
     $github = (string) cfg('github_url', 'https://github.com/YourLovelyFox/eg-launcher');
-    $releases = (string) cfg('github_releases', $github . '/releases/latest');
-    $store = (string) cfg('store_url', 'https://apps.microsoft.com/detail/9P32SFSJH9B1');
+    $releases = (string) cfg('github_releases', $github . '/releases');
     $site = rtrim((string) cfg('site_url', 'https://eg-launcher.xyz'), '/');
     $discord = (string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5');
     $info = (string) cfg('contact_email', 'info@eg-launcher.xyz');
@@ -34,23 +33,24 @@ function eg_faq_items(): array
                 "• Auto **Mojang JRE** when a version needs a newer runtime\n" .
                 "• Enable / disable / remove mods and update checks\n" .
                 "• Featured packs & partners, in-app news\n" .
-                "• **Linux AppImage** (GitHub) · **Windows** via Microsoft Store\n\n" .
+                "• **Windows release soon** · GitHub **beta** (Windows build + Linux AppImage)\n\n" .
                 "Source: {$github}",
         ],
         [
             'id' => 'download',
             'q' => 'Where do I download it?',
             'a' =>
-                "**Linux:** AppImage from GitHub Releases — {$releases}\n" .
-                "**Windows:** Microsoft Store — {$store}\n" .
+                "**Windows release soon.** Until the official Windows release, install a **beta** from GitHub.\n" .
+                "**Windows beta** and **Linux AppImage:** {$releases}\n" .
                 "Always use official links only (website, GitHub, or this Discord).",
         ],
         [
             'id' => 'no-setup-exe',
-            'q' => 'Why is there no Windows setup.exe on GitHub?',
+            'q' => 'Is the Windows release out yet?',
             'a' =>
-                'Windows GitHub installers were discontinued because of Smart App Control / SmartScreen false positives. ' .
-                'The official Windows path is the **Microsoft Store**. Do not use third-party setups claiming to be EG Launcher.',
+                '**Windows release soon.** The official Windows release is not out yet. ' .
+                "Until then you can install a **beta** from GitHub Releases — a Windows build or the Linux AppImage ({$releases}). " .
+                'Do not use third-party setups claiming to be EG Launcher.',
         ],
         [
             'id' => 'website',

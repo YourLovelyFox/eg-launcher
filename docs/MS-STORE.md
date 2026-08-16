@@ -1,6 +1,6 @@
 # Microsoft Store (AppX / MSIX) — EG Launcher
 
-**Official Windows distribution.** Public GitHub Releases no longer ship Windows `setup.exe` (SAC). Linux AppImage remains on GitHub.
+> **Not used.** EG Launcher has **no Microsoft Store listing**. Windows downloads are the GitHub portable BETA zip. This file is leftover Partner Center notes only.
 
 Store listing: https://apps.microsoft.com/detail/9P32SFSJH9B1  
 Product identity (Partner Center):
