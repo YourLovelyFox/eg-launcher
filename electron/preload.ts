@@ -300,7 +300,7 @@ const api = {
     getVersion: (): Promise<AppVersionInfo> => ipcRenderer.invoke('updater:getVersion'),
     check: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:check'),
     download: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:download'),
-    install: (): Promise<boolean> => ipcRenderer.invoke('updater:install'),
+    install: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:install'),
     apply: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:apply'),
     onStatus: (cb: (status: UpdateStatus) => void): (() => void) => {
       const listener = (_: unknown, status: UpdateStatus) => cb(status)

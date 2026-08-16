@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, dialog, shell } from 'electron'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import https from 'https'
@@ -45,7 +45,7 @@ type PendingRelease = {
 let lastStatus: UpdateStatus = { state: 'idle' }
 let updaterWin: BrowserWindow | null = null
 let pending: PendingRelease | null = null
-let extractedDir: string | null = null
+let pendingZip: string | null = null
 let checkTimer: ReturnType<typeof setTimeout> | null = null
 
 function currentVersion(): string {
@@ -243,29 +243,42 @@ function extractZip(zipPath: string, dest: string): Promise<void> {
   })
 }
 
-function writeApplyScript(appDir: string, newDir: string, exeName: string, pid: number): string {
-  const script = path.join(os.tmpdir(), `eg-apply-update-${Date.now()}.cmd`)
+/** After the launcher exits: unzip into the same folder, then tell the user to reopen. Never auto-starts. */
+function writeUnzipAndPromptScript(appDir: string, zipPath: string, pid: number): string {
+  const script = path.join(os.tmpdir(), `eg-unzip-update-${Date.now()}.cmd`)
+  const tar = process.env.SystemRoot
+    ? path.join(process.env.SystemRoot, 'System32', 'tar.exe')
+    : 'tar'
   const body = [
     '@echo off',
-    'setlocal',
+    'setlocal EnableExtensions',
     `set "APPDIR=${appDir}"`,
-    `set "NEWDIR=${newDir}"`,
-    `set "EXENAME=${exeName}"`,
+    `set "ZIP=${zipPath}"`,
     `set "OLDPID=${pid}"`,
+    `set "TAR=${tar}"`,
     ':wait',
     'timeout /t 1 /nobreak >nul',
     'tasklist /FI "PID eq %OLDPID%" | find "%OLDPID%" >nul',
     'if not errorlevel 1 goto wait',
     'timeout /t 2 /nobreak >nul',
-    'where robocopy >nul 2>&1',
-    'if %ERRORLEVEL%==0 (',
-    '  robocopy "%NEWDIR%" "%APPDIR%" /E /R:3 /W:1 /NFL /NDL /NJH /NJS /NP',
-    ') else (',
-    '  xcopy /E /Y /Q /I "%NEWDIR%\\*" "%APPDIR%\\"',
+    'if not exist "%ZIP%" goto fail',
+    '"%TAR%" -xf "%ZIP%" -C "%APPDIR%"',
+    'if errorlevel 1 goto fail',
+    'if exist "%APPDIR%\\EG Launcher.exe" goto ok',
+    'for /d %%D in ("%APPDIR%\\*") do (',
+    '  if exist "%%D\\EG Launcher.exe" (',
+    '    robocopy "%%D" "%APPDIR%" /E /MOVE /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul',
+    '  )',
     ')',
-    'start "" "%APPDIR%\\%EXENAME%"',
-    'rmdir /s /q "%NEWDIR%" 2>nul',
-    'del "%~f0"',
+    'if exist "%APPDIR%\\EG Launcher.exe" goto ok',
+    ':fail',
+    'powershell -NoProfile -STA -WindowStyle Hidden -Command "Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show(\'Could not unzip the update into the launcher folder.\',\'EG Launcher\')"',
+    'goto cleanup',
+    ':ok',
+    'powershell -NoProfile -STA -WindowStyle Hidden -Command "Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show(\'Update installed. Please reopen EG Launcher.\',\'EG Launcher\')"',
+    ':cleanup',
+    'if exist "%ZIP%" del /f /q "%ZIP%" >nul 2>&1',
+    'del /f /q "%~f0" >nul 2>&1',
     '',
   ].join('\r\n')
   fs.writeFileSync(script, body, 'utf8')
@@ -368,7 +381,7 @@ export async function checkForUpdates(manual = false): Promise<UpdateStatus> {
       })
     }
     pending = next
-    extractedDir = null
+    pendingZip = null
     return emit({
       state: 'available',
       currentVersion: local.version,
@@ -446,11 +459,11 @@ export async function downloadUpdate(): Promise<UpdateStatus> {
     await extractZip(zipPath, unpack)
     const exe = findExe(unpack)
     if (!exe) throw new Error('Downloaded zip did not contain EG Launcher.exe')
-    extractedDir = path.dirname(exe)
+    pendingZip = zipPath
     try {
-      fs.unlinkSync(zipPath)
+      fs.rmSync(unpack, { recursive: true, force: true })
     } catch {
-      /* keep going */
+      /* zip is enough */
     }
     return emit({
       state: 'ready',
@@ -469,35 +482,64 @@ export async function downloadUpdate(): Promise<UpdateStatus> {
   }
 }
 
-export function installUpdate(): void {
-  if (!canSelfUpdate() || !pending || !extractedDir) return
+export async function installUpdate(): Promise<UpdateStatus> {
+  if (!canSelfUpdate() || !pending || !pendingZip || !fs.existsSync(pendingZip)) {
+    return emit({
+      state: 'error',
+      message: 'Download the update first.',
+      currentVersion: currentVersion(),
+    })
+  }
   if (getRunningGameInfo().running) {
-    emit({
+    return emit({
       state: 'error',
       message: 'Close Minecraft first, then update.',
       currentVersion: currentVersion(),
     })
-    return
   }
   const appDir = path.dirname(app.getPath('exe'))
-  const exeName = path.basename(app.getPath('exe'))
   try {
     fs.accessSync(appDir, fs.constants.W_OK)
   } catch {
-    emit({
+    return emit({
       state: 'error',
-      message: 'Cannot write to the launcher folder. Move the portable folder somewhere you own (for example Desktop) and try again.',
+      message:
+        'Cannot write to the launcher folder. Move the portable folder somewhere you own (for example Desktop) and try again.',
       currentVersion: currentVersion(),
     })
-    return
   }
+
+  const opts = {
+    type: 'info' as const,
+    title: 'EG Launcher update',
+    message: 'The launcher will close now',
+    detail:
+      'The new zip will be unzipped into this same folder. After the launcher closes, open EG Launcher again yourself.',
+    buttons: ['Close launcher', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  }
+  const win = updaterWin && !updaterWin.isDestroyed() ? updaterWin : null
+  const choice = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts)
+  if (choice.response !== 0) {
+    return emit({
+      state: 'ready',
+      currentVersion: currentVersion(),
+      version: pending.version,
+      tag: pending.tag,
+      releaseName: pending.releaseName,
+      releaseNotes: pending.releaseNotes,
+    })
+  }
+
   emit({
     state: 'installing',
     currentVersion: currentVersion(),
     version: pending.version,
     tag: pending.tag,
   })
-  const script = writeApplyScript(appDir, extractedDir, exeName, process.pid)
+  const script = writeUnzipAndPromptScript(appDir, pendingZip, process.pid)
   const child = spawn('cmd.exe', ['/d', '/c', script], {
     detached: true,
     stdio: 'ignore',
@@ -507,11 +549,11 @@ export function installUpdate(): void {
   setTimeout(() => {
     app.quit()
   }, 400)
+  return lastStatus
 }
 
 export async function applyUpdate(): Promise<UpdateStatus> {
   const ready = lastStatus.state === 'ready' ? lastStatus : await downloadUpdate()
-  if (ready.state === 'error') return ready
-  installUpdate()
-  return lastStatus
+  if (ready.state === 'error' || ready.state !== 'ready') return ready
+  return installUpdate()
 }

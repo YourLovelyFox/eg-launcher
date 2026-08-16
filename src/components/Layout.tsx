@@ -658,13 +658,13 @@ export function Layout() {
                 {updateStatus.state === 'downloading'
                   ? `Downloading ${updateStatus.tag}… ${Math.round(updateStatus.percent)}%`
                   : updateStatus.state === 'installing'
-                    ? 'Replacing files and restarting…'
+                    ? 'Unzipping into this folder, then closing…'
                     : `Update ${updateStatus.tag} available`}
               </strong>
               <span>
                 {updateStatus.state === 'ready'
-                  ? 'The zip is ready. The launcher will close, replace its files, and reopen.'
-                  : 'Downloads the GitHub zip, replaces this folder, then restarts.'}
+                  ? 'The zip is ready. It will unzip into this folder, then the launcher closes — open it again yourself.'
+                  : 'Downloads the GitHub zip, unzips it here, then closes. Reopen EG Launcher yourself.'}
               </span>
             </div>
             <button
@@ -673,13 +673,22 @@ export function Layout() {
               disabled={applyingUpdate || updateStatus.state === 'downloading' || updateStatus.state === 'installing'}
               onClick={() => {
                 setApplyingUpdate(true)
-                void window.hive.updater.apply().catch((err: Error) => {
-                  showToast('error', err.message)
-                  setApplyingUpdate(false)
-                })
+                void window.hive.updater
+                  .apply()
+                  .then((status) => {
+                    if (status.state !== 'installing') setApplyingUpdate(false)
+                  })
+                  .catch((err: Error) => {
+                    showToast('error', err.message)
+                    setApplyingUpdate(false)
+                  })
               }}
             >
-              {updateStatus.state === 'downloading' ? 'Downloading…' : 'Update & restart'}
+              {updateStatus.state === 'downloading'
+                ? 'Downloading…'
+                : updateStatus.state === 'ready'
+                  ? 'Install & close'
+                  : 'Download update'}
             </button>
           </div>
         )}
