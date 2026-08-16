@@ -6,6 +6,27 @@ Format: each release section is published as the GitHub Release body.
 
 ---
 
+## [2.7.5] — 2026-08-16
+
+### Added
+- **Edit installed instances**: change Minecraft version, mod loader, and loader build from the instance page, then Save & reinstall.
+- After a loader or game-version change, the launcher **detects incompatible mods**, auto-disables them, and uses the same **Update Mods** flow for mods that have a matching build.
+- **Staff / Admin**: raise or lower per-offline-account instance and mod quotas, and edit those offline accounts.
+- **In-app updater** for the Windows portable build: checks GitHub Releases for a newer portable zip and can apply it.
+
+### Changed
+- GitHub **Latest** release (not a pre-release). The Windows portable zip still ships as **BETA** and keeps the in-app **BETA** badges.
+- FAQ and docs no longer point at the Microsoft Store. Windows downloads are the portable BETA zip.
+
+### Notes
+- This Windows zip is an **unsigned BETA**. SmartScreen / Smart App Control may warn. Unzip and run `EG Launcher.exe`.
+
+### Downloads
+- Windows: `EG-Launcher-2.7.5-win-x64-portable-BETA.zip`
+- Linux: `EG-Launcher-2.7.5-linux-x86_64.AppImage`
+
+---
+
 ## [2.7.4-beta.1] — 2026-08-15
 
 ### Added

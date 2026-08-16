@@ -3,17 +3,15 @@ export const APP_NAME = 'EG'
 export const APP_TAGLINE = 'Launcher'
 export const APP_FULL_NAME = 'EG Launcher'
 /** Display version — keep in sync with package.json for UI; runtime uses app.getVersion(). */
-export const APP_VERSION = '2.7.4'
+export const APP_VERSION = '2.7.5'
 
-/** Optional Store listing (when live). Primary distribution is GitHub Releases. */
-export const MS_STORE_PRODUCT_ID = '9P32SFSJH9B1'
-export const MS_STORE_URL = `https://apps.microsoft.com/detail/${MS_STORE_PRODUCT_ID}`
-export const MS_STORE_PROTOCOL_URL = `ms-windows-store://pdp/?productid=${MS_STORE_PRODUCT_ID}`
-export const GITHUB_RELEASES_URL = 'https://github.com/YourLovelyFox/eg-launcher/releases/latest'
+export const GITHUB_OWNER = 'YourLovelyFox'
+export const GITHUB_REPO = 'eg-launcher'
+export const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`
 
 /**
  * Portable / GitHub Windows zip is built with EG_BETA=1 (Vite `__EG_BETA__`).
- * Store and normal `npm run build` stay Stable (no badge).
+ * Normal `npm run build` stays Stable (no badge).
  */
 declare const __EG_BETA__: boolean | undefined
 export const IS_PRE_RELEASE = typeof __EG_BETA__ !== 'undefined' && __EG_BETA__ === true

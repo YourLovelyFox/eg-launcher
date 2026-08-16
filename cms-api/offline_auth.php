@@ -64,8 +64,10 @@ try {
         if ($u === '' || $p === '') {
             json_fail('Enter username and password', 400);
         }
+        ensure_offline_user_quotas($pdo);
         $stmt = $pdo->prepare(
-            'SELECT id, username, password_hash, uuid, display_name FROM offline_users
+            'SELECT id, username, password_hash, uuid, display_name, instance_quota, mod_quota
+             FROM offline_users
              WHERE LOWER(username) = LOWER(?) LIMIT 1'
         );
         $stmt->execute([$u]);
@@ -99,15 +101,19 @@ try {
                 'uuid' => str_replace('-', '', $rec['uuid']),
                 'displayName' => $rec['display_name'],
                 'type' => 'offline',
+                'instanceQuota' => (int) ($rec['instance_quota'] ?? 2),
+                'modQuota' => (int) ($rec['mod_quota'] ?? 10),
             ],
         ]);
     }
 
     if ($action === 'list' && $method === 'GET') {
         require_staff_member();
+        ensure_offline_user_quotas($pdo);
         $s = $pdo->query('SELECT unlock_password_hash FROM offline_settings WHERE id = 1')->fetch();
         $users = $pdo->query(
-            'SELECT id, username, uuid, display_name, created_at FROM offline_users ORDER BY username'
+            'SELECT id, username, uuid, display_name, created_at, instance_quota, mod_quota
+             FROM offline_users ORDER BY username'
         )->fetchAll();
         $out = [];
         foreach ($users as $u) {
@@ -117,6 +123,8 @@ try {
                 'uuid' => $u['uuid'],
                 'displayName' => $u['display_name'],
                 'createdAt' => iso_date($u['created_at']),
+                'instanceQuota' => (int) ($u['instance_quota'] ?? 2),
+                'modQuota' => (int) ($u['mod_quota'] ?? 10),
             ];
         }
         json_out([
@@ -202,6 +210,101 @@ try {
         }
         $pdo->prepare('DELETE FROM offline_users WHERE id = ?')->execute([$id]);
         json_out(['ok' => true, 'message' => 'User deleted']);
+    }
+
+    if ($action === 'update_user' && $method === 'POST') {
+        $staff = require_staff_member();
+        ensure_offline_user_quotas($pdo);
+        $body = json_body();
+        $id = trim((string) ($body['id'] ?? ''));
+        if ($id === '') {
+            json_fail('id required', 400);
+        }
+        $stmt = $pdo->prepare(
+            'SELECT id, username, uuid, display_name, instance_quota, mod_quota
+             FROM offline_users WHERE id = ? LIMIT 1'
+        );
+        $stmt->execute([$id]);
+        $rec = $stmt->fetch();
+        if (!$rec) {
+            json_fail('User not found', 404);
+        }
+
+        $username = array_key_exists('username', $body)
+            ? trim((string) $body['username'])
+            : (string) $rec['username'];
+        $display = array_key_exists('displayName', $body)
+            ? trim((string) $body['displayName'])
+            : (string) $rec['display_name'];
+        $password = (string) ($body['password'] ?? '');
+
+        if (strlen($username) < 3 || strlen($username) > 16 || !preg_match('/^[A-Za-z0-9_]+$/', $username)) {
+            json_fail('Username must be 3–16 letters, numbers, underscores', 400);
+        }
+        if ($display === '') {
+            $display = $username;
+        }
+        if (strlen($display) > 64) {
+            json_fail('Display name is too long', 400);
+        }
+        if ($password !== '' && strlen($password) < 8) {
+            json_fail('Password must be at least 8 characters', 400);
+        }
+
+        $instanceQuota = (int) ($rec['instance_quota'] ?? 2);
+        $modQuota = (int) ($rec['mod_quota'] ?? 10);
+        $wantsQuota =
+            array_key_exists('instanceQuota', $body) || array_key_exists('modQuota', $body);
+        if ($wantsQuota && ($staff['role'] ?? '') !== 'admin') {
+            json_fail('Only admins can change instance or mod quotas', 403);
+        }
+        if (array_key_exists('instanceQuota', $body)) {
+            $instanceQuota = max(0, min(999, (int) $body['instanceQuota']));
+        }
+        if (array_key_exists('modQuota', $body)) {
+            $modQuota = max(0, min(999, (int) $body['modQuota']));
+        }
+
+        $uuid = (string) $rec['uuid'];
+        if (strcasecmp($username, (string) $rec['username']) !== 0) {
+            $md5 = md5('OfflinePlayer:' . $username, true);
+            $md5[6] = chr((ord($md5[6]) & 0x0f) | 0x30);
+            $md5[8] = chr((ord($md5[8]) & 0x3f) | 0x80);
+            $hex = bin2hex($md5);
+            $uuid = substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-' . substr($hex, 12, 4) . '-' . substr($hex, 16, 4) . '-' . substr($hex, 20, 12);
+        }
+
+        try {
+            if ($password !== '') {
+                $hash = hash_password_secure($password);
+                $pdo->prepare(
+                    'UPDATE offline_users
+                     SET username = ?, display_name = ?, uuid = ?, instance_quota = ?, mod_quota = ?, password_hash = ?
+                     WHERE id = ?'
+                )->execute([$username, $display, $uuid, $instanceQuota, $modQuota, $hash, $id]);
+            } else {
+                $pdo->prepare(
+                    'UPDATE offline_users
+                     SET username = ?, display_name = ?, uuid = ?, instance_quota = ?, mod_quota = ?
+                     WHERE id = ?'
+                )->execute([$username, $display, $uuid, $instanceQuota, $modQuota, $id]);
+            }
+        } catch (PDOException $e) {
+            json_fail('That username already exists', 409);
+        }
+
+        json_out([
+            'ok' => true,
+            'message' => "Updated “{$username}”",
+            'user' => [
+                'id' => $id,
+                'username' => $username,
+                'uuid' => $uuid,
+                'displayName' => $display,
+                'instanceQuota' => $instanceQuota,
+                'modQuota' => $modQuota,
+            ],
+        ]);
     }
 
     json_fail('Unknown action', 400);

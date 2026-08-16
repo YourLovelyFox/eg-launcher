@@ -265,3 +265,16 @@ export function loaderLabel(loader: string): string {
       return loader
   }
 }
+
+export function loaderIconColor(loader: string): string {
+  switch (loader) {
+    case 'fabric':
+      return '#dbb69b'
+    case 'forge':
+      return '#d2943e'
+    case 'neoforge':
+      return '#f16436'
+    default:
+      return '#1bd96a'
+  }
+}

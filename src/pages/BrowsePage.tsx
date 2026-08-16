@@ -227,11 +227,12 @@ export function BrowsePage() {
     search({ page: target })
   }
 
-  function actionForHit(projectId: string): 'install' | 'update' | 'installed' {
+  function actionForHit(projectId: string): 'install' | 'update' | 'installed' | 'incompatible' {
     const mod = installedByProject.get(projectId)
     if (!mod) return 'install'
     const info = updateInfo[projectId]
     if (!info) return 'installed' // checking / not loaded yet — don't show false Update
+    if (info.incompatible) return 'incompatible'
     return info.hasUpdate ? 'update' : 'installed'
   }
 
@@ -284,6 +285,7 @@ export function BrowsePage() {
           [hit.project_id]: {
             projectId: hit.project_id,
             hasUpdate: false,
+            incompatible: false,
             latestVersionId: best.id,
             latestVersionNumber: best.version_number,
             installedVersionId: existing.versionId,
@@ -530,6 +532,9 @@ export function BrowsePage() {
                           {info?.latestVersionNumber ? ` ${info.latestVersionNumber}` : ''}
                         </span>
                       )}
+                      {action === 'incompatible' && (
+                        <span className="badge badge-red">Incompatible</span>
+                      )}
                       <span className="badge-row">
                         {(hit.display_categories || hit.categories).slice(0, 2).map((c) => (
                           <span key={c} className="badge">
@@ -560,6 +565,15 @@ export function BrowsePage() {
                       }
                     >
                       Installed
+                    </button>
+                  ) : action === 'incompatible' ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled
+                      title="No catalog build matches this instance's loader and Minecraft version"
+                    >
+                      Incompatible
                     </button>
                   ) : (
                     <button

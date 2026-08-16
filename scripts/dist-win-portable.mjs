@@ -3,10 +3,19 @@
  * Output: release/EG-Launcher-<version>-win-x64-portable-BETA.zip
  */
 import { spawn } from 'child_process'
+import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+const tag = process.env.EG_RELEASE_TAG || `v${pkg.version}`
+fs.writeFileSync(
+  path.join(root, 'build', 'update-info.json'),
+  JSON.stringify({ tag, version: pkg.version, channel: 'portable' }, null, 2) + '\n',
+  'utf8',
+)
+console.log(`update-info.json → ${tag}`)
 
 function run(cmd, args, extraEnv = {}) {
   return new Promise((resolve, reject) => {

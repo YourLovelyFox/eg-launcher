@@ -93,6 +93,8 @@ export async function cmsOfflineLogin(
         uuid: string
         displayName: string
         type: 'offline'
+        instanceQuota?: number
+        modQuota?: number
       }
     }
   | { ok: false; error: string }
@@ -104,6 +106,8 @@ export async function cmsOfflineLogin(
         username: string
         uuid: string
         displayName: string
+        instanceQuota?: number
+        modQuota?: number
       }
       error?: string
     }>({
@@ -120,6 +124,8 @@ export async function cmsOfflineLogin(
         uuid: r.account.uuid,
         displayName: r.account.displayName,
         type: 'offline',
+        instanceQuota: r.account.instanceQuota,
+        modQuota: r.account.modQuota,
       },
     }
   } catch (err) {
@@ -142,6 +148,8 @@ export async function cmsListOfflineUsersAdmin(sessionToken?: string | null): Pr
       uuid: string
       displayName: string
       createdAt: string
+      instanceQuota?: number
+      modQuota?: number
     }>
     unlockPasswordConfigured?: boolean
   }>({
@@ -156,6 +164,8 @@ export async function cmsListOfflineUsersAdmin(sessionToken?: string | null): Pr
     uuid: u.uuid,
     displayName: u.displayName,
     createdAt: u.createdAt,
+    instanceQuota: u.instanceQuota,
+    modQuota: u.modQuota,
   }))
   return {
     ok: true,
@@ -217,6 +227,54 @@ export async function cmsDeleteOfflineUser(
       body: { id, sessionToken: staffTok || undefined },
     })
     return { ok: true, message: r.message || 'User deleted' }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+}
+
+export async function cmsUpdateOfflineUser(input: {
+  id: string
+  username?: string
+  displayName?: string
+  password?: string
+  instanceQuota?: number
+  modQuota?: number
+}): Promise<
+  | {
+      ok: true
+      message: string
+      user: {
+        id: string
+        username: string
+        uuid: string
+        displayName: string
+        instanceQuota: number
+        modQuota: number
+      }
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    const staffTok = getStaffSessionToken()
+    const r = await cmsRequest<{
+      message?: string
+      user?: {
+        id: string
+        username: string
+        uuid: string
+        displayName: string
+        instanceQuota: number
+        modQuota: number
+      }
+    }>({
+      path: 'offline_auth.php?action=update_user',
+      method: 'POST',
+      admin: true,
+      sessionToken: staffTok,
+      body: { ...input, sessionToken: staffTok || undefined },
+    })
+    if (!r.user) return { ok: false, error: r.message || 'Update failed' }
+    return { ok: true, message: r.message || 'User updated', user: r.user }
   } catch (err) {
     return { ok: false, error: (err as Error).message }
   }

@@ -17,13 +17,13 @@ A **portable BETA** zip is on GitHub Releases (prerelease, not the Store build):
 3. Unzip it and run **`EG Launcher.exe`**.
 4. Windows SmartScreen / Smart App Control may warn — this BETA is **unsigned**. Use **More info → Run anyway** only if you trust this GitHub repo.
 
-The launcher shows a purple **BETA** badge. This is **not** the Microsoft Store version.
+The launcher shows a purple **BETA** badge. This is a GitHub portable build.
 
 ---
 
 ## Windows users: build the launcher yourself (easy guide)
 
-> **Why this exists:** We **don’t** put a Windows **installer** (`setup.exe`) on GitHub. Smart App Control / SmartScreen often blocks unsigned apps that change every release. The Microsoft Store version is coming later. A **portable BETA zip** is the only Windows binary we publish here.  
+> **Why this exists:** We **don’t** put a Windows **installer** (`setup.exe`) on GitHub. Smart App Control / SmartScreen often blocks unsigned apps that change every release. A **portable BETA zip** is the Windows binary we publish here.  
 > **Please don’t** download EG Launcher `.exe` files from random websites.
 
 You only need to do this **once** (or when you want an update). Copy and paste the commands — you don’t need to understand programming.
@@ -219,7 +219,7 @@ Then run the new **setup** in the `release` folder again (same install steps). Y
 
 - This guide is for **building on your own computer**.  
 - **Do not** share your `setup.exe` as an “official download” for other people — every rebuild looks like a new unknown file to Windows.  
-- When the **Microsoft Store** version is out, that will be the simple path for most players.  
+- Official downloads are **GitHub Releases** only (Windows portable BETA + Linux AppImage).  
 - More technical background: [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md)
 
 ---
@@ -228,14 +228,14 @@ Then run the new **setup** in the `release` folder again (same install steps). Y
 >
 > | Platform | Status |
 > | --- | --- |
-> | **Windows** | **Build it yourself** using the [easy guide above](#windows-users-build-the-launcher-yourself-easy-guide). No public `setup.exe` on GitHub. Store coming later. |
+> | **Windows** | **[Portable BETA zip](https://github.com/YourLovelyFox/eg-launcher/releases)** on GitHub, or [build it yourself](#windows-users-build-the-launcher-yourself-easy-guide). |
 > | **Linux** | **[GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest)** — **AppImage only** (available now) |
 >
 > Please do **not** trust random third-party Windows setups.
 
 | | |
 | --- | --- |
-| **Windows** | [Build yourself (easy guide)](#windows-users-build-the-launcher-yourself-easy-guide) · Store pending |
+| **Windows** | [GitHub portable BETA](https://github.com/YourLovelyFox/eg-launcher/releases) · [build yourself](#windows-users-build-the-launcher-yourself-easy-guide) |
 | **Linux** | [GitHub Releases (AppImage)](https://github.com/YourLovelyFox/eg-launcher/releases/latest) |
 | **Changelog** | [CHANGELOG.md](./CHANGELOG.md) |
 | **Privacy** | [PRIVACY.md](./PRIVACY.md) |
@@ -253,21 +253,17 @@ Then run the new **setup** in the `release` folder again (same install steps). Y
 - Enable / disable / remove mods; update checks on installed mods  
 - Featured pack: **Bee's SMP** (manual install, news & changelogs from the mod catalog)  
 - **Partners** from CMS (staff-managed)  
-- **Updates**  
-  - **Windows (Microsoft Store):** updates via the Store only (once the listing is published)  
-  - **Linux (GitHub AppImage):** optional in-app updates from GitHub Releases  
+- **Updates:** Windows portable checks GitHub, downloads the zip, replaces its folder, and restarts. Linux: download a new AppImage.
 
 ---
 
 ## Download (end users)
 
-### Windows → build it yourself (Store pending)
+### Windows → GitHub portable BETA
 
-GitHub no longer distributes Windows `setup.exe` files (SAC / SmartScreen).
+Download `EG-Launcher-*-win-x64-portable-BETA.zip` from **[GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases)**, unzip, run `EG Launcher.exe`.
 
-**Right now:** use the friendly guide at the top: **[Windows users: build the launcher yourself](#windows-users-build-the-launcher-yourself-easy-guide)** (install Node + Git → build → install → allow in Windows Security).
-
-**Later:** the **Microsoft Store** will be the simple one-click path once publishing finishes. We will update this README when it’s live.
+Or [build it yourself](#windows-users-build-the-launcher-yourself-easy-guide). There is **no** Microsoft Store listing and **no** public `setup.exe`.
 
 Do not use third-party Windows builds.
 
@@ -455,7 +451,7 @@ Also:
 
 ### Updates
 
-There is **no in-app auto-updater**. On **Windows**, install and update via the **Microsoft Store**. On **Linux**, download a new AppImage from GitHub Releases when you want to upgrade.
+There is **no in-app auto-updater**. Download a new **Windows portable zip** or **Linux AppImage** from GitHub Releases when you want to upgrade.
 
 ---
 
@@ -475,7 +471,7 @@ Instances, accounts, mods, and caches live under that folder.
 - **Electron** + **Vite** + **React** + **TypeScript**  
 - mod catalog REST API v2  
 - Mojang / Fabric / Forge / NeoForge metadata  
-- Microsoft Store updates on Windows; Linux AppImage from GitHub Releases (manual)  
+- GitHub Releases for Windows portable BETA and Linux AppImage (manual)  
 
 
 ---

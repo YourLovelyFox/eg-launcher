@@ -1011,7 +1011,9 @@ export function AdminPage() {
       </div>
 
       {tab === 'partners' && <AdminPartnersPanel session={session} />}
-      {tab === 'offline' && <AdminOfflinePanel session={session} />}
+      {tab === 'offline' && (
+        <AdminOfflinePanel session={session} isAdmin={staffInfo?.role === 'admin'} />
+      )}
       {tab === 'health' && <AdminHealthPanel session={session} />}
       {tab === 'featured' && <AdminFeaturedPanel session={session} />}
       {tab === 'approvals' && <AdminApprovalsPanel session={session} />}

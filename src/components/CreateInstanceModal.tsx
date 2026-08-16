@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
-  OFFLINE_MAX_INSTANCES,
   offlineInstanceLimitMessage,
+  quotasForAccount,
 } from '../../shared/offlineLimits'
 import type { LoaderType, MinecraftVersionInfo } from '../../shared/types'
 import { loaderLabel, useAppStore } from '../store'
@@ -24,7 +24,8 @@ export function CreateInstanceModal({ open, onClose, onCreated }: Props) {
   const offlineActive = Boolean(
     active && (active.type === 'offline' || active.id.startsWith('offline-')),
   )
-  const offlineAtInstanceCap = offlineActive && instances.length >= OFFLINE_MAX_INSTANCES
+  const offlineQuotas = quotasForAccount(active)
+  const offlineAtInstanceCap = offlineActive && instances.length >= offlineQuotas.instances
 
   const [name, setName] = useState('')
   const [loader, setLoader] = useState<LoaderType>('fabric')
@@ -131,10 +132,10 @@ export function CreateInstanceModal({ open, onClose, onCreated }: Props) {
         </p>
         {offlineActive && (
           <p className="hint" style={{ color: 'var(--amber)' }}>
-            Offline account: max {OFFLINE_MAX_INSTANCES} instances
+            Offline account: max {offlineQuotas.instances} instances
             {offlineAtInstanceCap
-              ? ` — limit reached (${instances.length}/${OFFLINE_MAX_INSTANCES}). Sign in with Microsoft to create more.`
-              : ` (${instances.length}/${OFFLINE_MAX_INSTANCES} used).`}
+              ? ` — limit reached (${instances.length}/${offlineQuotas.instances}). Sign in with Microsoft to create more.`
+              : ` (${instances.length}/${offlineQuotas.instances} used).`}
           </p>
         )}
 

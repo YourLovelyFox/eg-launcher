@@ -4,8 +4,6 @@
 **Project:** [EG Launcher](https://github.com/YourLovelyFox/eg-launcher)  
 **Operator:** the maintainers of the EG Launcher open-source project  
 **Contact:** [info@eg-launcher.xyz](mailto:info@eg-launcher.xyz) · abuse reports: [abuse@eg-launcher.xyz](mailto:abuse@eg-launcher.xyz) · [GitHub Issues](https://github.com/YourLovelyFox/eg-launcher/issues)  
-**Microsoft Store product (when published):** [EG Launcher](https://apps.microsoft.com/detail/9P32SFSJH9B1)
-
 This policy describes what EG Launcher (“the app”, “we”) does with information when you install and use the desktop application and related optional online services.
 
 EG Launcher is free and open source (MIT, as stated in `package.json` / the repository). This document is provided for transparency; it is not legal advice.
@@ -29,10 +27,8 @@ EG Launcher is free and open source (MIT, as stated in `package.json` / the repo
 
 | Platform | How you get the app / updates |
 | -------- | ----------------------------- |
-| **Windows** | **Microsoft Store** is the official channel. There is **no** public Windows `setup.exe` on GitHub (Smart App Control / SmartScreen). Store builds do **not** use an in-app auto-updater; the Store delivers app updates. |
-| **Linux** | **GitHub Releases** — AppImage only. Users download a new AppImage when they want a newer version. |
-
-A Store `.appx` package may appear on a GitHub Release for **Partner Center / certification** use. That is not a general Windows installer and is not the recommended install path for end users once the Store listing is live.
+| **Windows** | **GitHub Releases** — portable BETA zip (`EG-Launcher-*-win-x64-portable-BETA.zip`). There is **no** Microsoft Store listing and **no** public `setup.exe`. |
+| **Linux** | **GitHub Releases** — AppImage. Users download a new AppImage when they want a newer version. |
 
 ---
 
@@ -78,8 +74,7 @@ Depending on features you use, the app may send network requests to:
 | **Microsoft / Xbox Live / Minecraft services** | Login, profile, ownership, launch | Auth tokens, account/profile identifiers |
 | **Mojang / Microsoft game CDN** | Game versions, assets, Java runtime downloads | Version metadata, download requests |
 | **Third-party mod catalog API** | Search and metadata for Minecraft content; file downloads you choose to add to a local instance | Search queries, project/version IDs, IP as seen by that provider |
-| **[GitHub](https://github.com/)** | Linux AppImage downloads; optional version metadata for non-Store channels | Download requests, IP as seen by GitHub |
-| **Microsoft Store** | Install and update the Windows app when you use the Store | Per Microsoft’s Store / account policies |
+| **[GitHub](https://github.com/)** | Windows portable BETA and Linux AppImage downloads | Download requests, IP as seen by GitHub |
 | **EG Launcher CMS** (`client116.ddns.net` or configured API base) | News, partners, featured packs, ads unit, staff/admin APIs | See §6 |
 | **Minecraft multiplayer servers** | Server status / join addresses you choose | Server hostname, your game connection (standard Minecraft) |
 
@@ -132,8 +127,7 @@ If ads are enabled in a future build:
 
 ## 8. Updates
 
-- **Windows (Microsoft Store):** updates via the Store only. The Store build does **not** run a third-party in-app auto-updater.
-- **Linux (GitHub AppImage):** no forced auto-update; download a newer AppImage from Releases when you choose.
+- **Windows and Linux:** no in-app auto-updater. Download a newer portable zip or AppImage from GitHub Releases when you choose.
 
 ---
 
@@ -206,7 +200,6 @@ We may update this policy by editing `PRIVACY.md` in the repository and changing
 | **Abuse / security / misuse reports** | [abuse@eg-launcher.xyz](mailto:abuse@eg-launcher.xyz) |
 | **GitHub Issues** | https://github.com/YourLovelyFox/eg-launcher/issues |
 | **Repository** | https://github.com/YourLovelyFox/eg-launcher |
-| **Store listing (when live)** | https://apps.microsoft.com/detail/9P32SFSJH9B1 |
 
 For partners or app stores that require a privacy policy URL, use:
 
