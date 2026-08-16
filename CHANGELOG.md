@@ -6,6 +6,22 @@ Format: each release section is published as the GitHub Release body.
 
 ---
 
+## [2.7.6] — 2026-08-16
+
+### Fixed
+- **Edit offline account** in Staff no longer returns “Unknown action” (CMS `update_user`).
+- **Portable updater**: download the zip, unzip it into the same folder, close the launcher, and prompt you to reopen it. No auto-restart.
+
+### Notes
+- GitHub **Latest** release (not a pre-release). The Windows portable zip still shows the in-app **BETA** badge.
+- This Windows zip is an **unsigned BETA**. SmartScreen / Smart App Control may warn.
+
+### Downloads
+- Windows: `EG-Launcher-2.7.6-win-x64-portable-BETA.zip`
+- Linux: `EG-Launcher-2.7.6-linux-x86_64.AppImage`
+
+---
+
 ## [2.7.5] — 2026-08-16
 
 ### Added
