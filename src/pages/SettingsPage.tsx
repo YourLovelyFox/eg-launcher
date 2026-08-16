@@ -36,9 +36,9 @@ function updateStatusLabel(status: UpdateStatus): string {
     case 'downloading':
       return `Downloading ${status.tag}…`
     case 'ready':
-      return `${status.tag} downloaded. Restart to replace files.`
+      return `${status.tag} downloaded. Install unzips it here, then the launcher closes — open it again yourself.`
     case 'installing':
-      return 'Replacing files and restarting…'
+      return 'Closing so the zip can be unpacked into this folder…'
     case 'error':
       return status.message
     default:
@@ -109,7 +109,9 @@ export function SettingsPage() {
   async function applyUpdate() {
     setApplyingUpdate(true)
     try {
-      await window.hive.updater.apply()
+      const status = await window.hive.updater.apply()
+      setUpdateStatus(status)
+      if (status.state !== 'installing') setApplyingUpdate(false)
     } catch (err) {
       showToast('error', (err as Error).message)
       setApplyingUpdate(false)
@@ -284,8 +286,8 @@ export function SettingsPage() {
       <div className="panel">
         <h2>Updates</h2>
         <p className="hint">
-          Windows portable builds check <strong>GitHub Releases</strong>, download the new zip,
-          replace this folder, and restart. Close Minecraft first.
+          Windows portable builds check <strong>GitHub Releases</strong>, download the zip, unzip it
+          into this same folder, then close. Open EG Launcher again yourself. Close Minecraft first.
         </p>
         <div className="form-grid">
           <div className="form-row">
@@ -348,8 +350,10 @@ export function SettingsPage() {
               {updateStatus.state === 'downloading'
                 ? 'Downloading…'
                 : updateStatus.state === 'installing'
-                  ? 'Restarting…'
-                  : 'Update & restart'}
+                  ? 'Closing…'
+                  : updateStatus.state === 'ready'
+                    ? 'Install & close'
+                    : 'Download update'}
             </button>
           )}
         </div>

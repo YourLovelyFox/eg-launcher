@@ -865,10 +865,7 @@ function registerIpc() {
   ipcMain.handle('updater:getVersion', () => getAppVersionInfo())
   ipcMain.handle('updater:check', async () => checkForUpdates(true))
   ipcMain.handle('updater:download', async () => downloadUpdate())
-  ipcMain.handle('updater:install', () => {
-    installUpdate()
-    return true
-  })
+  ipcMain.handle('updater:install', async () => installUpdate())
   ipcMain.handle('updater:apply', async () => applyUpdate())
 
   // Remote news — public mirrors; optional kind=launcher|partners, optional tag filter
