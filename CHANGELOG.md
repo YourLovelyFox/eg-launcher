@@ -6,6 +6,22 @@ Format: each release section is published as the GitHub Release body.
 
 ---
 
+## [2.7.7] — 2026-10-21
+
+### Changed
+- **Windows installer is back on GitHub Releases**: `EG-Launcher-2.7.7-win-x64-setup.exe` is now **signed with Azure Trusted Signing** (timestamped) and built in CI.
+- Docs (README, `docs/GITHUB-RELEASES.md`, `docs/GITHUB-SAC.md`) updated for the signed installer and the new release policy.
+
+### Notes
+- SmartScreen / Smart App Control may still warn on brand-new releases while publisher reputation builds up.
+- The Microsoft Store listing is still in progress.
+
+### Downloads
+- Windows: `EG-Launcher-2.7.7-win-x64-setup.exe` (signed)
+- Linux: `EG-Launcher-2.7.7-linux-x86_64.AppImage`
+
+---
+
 ## [2.7.6] — 2026-08-16
 
 ### Fixed
