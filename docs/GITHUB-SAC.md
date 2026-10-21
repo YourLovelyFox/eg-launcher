@@ -6,14 +6,14 @@
 
 | Channel | Status |
 | --- | --- |
-| GitHub Windows NSIS / setup.exe | **Supported** — signed in CI with **Azure Trusted Signing** (since 2.7.7) |
+| GitHub Windows NSIS / setup.exe | **Supported** — signed in CI with **Azure Trusted Signing** (since 3.0.0) |
 | GitHub Windows portable BETA | **Supported** (unsigned zip; SAC/SmartScreen may warn) |
 | GitHub Linux AppImage | **Supported** |
 | Microsoft Store | **In progress** |
 
-## Policy change (2.7.7)
+## Policy change (3.0.0)
 
-Earlier releases **discontinued** the GitHub setup.exe because unsigned installers were blocked by SAC / SmartScreen. Starting with **2.7.7** the setup.exe is back, because every installer is now **code-signed with a Microsoft-trusted certificate** (Azure Trusted Signing) and timestamped. The standalone `uninstall.exe` is **not** published; the installer contains its own (signed) uninstaller.
+Earlier releases **discontinued** the GitHub setup.exe because unsigned installers were blocked by SAC / SmartScreen. Starting with **3.0.0** (first built as 2.7.7) the setup.exe is back, because every installer is now **code-signed with a Microsoft-trusted certificate** (Azure Trusted Signing) and timestamped. The standalone `uninstall.exe` is **not** published; the installer contains its own (signed) uninstaller.
 
 ## Why
 

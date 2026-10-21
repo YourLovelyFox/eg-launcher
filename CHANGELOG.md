@@ -6,6 +6,26 @@ Format: each release section is published as the GitHub Release body.
 
 ---
 
+## [3.0.0] — 2026-10-21
+
+### Highlights
+- **First signed release.** The Windows installer `EG-Launcher-3.0.0-win-x64-setup.exe` is **signed with Azure Trusted Signing** (timestamped) and published on **GitHub Releases** again.
+- Releases now start fresh at 3.0.0; older GitHub releases were retired.
+
+### Changed (from 2.7.7)
+- The Windows setup.exe is built and signed in CI; the release job fails unless the signature is **Valid** and timestamped.
+- Docs (README, `docs/GITHUB-RELEASES.md`, `docs/GITHUB-SAC.md`) updated for the signed installer and the new release policy.
+
+### Notes
+- SmartScreen / Smart App Control may still warn on brand-new releases while publisher reputation builds up.
+- The Microsoft Store listing is still in progress.
+
+### Downloads
+- Windows: `EG-Launcher-3.0.0-win-x64-setup.exe` (signed)
+- Linux: `EG-Launcher-3.0.0-linux-x86_64.AppImage`
+
+---
+
 ## [2.7.7] — 2026-10-21
 
 ### Changed

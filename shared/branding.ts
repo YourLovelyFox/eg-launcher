@@ -3,7 +3,7 @@ export const APP_NAME = 'EG'
 export const APP_TAGLINE = 'Launcher'
 export const APP_FULL_NAME = 'EG Launcher'
 /** Display version — keep in sync with package.json for UI; runtime uses app.getVersion(). */
-export const APP_VERSION = '2.7.7'
+export const APP_VERSION = '3.0.0'
 
 export const GITHUB_OWNER = 'YourLovelyFox'
 export const GITHUB_REPO = 'eg-launcher'
