@@ -12,7 +12,9 @@ Format: each release section is published as the GitHub Release body.
 - **Featured pack (Bee’s SMP):** Install and Play no longer fail with **Invalid Invoke request**. The pack install IPC now returns a small result instead of the full instance (100+ mods), so Electron can send it back to the UI.
 
 ### Changed
-- Windows installer is signed as publisher **EpicTeam Studios**.
+- Windows installer is signed as publisher **Egyéni Vállalkozás** (town is not included in app metadata).
+- **NSIS auto-update** is back for the signed setup.exe: checks GitHub after launch and every 4 hours, shows a banner + Windows notification, then downloads and installs.
+- setup.exe language selector: **English** and **Hungarian**.
 - Microsoft Store / AppX packaging, docs, and `dist:store` are removed. GitHub Releases (signed setup.exe + Linux AppImage) are the only public channel.
 
 ### Downloads

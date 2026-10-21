@@ -253,7 +253,7 @@ Then run the new **setup** in the `release` folder again (same install steps). Y
 - Enable / disable / remove mods; update checks on installed mods  
 - Featured pack: **Bee's SMP** (manual install, news & changelogs from the mod catalog)  
 - **Partners** from CMS (staff-managed)  
-- **Updates:** Windows portable checks GitHub, downloads the zip, replaces its folder, and restarts. Linux: download a new AppImage.
+- **Updates:** Signed Windows setup.exe checks GitHub and installs the new NSIS package. Portable zip replaces its folder. Linux: download a new AppImage.
 
 ---
 
@@ -413,7 +413,7 @@ Workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml)
 Public GitHub Releases should emphasize:
 
 - Linux **AppImage**  
-- Windows **setup.exe**, signed in CI with Azure Trusted Signing as **EpicTeam Studios** (see [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md))  
+- Windows **setup.exe**, signed in CI with Azure Trusted Signing as **Egyéni Vállalkozás** (see [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md))  
 - Release body from **[CHANGELOG.md](./CHANGELOG.md)**
 
 ### Automatic (tag)
@@ -452,7 +452,7 @@ Also:
 
 ### Updates
 
-There is **no in-app auto-updater**. Download a new **Windows portable zip** or **Linux AppImage** from GitHub Releases when you want to upgrade.
+The signed Windows **setup.exe** updates in-app from GitHub Releases. Portable zip can self-update. Linux: download a new **AppImage**.
 
 ---
 

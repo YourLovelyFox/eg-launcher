@@ -127,7 +127,8 @@ If ads are enabled in a future build:
 
 ## 8. Updates
 
-- **Windows and Linux:** no in-app auto-updater. Download a newer portable zip or AppImage from GitHub Releases when you choose.
+- **Windows setup.exe:** in-app auto-update via GitHub Releases (`latest.yml`). You confirm before download/install.
+- **Windows portable zip / Linux AppImage:** portable zip can self-update; AppImage is a new download from GitHub Releases.
 
 ---
 

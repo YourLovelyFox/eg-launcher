@@ -3,7 +3,7 @@
   "version": "3.0.1",
   "description": "EG Launcher — Minecraft: Java Edition launcher with instances, Microsoft login, and community content for your game.",
   "main": "dist-electron/main.js",
-  "author": "EpicTeam Studios",
+  "author": "Egyéni Vállalkozás",
   "license": "MIT",
   "private": true,
   "repository": {
@@ -32,7 +32,7 @@
   "build": {
     "appId": "com.eg.launcher",
     "productName": "EG Launcher",
-    "copyright": "Copyright © EpicTeam Studios",
+    "copyright": "Copyright © Egyéni Vállalkozás",
     "executableName": "EG Launcher",
     "directories": {
       "output": "release",
@@ -76,9 +76,9 @@
       "icon": "build/icon.ico",
       "signAndEditExecutable": true,
       "signDlls": false,
-      "verifyUpdateCodeSignature": false,
+      "verifyUpdateCodeSignature": true,
       "requestedExecutionLevel": "asInvoker",
-      "publisherName": "EpicTeam Studios",
+      "publisherName": "Egyéni Vállalkozás",
       "legalTrademarks": "EG Launcher",
       "target": [
         {
@@ -103,10 +103,12 @@
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": false,
       "unicode": true,
+      "multiLanguageInstaller": true,
       "installerLanguages": [
-        "en_US"
+        "en_US",
+        "hu_HU"
       ],
-      "displayLanguageSelector": false,
+      "displayLanguageSelector": true,
       "packElevateHelper": false,
       "artifactName": "EG-Launcher-${version}-win-x64-setup.${ext}"
     },
@@ -128,6 +130,7 @@
     "asar": true
   },
   "dependencies": {
+    "electron-updater": "^6.3.9",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",

@@ -476,8 +476,9 @@ export type UpdateStatus =
   | { state: 'error'; message: string; currentVersion: string }
 
 export type AppVersionInfo = {
-  /** True when this build can replace itself from a GitHub portable zip */
+  /** True when this build can replace itself (portable zip or NSIS). */
   selfUpdateChannel?: boolean
+  updateChannel?: 'nsis' | 'portable' | 'none'
   version: string
   tag?: string
   isPackaged: boolean

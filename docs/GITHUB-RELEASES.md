@@ -8,7 +8,7 @@
 | **Windows portable BETA** | GitHub **Latest** release zip: `EG-Launcher-*-win-x64-portable-BETA.zip` (unsigned; SAC/SmartScreen may warn). In-app **BETA** badges stay. |
 | **Linux** | **GitHub Releases** — `EG-Launcher-*-linux-*.AppImage` |
 
-Windows users use the signed setup.exe, the portable zip, or a local self-build. The installer is signed as **EpicTeam Studios**.
+Windows users use the signed setup.exe, the portable zip, or a local self-build. The installer is signed as **Egyéni Vállalkozás**.
 
 Signing setup, policy change and SAC background: **[GITHUB-SAC.md](./GITHUB-SAC.md)**.
 
@@ -65,7 +65,7 @@ Produces `release/EG-Launcher-<version>-win-x64-portable-BETA.zip`.
 
 **Where is the Windows installer?**
 
-> Download `EG-Launcher-<version>-win-x64-setup.exe` from https://github.com/YourLovelyFox/eg-launcher/releases/latest and run it. It is signed with Azure Trusted Signing as **EpicTeam Studios**; SmartScreen may still warn on very new releases while reputation builds. The **portable BETA zip** (unsigned) is still an option.
+> Download `EG-Launcher-<version>-win-x64-setup.exe` from https://github.com/YourLovelyFox/eg-launcher/releases/latest and run it. It is signed with Azure Trusted Signing as **Egyéni Vállalkozás**; SmartScreen may still warn on very new releases while reputation builds. The **portable BETA zip** (unsigned) is still an option.
 
 **Linux**
 

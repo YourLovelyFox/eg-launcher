@@ -286,8 +286,19 @@ export function SettingsPage() {
       <div className="panel">
         <h2>Updates</h2>
         <p className="hint">
-          Windows portable builds check <strong>GitHub Releases</strong>, download the zip, unzip it
-          into this same folder, then close. Open EG Launcher again yourself. Close Minecraft first.
+          {versionInfo?.updateChannel === 'nsis' ? (
+            <>
+              The signed Windows installer checks <strong>GitHub Releases</strong> and installs the
+              new setup.exe (publisher <strong>Egyéni Vállalkozás</strong>). Close Minecraft first.
+              The app restarts after install.
+            </>
+          ) : (
+            <>
+              Windows portable builds check <strong>GitHub Releases</strong>, download the zip, unzip
+              it into this same folder, then close. Open EG Launcher again yourself. Close Minecraft
+              first.
+            </>
+          )}
         </p>
         <div className="form-grid">
           <div className="form-row">
@@ -352,7 +363,9 @@ export function SettingsPage() {
                 : updateStatus.state === 'installing'
                   ? 'Closing…'
                   : updateStatus.state === 'ready'
-                    ? 'Install & close'
+                    ? versionInfo?.updateChannel === 'nsis'
+                      ? 'Install & restart'
+                      : 'Install & close'
                     : 'Download update'}
             </button>
           )}

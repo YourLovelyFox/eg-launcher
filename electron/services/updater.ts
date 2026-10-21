@@ -6,8 +6,18 @@ import http from 'http'
 import os from 'os'
 import path from 'path'
 import { GITHUB_OWNER, GITHUB_RELEASES_URL, GITHUB_REPO } from '../../shared/branding'
-import type { UpdateStatus } from '../../shared/types'
+import type { AppVersionInfo, UpdateStatus } from '../../shared/types'
 import { getRunningGameInfo } from './minecraft'
+import { notifyUpdateAvailable } from './updateNotify'
+import {
+  applyNsisUpdate,
+  checkNsisUpdates,
+  downloadNsisUpdate,
+  getNsisUpdateStatus,
+  initNsisUpdater,
+  installNsisUpdate,
+  setNsisUpdaterWindow,
+} from './nsisUpdater'
 
 const PORTABLE_ZIP = /^EG-Launcher-.+-win-x64-portable.*\.zip$/i
 const GH_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases?per_page=15`
@@ -46,6 +56,7 @@ let updaterWin: BrowserWindow | null = null
 let pending: PendingRelease | null = null
 let pendingZip: string | null = null
 let checkTimer: ReturnType<typeof setTimeout> | null = null
+let periodTimer: ReturnType<typeof setInterval> | null = null
 
 function currentVersion(): string {
   return app.getVersion()
@@ -88,12 +99,45 @@ function localIdentity(): { tag: string; version: string } {
   return { tag, version }
 }
 
+function hasNsisUninstaller(): boolean {
+  if (process.platform !== 'win32' || !app.isPackaged) return false
+  try {
+    const dir = path.dirname(app.getPath('exe'))
+    return (
+      fs.existsSync(path.join(dir, 'Uninstall EG Launcher.exe')) ||
+      fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'))
+    )
+  } catch {
+    return false
+  }
+}
+
+/** Custom GitHub zip (portable BETA), not the NSIS setup. */
+export function isPortableChannel(): boolean {
+  if (process.platform !== 'win32' || !app.isPackaged) return false
+  if (readBundledUpdateInfo()?.channel === 'portable') return true
+  return !hasNsisUninstaller()
+}
+
+/** Signed GitHub setup.exe — electron-updater + latest.yml. */
+export function isNsisChannel(): boolean {
+  if (process.platform !== 'win32' || !app.isPackaged) return false
+  if (readBundledUpdateInfo()?.channel === 'portable') return false
+  return hasNsisUninstaller()
+}
+
 export function canSelfUpdate(): boolean {
-  return process.platform === 'win32' && app.isPackaged
+  return isPortableChannel() || isNsisChannel()
 }
 
 export function isSelfUpdateChannel(): boolean {
   return canSelfUpdate()
+}
+
+export function updateChannel(): AppVersionInfo['updateChannel'] {
+  if (isNsisChannel()) return 'nsis'
+  if (isPortableChannel()) return 'portable'
+  return 'none'
 }
 
 function parseVer(raw: string): { core: number[]; pre: string } {
@@ -306,13 +350,15 @@ function pickRelease(releases: GhRelease[]): PendingRelease | null {
 
 export function setUpdaterWindow(win: BrowserWindow | null): void {
   updaterWin = win
+  setNsisUpdaterWindow(win)
 }
 
 export function getUpdateStatus(): UpdateStatus {
+  if (isNsisChannel()) return getNsisUpdateStatus()
   return lastStatus
 }
 
-export function getAppVersionInfo() {
+export function getAppVersionInfo(): AppVersionInfo {
   const local = localIdentity()
   return {
     version: currentVersion(),
@@ -321,23 +367,33 @@ export function getAppVersionInfo() {
     platform: process.platform,
     arch: process.arch,
     selfUpdateChannel: canSelfUpdate(),
+    updateChannel: updateChannel(),
   }
 }
 
 export function initAutoUpdater(win: BrowserWindow | null): void {
   setUpdaterWindow(win)
-  if (!canSelfUpdate()) {
+  setNsisUpdaterWindow(win)
+  if (isNsisChannel()) {
+    initNsisUpdater(win)
+    startPeriodicUpdateChecks()
+    return
+  }
+  if (!isPortableChannel()) {
     emit({ state: 'unavailable', currentVersion: currentVersion(), reason: 'manual' })
     return
   }
-  if (checkTimer) clearTimeout(checkTimer)
-  checkTimer = setTimeout(() => {
-    void checkForUpdates(false)
-  }, 9000)
+  startPeriodicUpdateChecks()
 }
 
 export function startPeriodicUpdateChecks(): void {
-  /* used by init */
+  stopPeriodicUpdateChecks()
+  const tick = () => {
+    if (isNsisChannel()) void checkNsisUpdates()
+    else if (isPortableChannel()) void checkForUpdates(false)
+  }
+  checkTimer = setTimeout(tick, 9000)
+  periodTimer = setInterval(tick, 4 * 60 * 60 * 1000)
 }
 
 export function stopPeriodicUpdateChecks(): void {
@@ -345,9 +401,14 @@ export function stopPeriodicUpdateChecks(): void {
     clearTimeout(checkTimer)
     checkTimer = null
   }
+  if (periodTimer) {
+    clearInterval(periodTimer)
+    periodTimer = null
+  }
 }
 
 export async function checkForUpdates(manual = false): Promise<UpdateStatus> {
+  if (isNsisChannel()) return checkNsisUpdates()
   if (!canSelfUpdate()) {
     if (manual) {
       try {
@@ -380,6 +441,7 @@ export async function checkForUpdates(manual = false): Promise<UpdateStatus> {
     }
     pending = next
     pendingZip = null
+    notifyUpdateAvailable(next.version)
     return emit({
       state: 'available',
       currentVersion: local.version,
@@ -398,6 +460,7 @@ export async function checkForUpdates(manual = false): Promise<UpdateStatus> {
 }
 
 export async function downloadUpdate(): Promise<UpdateStatus> {
+  if (isNsisChannel()) return downloadNsisUpdate()
   if (!canSelfUpdate()) {
     return emit({
       state: 'error',
@@ -481,6 +544,7 @@ export async function downloadUpdate(): Promise<UpdateStatus> {
 }
 
 export async function installUpdate(): Promise<UpdateStatus> {
+  if (isNsisChannel()) return installNsisUpdate()
   if (!canSelfUpdate() || !pending || !pendingZip || !fs.existsSync(pendingZip)) {
     return emit({
       state: 'error',
@@ -551,6 +615,7 @@ export async function installUpdate(): Promise<UpdateStatus> {
 }
 
 export async function applyUpdate(): Promise<UpdateStatus> {
+  if (isNsisChannel()) return applyNsisUpdate()
   const ready = lastStatus.state === 'ready' ? lastStatus : await downloadUpdate()
   if (ready.state === 'error' || ready.state !== 'ready') return ready
   return installUpdate()

@@ -10,7 +10,7 @@ import {
   RELEASE_CHANNEL_LABEL,
 } from '../../shared/branding'
 import type { PartnerDefinition } from '../../shared/branding'
-import type { UpdateStatus } from '../../shared/types'
+import type { AppVersionInfo, UpdateStatus } from '../../shared/types'
 import appIcon from '../assets/app-icon.png'
 import horizonsIcon from '../assets/horizons-smp.png'
 import {
@@ -66,7 +66,9 @@ export function Layout() {
   const [dragOver, setDragOver] = useState(false)
   const [partnerUnread, setPartnerUnread] = useState<Record<string, boolean>>({})
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
+  const [versionInfo, setVersionInfo] = useState<AppVersionInfo | null>(null)
   const [applyingUpdate, setApplyingUpdate] = useState(false)
+  const notifiedUpdateRef = useRef<string | null>(null)
   /** Nested dragenter/leave counter — avoids a stuck full-screen overlay that blocks clicks. */
   const dragDepthRef = useRef(0)
   const accountMenuRef = useRef<HTMLDivElement | null>(null)
@@ -173,9 +175,18 @@ export function Layout() {
   }, [partners])
 
   useEffect(() => {
+    window.hive.updater.getVersion().then(setVersionInfo).catch(() => undefined)
     window.hive.updater.getStatus().then(setUpdateStatus).catch(() => undefined)
     return window.hive.updater.onStatus(setUpdateStatus)
   }, [])
+
+  useEffect(() => {
+    if (updateStatus.state !== 'available') return
+    const key = updateStatus.tag || updateStatus.version
+    if (!key || notifiedUpdateRef.current === key) return
+    notifiedUpdateRef.current = key
+    showToast('info', `EG Launcher ${key} is available. Install from the banner or Settings.`)
+  }, [updateStatus, showToast])
 
   // Ctrl+K or / → Browse search
   useEffect(() => {
@@ -658,13 +669,19 @@ export function Layout() {
                 {updateStatus.state === 'downloading'
                   ? `Downloading ${updateStatus.tag}… ${Math.round(updateStatus.percent)}%`
                   : updateStatus.state === 'installing'
-                    ? 'Unzipping into this folder, then closing…'
+                    ? versionInfo?.updateChannel === 'nsis'
+                      ? 'Installing update and restarting…'
+                      : 'Unzipping into this folder, then closing…'
                     : `Update ${updateStatus.tag} available`}
               </strong>
               <span>
-                {updateStatus.state === 'ready'
-                  ? 'The zip is ready. It will unzip into this folder, then the launcher closes — open it again yourself.'
-                  : 'Downloads the GitHub zip, unzips it here, then closes. Reopen EG Launcher yourself.'}
+                {versionInfo?.updateChannel === 'nsis'
+                  ? updateStatus.state === 'ready'
+                    ? 'The signed installer is ready. EG Launcher will restart after it installs.'
+                    : 'Downloads the signed setup.exe from GitHub and installs it. The app restarts after install.'
+                  : updateStatus.state === 'ready'
+                    ? 'The zip is ready. It will unzip into this folder, then the launcher closes — open it again yourself.'
+                    : 'Downloads the GitHub zip, unzips it here, then closes. Reopen EG Launcher yourself.'}
               </span>
             </div>
             <button
@@ -687,7 +704,9 @@ export function Layout() {
               {updateStatus.state === 'downloading'
                 ? 'Downloading…'
                 : updateStatus.state === 'ready'
-                  ? 'Install & close'
+                  ? versionInfo?.updateChannel === 'nsis'
+                    ? 'Install & restart'
+                    : 'Install & close'
                   : 'Download update'}
             </button>
           </div>
