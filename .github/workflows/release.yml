@@ -159,9 +159,9 @@ jobs:
       # Non-secret Azure Trusted Signing settings (fill in real values).
       # Passed to electron-builder via -c.win.azureSignOptions.* so local `npm run dist` / `dist:store`
       # keep building unsigned without Azure credentials.
-      AZURE_SIGN_ENDPOINT: '__AZURE_ENDPOINT__'
-      AZURE_SIGN_ACCOUNT: '__AZURE_ACCOUNT__'
-      AZURE_SIGN_PROFILE: '__AZURE_PROFILE__'
+      AZURE_SIGN_ENDPOINT: 'https://neu.codesigning.azure.net/'
+      AZURE_SIGN_ACCOUNT: 'egteam'
+      AZURE_SIGN_PROFILE: 'EGLauncher'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
