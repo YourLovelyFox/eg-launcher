@@ -130,26 +130,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('/auth/forgot.php');
 }
 
-layout_header('Forgot password', '');
+layout_header(t('forgot.title'), '');
 ?>
 <div class="panel" style="max-width: 440px; margin: 0 auto;">
-  <h1>Forgot password</h1>
-  <p class="hint" style="margin-bottom: 16px;">
-    Enter your <strong>Staff/Admin</strong> or community username. If an email is bound, you get a
-    <strong>5-minute</strong> one-time code (same system as the launcher Staff Menu).
-  </p>
+  <h1><?= e(t('forgot.title')) ?></h1>
+  <p class="hint" style="margin-bottom: 16px;"><?= e(t('forgot.lead')) ?></p>
   <form method="post">
     <?= csrf_field() ?>
     <div class="form-grid">
       <div class="form-row">
-        <label for="username">Username</label>
+        <label for="username"><?= e(t('login.username')) ?></label>
         <input class="input" id="username" name="username" required maxlength="64" autocomplete="username">
       </div>
-      <button class="btn btn-primary" type="submit">Send reset code</button>
+      <button class="btn btn-primary" type="submit"><?= e(t('forgot.submit')) ?></button>
     </div>
   </form>
   <p class="hint" style="margin-top: 16px;">
-    <a href="/auth/reset.php">I already have a code</a> · <a href="/auth/login.php">Log in</a>
+    <a href="/auth/reset.php"><?= e(t('forgot.have_code')) ?></a> · <a href="/auth/login.php"><?= e(t('auth.login')) ?></a>
   </p>
 </div>
 <?php layout_footer(); ?>

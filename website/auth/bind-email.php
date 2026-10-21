@@ -79,36 +79,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect($next);
 }
 
-layout_header('Bind email', '');
+layout_header(t('bind.title'), '');
 ?>
 <div class="panel" style="max-width: 480px; margin: 0 auto;">
-  <h1>Bind recovery email</h1>
+  <h1><?= e(t('bind.h1')) ?></h1>
   <?php if ($isStaff): ?>
-    <p class="hint" style="margin-bottom: 16px;">
-      Same requirement as the launcher <strong>Staff Menu</strong>: Staff/Admin accounts must bind an email
-      for password reset and staff tools.
-    </p>
+    <p class="hint" style="margin-bottom: 16px;"><?= e(t('bind.staff')) ?></p>
   <?php else: ?>
-    <p class="hint" style="margin-bottom: 16px;">
-      Optional for community accounts. Required if you want password reset by email.
-    </p>
+    <p class="hint" style="margin-bottom: 16px;"><?= e(t('bind.community')) ?></p>
   <?php endif; ?>
   <?php if (!empty($u['email'])): ?>
-    <p class="hint">Current: <strong><?= e((string) $u['email']) ?></strong></p>
+    <p class="hint"><?= e(t('bind.current')) ?> <strong><?= e((string) $u['email']) ?></strong></p>
   <?php endif; ?>
   <form method="post">
     <?= csrf_field() ?>
     <input type="hidden" name="next" value="<?= e($next) ?>">
     <div class="form-grid">
       <div class="form-row">
-        <label for="email">Email</label>
+        <label for="email"><?= e(t('bind.email')) ?></label>
         <input class="input" type="email" id="email" name="email" required maxlength="255"
                value="<?= e((string) ($u['email'] ?? '')) ?>" autocomplete="email"
                placeholder="you@example.com">
       </div>
-      <button class="btn btn-primary" type="submit">Save email</button>
+      <button class="btn btn-primary" type="submit"><?= e(t('bind.save')) ?></button>
     </div>
   </form>
-  <p class="hint" style="margin-top: 16px;"><a href="/">Back to site</a></p>
+  <p class="hint" style="margin-top: 16px;"><a href="/"><?= e(t('bind.back')) ?></a></p>
 </div>
 <?php layout_footer(); ?>

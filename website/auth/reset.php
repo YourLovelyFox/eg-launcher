@@ -119,43 +119,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('error', 'Invalid reset code or username.');
         redirect('/auth/reset.php?u=' . rawurlencode($username));
     }
-    flash_set('success', 'Password updated. You can sign in with the new password (website and Staff Menu).');
+    flash_set('success', t('reset.done'));
     redirect('/auth/login.php');
 }
 
-layout_header('Reset password', '');
+layout_header(t('reset.title'), '');
 ?>
 <div class="panel" style="max-width: 440px; margin: 0 auto;">
-  <h1>Reset password</h1>
-  <p class="hint" style="margin-bottom: 16px;">
-    Enter the <strong>5-minute code</strong> from your email and choose a new password (min 8 characters).
-  </p>
+  <h1><?= e(t('reset.title')) ?></h1>
+  <p class="hint" style="margin-bottom: 16px;"><?= e(t('reset.lead')) ?></p>
   <form method="post">
     <?= csrf_field() ?>
     <div class="form-grid">
       <div class="form-row">
-        <label for="username">Username</label>
+        <label for="username"><?= e(t('login.username')) ?></label>
         <input class="input" id="username" name="username" required maxlength="64"
                value="<?= e($preUser) ?>" autocomplete="username">
       </div>
       <div class="form-row">
-        <label for="code">Reset code</label>
+        <label for="code"><?= e(t('reset.code')) ?></label>
         <input class="input" id="code" name="code" required maxlength="16" autocomplete="one-time-code"
                style="text-transform: uppercase; letter-spacing: 0.08em;">
       </div>
       <div class="form-row">
-        <label for="password">New password</label>
+        <label for="password"><?= e(t('reset.new')) ?></label>
         <input class="input" type="password" id="password" name="password" required minlength="8" autocomplete="new-password">
       </div>
       <div class="form-row">
-        <label for="password2">Confirm password</label>
+        <label for="password2"><?= e(t('register.confirm')) ?></label>
         <input class="input" type="password" id="password2" name="password2" required minlength="8" autocomplete="new-password">
       </div>
-      <button class="btn btn-primary" type="submit">Update password</button>
+      <button class="btn btn-primary" type="submit"><?= e(t('reset.submit')) ?></button>
     </div>
   </form>
   <p class="hint" style="margin-top: 16px;">
-    <a href="/auth/forgot.php">Request a new code</a> · <a href="/auth/login.php">Log in</a>
+    <a href="/auth/forgot.php"><?= e(t('reset.new_code')) ?></a> · <a href="/auth/login.php"><?= e(t('auth.login')) ?></a>
   </p>
 </div>
 <?php layout_footer(); ?>

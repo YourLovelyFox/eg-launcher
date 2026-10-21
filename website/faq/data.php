@@ -10,7 +10,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Cache-Control: public, max-age=300');
 
-$items = eg_faq_items();
+$items = eg_faq_items('en');
 $out = [
     'source' => 'eg-launcher.xyz',
     'url' => rtrim((string) cfg('site_url', 'https://eg-launcher.xyz'), '/') . '/faq/',

@@ -6,26 +6,21 @@ $items = eg_faq_items();
 $discord = (string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5');
 $site = rtrim((string) cfg('site_url', 'https://eg-launcher.xyz'), '/');
 
-layout_header(
-    'FAQ',
-    'faq',
-    'Frequently asked questions about EG Launcher — download, Windows Store, Linux AppImage, Microsoft login, support, and Discord.'
-);
+layout_header(t('faq.title'), 'faq', t('faq.meta'));
 ?>
 <section class="panel article" style="max-width: 720px; margin: 0 auto;">
-  <h1>FAQ</h1>
+  <h1><?= e(t('faq.title')) ?></h1>
   <p class="hint" style="margin: 10px 0 20px;">
-    Common questions about EG Launcher. Same answers are available in Discord via
-    <code>/faq</code> and the <strong>❓・faq</strong> channel.
+    <?= e(t('faq.lead')) ?>
   </p>
 
   <div class="hero-actions" style="margin-bottom: 22px;">
     <a class="btn btn-primary" href="<?= e($discord) ?>" target="_blank" rel="noopener">
-      <i class="fa-brands fa-discord"></i> Join Discord
+      <i class="fa-brands fa-discord"></i> <?= e(t('home.join_discord')) ?>
     </a>
-    <a class="btn btn-secondary" href="/contact/">Contact form</a>
-    <a class="btn btn-ghost" href="/#download">Downloads</a>
-    <a class="btn btn-ghost" href="<?= e($site) ?>/faq/data.php" target="_blank" rel="noopener">JSON API</a>
+    <a class="btn btn-secondary" href="/contact/"><?= e(t('faq.contact_form')) ?></a>
+    <a class="btn btn-ghost" href="/#download"><?= e(t('faq.downloads')) ?></a>
+    <a class="btn btn-ghost" href="<?= e($site) ?>/faq/data.php" target="_blank" rel="noopener"><?= e(t('faq.json')) ?></a>
   </div>
 
   <div class="faq-list">
@@ -38,8 +33,8 @@ layout_header(
   </div>
 
   <p class="hint" style="margin-top: 22px;">
-    Still stuck? <a href="/contact/">Contact us</a> or
-    <a href="<?= e($discord) ?>" target="_blank" rel="noopener">ask on Discord</a>.
+    <?= e(t('faq.still')) ?> <a href="/contact/"><?= e(t('faq.contact_us')) ?></a>
+    · <a href="<?= e($discord) ?>" target="_blank" rel="noopener"><?= e(t('faq.ask_discord')) ?></a>.
   </p>
 </section>
 <?php layout_footer(); ?>

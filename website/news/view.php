@@ -48,8 +48,8 @@ if (!$item) {
 
 if (!$item) {
     http_response_code(404);
-    layout_header('Not found', 'news');
-    echo '<div class="panel"><h1>Post not found</h1><p class="hint"><a href="/news/">← Back to news</a></p></div>';
+    layout_header(t('forum.not_found'), 'news');
+    echo '<div class="panel"><h1>' . e(t('news.not_found')) . '</h1><p class="hint"><a href="/news/">' . e(t('news.back_list')) . '</a></p></div>';
     layout_footer();
     exit;
 }
@@ -57,12 +57,12 @@ if (!$item) {
 layout_header((string) $item['title'], 'news');
 ?>
 <article class="article panel">
-  <p class="hint"><a href="/news/">← News</a></p>
+  <p class="hint"><a href="/news/"><?= e(t('news.back')) ?></a></p>
   <div class="kicker"><?= e((string) $item['tag']) ?></div>
   <h1><?= e((string) $item['title']) ?></h1>
   <p class="meta muted">
     <?= e(format_dt((string) $item['date'])) ?>
-    · by
+    · <?= e(t('news.by')) ?>
     <?= render_news_author_html(
         $item['authorUsername'] ?? null,
         $item['authorLabel'] ?? null,

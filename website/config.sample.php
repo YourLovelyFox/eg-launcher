@@ -13,7 +13,7 @@ return [
     'site_name' => 'EG Launcher',
     'site_url' => 'https://eg-launcher.xyz',
     'site_description' =>
-        'EG Launcher — Minecraft: Java Edition companion. News, community forum, GitHub beta (Windows + Linux AppImage). Windows release soon.',
+        'EG Launcher — Minecraft: Java Edition companion. Download the signed Windows installer or the Linux AppImage, read the news, and join the community forum.',
     // Public launcher news feed API (same host or CMS host)
     'news_api_url' => 'https://client116.ddns.net/news.php?kind=launcher',
     // Prefer reading news from local DB when available
@@ -21,6 +21,8 @@ return [
 
     'github_url' => 'https://github.com/YourLovelyFox/eg-launcher',
     'github_releases' => 'https://github.com/YourLovelyFox/eg-launcher/releases',
+    'github_win_setup' => 'https://github.com/YourLovelyFox/eg-launcher/releases/download/v3.0.1/EG-Launcher-3.0.1-win-x64-setup.exe',
+    'github_linux_appimage' => 'https://github.com/YourLovelyFox/eg-launcher/releases/download/v3.0.1/EG-Launcher-3.0.1-linux-x86_64.AppImage',
     'privacy_url' => 'https://github.com/YourLovelyFox/eg-launcher/blob/master/PRIVACY.md',
     'discord_url' => 'https://discord.gg/qzkA3CBex5',
     'contact_email' => 'info@eg-launcher.xyz',

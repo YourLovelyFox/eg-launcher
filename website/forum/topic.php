@@ -13,8 +13,8 @@ $st->execute([$id]);
 $topic = $st->fetch();
 if (!$topic) {
     http_response_code(404);
-    layout_header('Not found', 'forum');
-    echo '<div class="panel"><h1>Topic not found</h1><p><a href="/forum/">Forum</a></p></div>';
+    layout_header(t('forum.not_found'), 'forum');
+    echo '<div class="panel"><h1>' . e(t('forum.topic_not_found')) . '</h1><p><a href="/forum/">' . e(t('nav.forum')) . '</a></p></div>';
     layout_footer();
     exit;
 }
@@ -156,17 +156,17 @@ layout_header((string) $topic['title'], 'forum');
 <div class="toolbar">
   <div>
     <p class="hint">
-      <a href="/forum/">Forum</a> /
+      <a href="/forum/"><?= e(t('nav.forum')) ?></a> /
       <a href="/forum/category.php?slug=<?= e(rawurlencode((string) $topic['category_slug'])) ?>">
         <?= e((string) $topic['category_title']) ?>
       </a>
     </p>
     <h1><?= e((string) $topic['title']) ?></h1>
     <p class="meta muted">
-      Started by <?= user_link((string) $topic['author'], (string) $topic['user_id'], (string) $topic['author_role']) ?>
+      <?= e(t('forum.started')) ?> <?= user_link((string) $topic['author'], (string) $topic['user_id'], (string) $topic['author_role']) ?>
       · <?= e(format_dt((string) $topic['created_at'])) ?>
-      <?php if ((int) $topic['locked']): ?> · <span class="badge">Locked</span><?php endif; ?>
-      <?php if ((int) $topic['pinned']): ?> · <span class="badge badge-blue">Pinned</span><?php endif; ?>
+      <?php if ((int) $topic['locked']): ?> · <span class="badge"><?= e(t('forum.locked_badge')) ?></span><?php endif; ?>
+      <?php if ((int) $topic['pinned']): ?> · <span class="badge badge-blue"><?= e(t('forum.pinned')) ?></span><?php endif; ?>
     </p>
   </div>
 </div>
@@ -255,33 +255,33 @@ layout_header((string) $topic['title'], 'forum');
 <?php endif; ?>
 
 <?php if ((int) $topic['locked'] && !($me && is_mod($me))): ?>
-  <div class="panel" style="margin-top: 18px;"><p class="hint">This topic is locked. No new replies.</p></div>
+  <div class="panel" style="margin-top: 18px;"><p class="hint"><?= e(t('forum.topic_locked')) ?></p></div>
 <?php elseif ($me && !user_can_reply($me)): ?>
   <div class="panel" style="margin-top: 18px;">
     <p class="hint">
       <?php if (user_is_forum_locked($me)): ?>
-        Your account is forum-locked<?= !empty($me['locked_reason']) ? ': ' . e((string) $me['locked_reason']) : '.' ?>
+        <?= e(t('forum.forum_locked_msg')) ?><?= !empty($me['locked_reason']) ? ': ' . e((string) $me['locked_reason']) : '.' ?>
       <?php else: ?>
-        You do not have permission to reply.
+        <?= e(t('forum.no_reply_perm')) ?>
       <?php endif; ?>
     </p>
   </div>
 <?php elseif ($me): ?>
   <div class="panel" style="margin-top: 18px;">
-    <h2>Reply</h2>
+    <h2><?= e(t('forum.reply')) ?></h2>
     <form method="post" action="">
       <?= csrf_field() ?>
       <input type="hidden" name="action" value="reply">
       <div class="form-row">
-        <label for="body">Message</label>
-        <textarea class="input" id="body" name="body" required minlength="2" maxlength="20000" placeholder="Write your reply…"></textarea>
+        <label for="body"><?= e(t('forum.message')) ?></label>
+        <textarea class="input" id="body" name="body" required minlength="2" maxlength="20000" placeholder="<?= e(t('forum.placeholder_reply')) ?>"></textarea>
       </div>
-      <button class="btn btn-primary" type="submit" style="margin-top: 12px;">Post reply</button>
+      <button class="btn btn-primary" type="submit" style="margin-top: 12px;"><?= e(t('forum.post_reply')) ?></button>
     </form>
   </div>
 <?php else: ?>
   <div class="panel" style="margin-top: 18px;">
-    <p class="hint"><a href="/auth/login.php?next=<?= e(rawurlencode('/forum/topic.php?id=' . $id)) ?>">Log in</a> to reply.</p>
+    <p class="hint"><a href="/auth/login.php?next=<?= e(rawurlencode('/forum/topic.php?id=' . $id)) ?>"><?= e(t('forum.login_to_reply')) ?></a> <?= e(t('forum.to_reply')) ?></p>
   </div>
 <?php endif; ?>
 <?php layout_footer(); ?>

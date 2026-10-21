@@ -3,16 +3,16 @@ require dirname(__DIR__) . '/lib/bootstrap.php';
 
 $user = require_login();
 if (!user_can_create_topics($user)) {
-    layout_header('Cannot post', 'forum');
-    echo '<div class="panel"><h1>Posting restricted</h1>';
+    layout_header(t('forum.cannot_post'), 'forum');
+    echo '<div class="panel"><h1>' . e(t('forum.posting_restricted')) . '</h1>';
     if (user_is_forum_locked($user)) {
-        echo '<p class="hint">Your account is forum-locked'
+        echo '<p class="hint">' . e(t('forum.forum_locked_msg'))
             . (!empty($user['locked_reason']) ? ': ' . e((string) $user['locked_reason']) : '.')
             . '</p>';
     } else {
-        echo '<p class="hint">You do not have permission to create topics. Contact staff if this is a mistake.</p>';
+        echo '<p class="hint">' . e(t('forum.no_create')) . '</p>';
     }
-    echo '<p><a href="/forum/">Back to forum</a></p></div>';
+    echo '<p><a href="/forum/">' . e(t('forum.back_forum')) . '</a></p></div>';
     layout_footer();
     exit;
 }
@@ -72,12 +72,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('/forum/topic.php?id=' . rawurlencode($tid));
 }
 
-layout_header('New topic', 'forum');
+layout_header(t('forum.new_topic'), 'forum');
 ?>
 <div class="toolbar">
   <div>
-    <p class="hint"><a href="/forum/">← Forum</a></p>
-    <h1>New topic</h1>
+    <p class="hint"><a href="/forum/"><?= e(t('forum.back')) ?></a></p>
+    <h1><?= e(t('forum.new_topic')) ?></h1>
   </div>
 </div>
 
@@ -86,7 +86,7 @@ layout_header('New topic', 'forum');
     <?= csrf_field() ?>
     <div class="form-grid" style="max-width: 640px;">
       <div class="form-row">
-        <label for="category_id">Category</label>
+        <label for="category_id"><?= e(t('forum.category')) ?></label>
         <select class="select" id="category_id" name="category_id" required>
           <?php foreach ($cats as $c): ?>
             <option value="<?= (int) $c['id'] ?>" <?= $pre === $c['slug'] ? 'selected' : '' ?>>
@@ -96,14 +96,14 @@ layout_header('New topic', 'forum');
         </select>
       </div>
       <div class="form-row">
-        <label for="title">Title</label>
-        <input class="input" id="title" name="title" required minlength="3" maxlength="200" placeholder="Topic title">
+        <label for="title"><?= e(t('forum.title_label')) ?></label>
+        <input class="input" id="title" name="title" required minlength="3" maxlength="200" placeholder="<?= e(t('forum.placeholder_title')) ?>">
       </div>
       <div class="form-row">
-        <label for="body">Message</label>
-        <textarea class="input" id="body" name="body" required minlength="2" maxlength="20000" placeholder="Write your post…"></textarea>
+        <label for="body"><?= e(t('forum.message')) ?></label>
+        <textarea class="input" id="body" name="body" required minlength="2" maxlength="20000" placeholder="<?= e(t('forum.placeholder_body')) ?>"></textarea>
       </div>
-      <button class="btn btn-primary" type="submit">Create topic</button>
+      <button class="btn btn-primary" type="submit"><?= e(t('forum.create')) ?></button>
     </div>
   </form>
 </div>

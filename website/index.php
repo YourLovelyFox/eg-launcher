@@ -13,26 +13,32 @@ try {
     $cats = [];
 }
 
+$winSetup = (string) cfg(
+    'github_win_setup',
+    'https://github.com/YourLovelyFox/eg-launcher/releases/download/v3.0.1/EG-Launcher-3.0.1-win-x64-setup.exe'
+);
+$linuxApp = (string) cfg(
+    'github_linux_appimage',
+    'https://github.com/YourLovelyFox/eg-launcher/releases/download/v3.0.1/EG-Launcher-3.0.1-linux-x86_64.AppImage'
+);
+$releases = (string) cfg('github_releases', 'https://github.com/YourLovelyFox/eg-launcher/releases');
+
 layout_header('', 'home');
 ?>
 <section class="hero">
   <div>
-    <div class="kicker">Minecraft / Java Edition</div>
+    <div class="kicker"><?= e(t('home.kicker')) ?></div>
     <h1>EG Launcher</h1>
-    <p>
-      Manage instances, add community content, and launch Minecraft with Microsoft login.
-      Official Windows release soon. Beta builds are on GitHub.
-    </p>
+    <p><?= e(t('home.lead')) ?></p>
     <div class="hero-actions" id="download">
-      <span class="soon-pill">Windows Release Soon</span>
-      <a class="btn btn-primary" href="<?= e((string) cfg('github_releases')) ?>" target="_blank" rel="noopener">Windows Beta</a>
-      <a class="btn btn-secondary" href="<?= e((string) cfg('github_releases')) ?>" target="_blank" rel="noopener">Linux AppImage</a>
+      <a class="btn btn-primary" href="<?= e($winSetup) ?>" rel="noopener"><?= e(t('home.dl_win')) ?></a>
+      <a class="btn btn-secondary" href="<?= e($linuxApp) ?>" rel="noopener"><?= e(t('home.dl_linux')) ?></a>
       <a class="btn btn-secondary" href="<?= e((string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5')) ?>" target="_blank" rel="noopener">
         <i class="fa-brands fa-discord"></i> Discord
       </a>
-      <a class="btn btn-ghost" href="/news/">News</a>
-      <a class="btn btn-ghost" href="/faq/">FAQ</a>
-      <a class="btn btn-ghost" href="/forum/">Forum</a>
+      <a class="btn btn-ghost" href="/news/"><?= e(t('nav.news')) ?></a>
+      <a class="btn btn-ghost" href="/faq/"><?= e(t('nav.faq')) ?></a>
+      <a class="btn btn-ghost" href="/forum/"><?= e(t('nav.forum')) ?></a>
     </div>
   </div>
 </section>
@@ -40,11 +46,11 @@ layout_header('', 'home');
 <div class="grid-2">
   <section class="panel">
     <div class="toolbar">
-      <h2>Latest news</h2>
-      <a class="btn btn-ghost" href="/news/">All news</a>
+      <h2><?= e(t('home.latest_news')) ?></h2>
+      <a class="btn btn-ghost" href="/news/"><?= e(t('home.all_news')) ?></a>
     </div>
     <?php if (!$news): ?>
-      <p class="hint">No news posts yet. Check back soon.</p>
+      <p class="hint"><?= e(t('home.no_news')) ?></p>
     <?php else: ?>
       <div class="list">
         <?php foreach ($news as $item): ?>
@@ -70,17 +76,17 @@ layout_header('', 'home');
 
   <section class="panel">
     <div class="toolbar">
-      <h2>Forum</h2>
-      <a class="btn btn-ghost" href="/forum/">Open forum</a>
+      <h2><?= e(t('nav.forum')) ?></h2>
+      <a class="btn btn-ghost" href="/forum/"><?= e(t('home.open_forum')) ?></a>
     </div>
     <?php if (!$cats): ?>
-      <p class="hint">Forum is warming up…</p>
+      <p class="hint"><?= e(t('home.forum_warming')) ?></p>
     <?php else: ?>
       <div class="list">
         <?php foreach ($cats as $c): ?>
           <a class="list-item" href="/forum/category.php?slug=<?= e(rawurlencode((string) $c['slug'])) ?>">
             <div class="title"><?= e((string) $c['title']) ?></div>
-            <div class="meta"><?= (int) $c['topic_count'] ?> topic<?= (int) $c['topic_count'] === 1 ? '' : 's' ?></div>
+            <div class="meta"><?= e(t((int) $c['topic_count'] === 1 ? 'home.topic_one' : 'home.topic_many', ['n' => (int) $c['topic_count']])) ?></div>
             <div class="summary"><?= e((string) $c['description']) ?></div>
           </a>
         <?php endforeach; ?>
@@ -90,20 +96,17 @@ layout_header('', 'home');
 </div>
 
 <section class="panel">
-  <h2>Get EG Launcher</h2>
-  <p class="hint" style="margin-bottom: 12px;">
-    <strong>Windows release soon.</strong>
-    Until then, install a beta from GitHub — Windows build or Linux AppImage.
-  </p>
+  <h2><?= e(t('home.get')) ?></h2>
+  <p class="hint" style="margin-bottom: 12px;"><?= e(t('home.get_body')) ?></p>
   <div class="hero-actions">
-    <span class="soon-pill">Windows Release Soon</span>
-    <a class="btn btn-primary" href="<?= e((string) cfg('github_releases')) ?>" target="_blank" rel="noopener">Windows Beta</a>
-    <a class="btn btn-secondary" href="<?= e((string) cfg('github_releases')) ?>" target="_blank" rel="noopener">Linux AppImage</a>
+    <a class="btn btn-primary" href="<?= e($winSetup) ?>" rel="noopener"><?= e(t('home.win_installer')) ?></a>
+    <a class="btn btn-secondary" href="<?= e($linuxApp) ?>" rel="noopener"><?= e(t('home.dl_linux')) ?></a>
+    <a class="btn btn-ghost" href="<?= e($releases) ?>" target="_blank" rel="noopener"><?= e(t('home.release_notes')) ?></a>
     <a class="btn btn-secondary" href="<?= e((string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5')) ?>" target="_blank" rel="noopener">
-      <i class="fa-brands fa-discord"></i> Join Discord
+      <i class="fa-brands fa-discord"></i> <?= e(t('home.join_discord')) ?>
     </a>
-    <a class="btn btn-ghost" href="/faq/">FAQ</a>
-    <a class="btn btn-ghost" href="<?= e((string) cfg('privacy_url')) ?>" target="_blank" rel="noopener">Privacy policy</a>
+    <a class="btn btn-ghost" href="/faq/"><?= e(t('nav.faq')) ?></a>
+    <a class="btn btn-ghost" href="<?= e((string) cfg('privacy_url')) ?>" target="_blank" rel="noopener"><?= e(t('home.privacy')) ?></a>
   </div>
 </section>
 <?php

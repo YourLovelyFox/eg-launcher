@@ -46,16 +46,16 @@ function contact_staff_recipients(string $departmentEmail): array
 function contact_abuse_categories(): array
 {
     return [
-        'harassment' => 'Harassment / threats / hate',
-        'spam' => 'Spam / scam / phishing',
-        'impersonation' => 'Impersonation / fake staff',
-        'malware' => 'Malware / malicious link / unsafe download',
-        'piracy' => 'Piracy / cracked content',
-        'csam' => 'Child safety / illegal sexual content',
-        'doxxing' => 'Doxxing / private info leak',
-        'forum' => 'Forum / website rule violation',
-        'launcher' => 'Launcher / account abuse',
-        'other' => 'Other (describe below)',
+        'harassment' => t('abuse.cat.harassment'),
+        'spam' => t('abuse.cat.spam'),
+        'impersonation' => t('abuse.cat.impersonation'),
+        'malware' => t('abuse.cat.malware'),
+        'piracy' => t('abuse.cat.piracy'),
+        'csam' => t('abuse.cat.csam'),
+        'doxxing' => t('abuse.cat.doxxing'),
+        'forum' => t('abuse.cat.forum'),
+        'launcher' => t('abuse.cat.launcher'),
+        'other' => t('abuse.cat.other'),
     ];
 }
 
@@ -63,13 +63,13 @@ function contact_abuse_categories(): array
 function contact_abuse_platforms(): array
 {
     return [
-        'website' => 'Website (eg-launcher.xyz)',
-        'forum' => 'Website forum',
-        'launcher' => 'EG Launcher app',
-        'discord' => 'Discord',
-        'email' => 'Email',
-        'github' => 'GitHub',
-        'other' => 'Other / multiple places',
+        'website' => t('abuse.plat.website'),
+        'forum' => t('abuse.plat.forum'),
+        'launcher' => t('abuse.plat.launcher'),
+        'discord' => t('abuse.plat.discord'),
+        'email' => t('abuse.plat.email'),
+        'github' => t('abuse.plat.github'),
+        'other' => t('abuse.plat.other'),
     ];
 }
 
@@ -238,7 +238,7 @@ if ($prefillDept !== 'abuse' && $prefillDept !== 'info') {
 
 // Abuse reports require a logged-in account (GET gate when landing on abuse)
 if ($prefillDept === 'abuse' && !current_user() && $_SERVER['REQUEST_METHOD'] !== 'POST') {
-    flash_set('info', 'Log in to submit an abuse report. This helps us follow up and stop false reports.');
+    flash_set('info', t('contact.login_abuse'));
     redirect('/auth/login.php?next=' . rawurlencode('/contact/?to=abuse'));
 }
 
@@ -594,20 +594,11 @@ $val = static function (string $key, string $default = '') use ($s): string {
 $loggedIn = (bool) $u;
 $loginUrl = '/auth/login.php?next=' . rawurlencode('/contact/?to=abuse');
 
-layout_header(
-    'Contact',
-    'contact',
-    'Contact EG Launcher — general questions or abuse reports. Abuse reports require login and can include screenshots.'
-);
+layout_header(t('contact.title'), 'contact', t('contact.meta'));
 ?>
 <div class="panel" style="max-width: 600px; margin: 0 auto;">
-  <h1>Contact</h1>
-  <p class="hint" style="margin-bottom: 16px;">
-    General questions go to <strong>info@</strong>. Abuse reports go to <strong>abuse@</strong>,
-    require a <strong>logged-in account</strong>, and can include <strong>screenshots</strong>.
-    Automated confirmations come from <code>testemail@eg-launcher.xyz</code>
-    (<strong>no-reply</strong> — not monitored).
-  </p>
+  <h1><?= e(t('contact.title')) ?></h1>
+  <p class="hint" style="margin-bottom: 16px;"><?= e(t('contact.lead')) ?></p>
 
   <?php if ($sentInq !== ''): ?>
     <div class="flash flash-success" style="margin-bottom: 16px;">

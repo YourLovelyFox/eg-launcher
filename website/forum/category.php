@@ -7,8 +7,8 @@ $st->execute([$slug]);
 $cat = $st->fetch();
 if (!$cat) {
     http_response_code(404);
-    layout_header('Not found', 'forum');
-    echo '<div class="panel"><h1>Category not found</h1><p><a href="/forum/">← Forum</a></p></div>';
+    layout_header(t('forum.not_found'), 'forum');
+    echo '<div class="panel"><h1>' . e(t('forum.cat_not_found')) . '</h1><p><a href="/forum/">' . e(t('forum.back')) . '</a></p></div>';
     layout_footer();
     exit;
 }
@@ -37,33 +37,33 @@ layout_header((string) $cat['title'], 'forum');
 ?>
 <div class="toolbar">
   <div>
-    <p class="hint"><a href="/forum/">← Forum</a></p>
+    <p class="hint"><a href="/forum/"><?= e(t('forum.back')) ?></a></p>
     <h1><?= e((string) $cat['title']) ?></h1>
     <p class="hint"><?= e((string) $cat['description']) ?></p>
   </div>
   <?php if (current_user()): ?>
-    <a class="btn btn-primary" href="/forum/new.php?cat=<?= e(rawurlencode((string) $cat['slug'])) ?>">New topic</a>
+    <a class="btn btn-primary" href="/forum/new.php?cat=<?= e(rawurlencode((string) $cat['slug'])) ?>"><?= e(t('forum.new_topic')) ?></a>
   <?php else: ?>
-    <a class="btn btn-secondary" href="/auth/login.php?next=<?= e(rawurlencode('/forum/new.php?cat=' . $cat['slug'])) ?>">Log in to post</a>
+    <a class="btn btn-secondary" href="/auth/login.php?next=<?= e(rawurlencode('/forum/new.php?cat=' . $cat['slug'])) ?>"><?= e(t('forum.login_to_post')) ?></a>
   <?php endif; ?>
 </div>
 
 <div class="panel">
   <?php if (!$topics): ?>
-    <p class="hint">No topics yet. Be the first to post.</p>
+    <p class="hint"><?= e(t('forum.no_topics')) ?></p>
   <?php else: ?>
     <div class="list">
       <?php foreach ($topics as $t): ?>
         <a class="list-item" href="/forum/topic.php?id=<?= e(rawurlencode((string) $t['id'])) ?>">
           <div class="title">
-            <?php if ((int) $t['pinned']): ?><span class="badge badge-blue">Pinned</span> <?php endif; ?>
-            <?php if ((int) $t['locked']): ?><span class="badge">Locked</span> <?php endif; ?>
+            <?php if ((int) $t['pinned']): ?><span class="badge badge-blue"><?= e(t('forum.pinned')) ?></span> <?php endif; ?>
+            <?php if ((int) $t['locked']): ?><span class="badge"><?= e(t('forum.locked_badge')) ?></span> <?php endif; ?>
             <?= e((string) $t['title']) ?>
           </div>
           <div class="meta">
-            by @<?= e((string) $t['username']) ?>
-            · <?= (int) $t['post_count'] ?> post<?= (int) $t['post_count'] === 1 ? '' : 's' ?>
-            · updated <?= e(format_dt((string) $t['updated_at'])) ?>
+            <?= e(t('forum.by')) ?> @<?= e((string) $t['username']) ?>
+            · <?= e(t((int) $t['post_count'] === 1 ? 'forum.post_one' : 'forum.post_many', ['n' => (int) $t['post_count']])) ?>
+            · <?= e(t('forum.updated')) ?> <?= e(format_dt((string) $t['updated_at'])) ?>
           </div>
         </a>
       <?php endforeach; ?>

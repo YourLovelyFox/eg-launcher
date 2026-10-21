@@ -101,41 +101,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable) {
     }
 
-    flash_set('success', 'Account created. Welcome, ' . $username . '!');
+    flash_set('success', t('register.created', ['user' => $username]));
     redirect('/forum/');
 }
 
-layout_header('Register', '');
+layout_header(t('register.title'), '');
 ?>
 <div class="panel" style="max-width: 440px; margin: 0 auto;">
-  <h1>Register</h1>
-  <p class="hint" style="margin-bottom: 16px;">
-    Create a <strong>community</strong> forum account. Launcher Staff/Admin should
-    <a href="/auth/login.php">log in</a> with their existing staff password (not register again).
-    This is not Microsoft Minecraft login.
-  </p>
+  <h1><?= e(t('register.title')) ?></h1>
+  <p class="hint" style="margin-bottom: 16px;"><?= e(t('register.lead')) ?></p>
   <form method="post">
     <?= csrf_field() ?>
     <div class="form-grid">
       <div class="form-row">
-        <label for="username">Username</label>
+        <label for="username"><?= e(t('login.username')) ?></label>
         <input class="input" id="username" name="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_]{3,32}" autocomplete="username">
       </div>
       <div class="form-row">
-        <label for="email">Email (optional)</label>
+        <label for="email"><?= e(t('register.email_opt')) ?></label>
         <input class="input" type="email" id="email" name="email" maxlength="255" autocomplete="email">
       </div>
       <div class="form-row">
-        <label for="password">Password</label>
+        <label for="password"><?= e(t('login.password')) ?></label>
         <input class="input" type="password" id="password" name="password" required minlength="<?= (int) cfg('min_password_len', 8) ?>" autocomplete="new-password">
       </div>
       <div class="form-row">
-        <label for="password2">Confirm password</label>
+        <label for="password2"><?= e(t('register.confirm')) ?></label>
         <input class="input" type="password" id="password2" name="password2" required minlength="<?= (int) cfg('min_password_len', 8) ?>" autocomplete="new-password">
       </div>
-      <button class="btn btn-primary" type="submit">Create account</button>
+      <button class="btn btn-primary" type="submit"><?= e(t('register.submit')) ?></button>
     </div>
   </form>
-  <p class="hint" style="margin-top: 16px;">Already registered? <a href="/auth/login.php">Log in</a></p>
+  <p class="hint" style="margin-top: 16px;"><?= e(t('register.already')) ?> <a href="/auth/login.php"><?= e(t('auth.login')) ?></a></p>
 </div>
 <?php layout_footer(); ?>

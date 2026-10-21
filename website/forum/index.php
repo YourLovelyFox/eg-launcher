@@ -9,34 +9,35 @@ $cats = db()->query(
      ORDER BY c.sort_order, c.id'
 )->fetchAll();
 
-layout_header('Forum', 'forum');
+layout_header(t('forum.title'), 'forum');
 ?>
 <div class="toolbar">
   <div>
-    <div class="kicker">Community</div>
-    <h1>Forum</h1>
-    <p class="hint">Discuss EG Launcher, get support, and share feedback. Be respectful.</p>
+    <div class="kicker"><?= e(t('forum.kicker')) ?></div>
+    <h1><?= e(t('forum.title')) ?></h1>
+    <p class="hint"><?= e(t('forum.lead')) ?></p>
   </div>
   <?php
   $cu = current_user();
   if ($cu && user_can_create_topics($cu)): ?>
-    <a class="btn btn-primary" href="/forum/new.php">New topic</a>
+    <a class="btn btn-primary" href="/forum/new.php"><?= e(t('forum.new_topic')) ?></a>
   <?php elseif ($cu && user_is_forum_locked($cu)): ?>
-    <span class="hint">Forum locked — you cannot create topics</span>
+    <span class="hint"><?= e(t('forum.locked')) ?></span>
   <?php elseif ($cu): ?>
-    <span class="hint">No permission to create topics</span>
+    <span class="hint"><?= e(t('forum.no_perm')) ?></span>
   <?php else: ?>
-    <a class="btn btn-secondary" href="/auth/login.php?next=/forum/new.php">Log in to post</a>
+    <a class="btn btn-secondary" href="/auth/login.php?next=/forum/new.php"><?= e(t('forum.login_to_post')) ?></a>
   <?php endif; ?>
 </div>
 
 <div class="panel">
+  <div class="table-scroll">
   <table class="table-cats">
     <thead>
       <tr>
-        <th>Category</th>
-        <th>Topics</th>
-        <th>Posts</th>
+        <th><?= e(t('forum.category')) ?></th>
+        <th><?= e(t('forum.topics')) ?></th>
+        <th><?= e(t('forum.posts')) ?></th>
       </tr>
     </thead>
     <tbody>
@@ -52,5 +53,6 @@ layout_header('Forum', 'forum');
       <?php endforeach; ?>
     </tbody>
   </table>
+  </div>
 </div>
 <?php layout_footer(); ?>

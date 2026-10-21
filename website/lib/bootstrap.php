@@ -1235,6 +1235,9 @@ function redirect(string $path): never
     exit;
 }
 
+require_once __DIR__ . '/i18n.php';
+init_lang();
+
 function slugify(string $s): string
 {
     $s = strtolower(trim($s));
@@ -1404,20 +1407,21 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
     $site = (string) cfg('site_name', 'EG Launcher');
     $siteUrl = rtrim((string) cfg('site_url', 'https://eg-launcher.xyz'), '/');
     $full = $title === '' ? $site : $title . ' - ' . $site;
-    $desc = $metaDescription
-        ?: (string) cfg(
-            'site_description',
-            'EG Launcher — Minecraft: Java Edition companion. Browse news, join the community forum, and get GitHub betas (Windows build or Linux AppImage). Windows release soon.'
-        );
+    $desc = $metaDescription ?: t('site.description');
+    $htmlLang = current_lang();
+    $ogLocale = $htmlLang === 'hu' ? 'hu_HU' : 'en_US';
     $img = $metaImage ?: ($siteUrl . '/assets/og-image.png');
     $canonical = $siteUrl . (string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
     $u = current_user();
     $flash = flash_get();
 
-    echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">';
-    echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
-    echo '<meta name="theme-color" content="#0b0e14">';
+    echo '<!DOCTYPE html><html lang="' . e($htmlLang) . '"><head><meta charset="utf-8">';
+    echo '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">';
+    echo '<meta name="theme-color" content="#080a10">';
     echo '<meta name="color-scheme" content="dark">';
+    echo '<meta name="mobile-web-app-capable" content="yes">';
+    echo '<meta name="apple-mobile-web-app-capable" content="yes">';
+    echo '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">';
     echo '<meta name="description" content="' . e($desc) . '">';
     echo '<meta name="author" content="EpicTeam Studios / EG Launcher">';
     echo '<meta name="robots" content="index,follow">';
@@ -1439,7 +1443,9 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
     echo '<meta property="og:url" content="' . e($canonical) . '">';
     echo '<meta property="og:image" content="' . e($img) . '">';
     echo '<meta property="og:image:alt" content="' . e($site) . ' icon">';
-    echo '<meta property="og:locale" content="en_US">';
+    echo '<meta property="og:locale" content="' . e($ogLocale) . '">';
+    echo '<link rel="alternate" hreflang="en" href="' . e(lang_switch_url('en')) . '">';
+    echo '<link rel="alternate" hreflang="hu" href="' . e(lang_switch_url('hu')) . '">';
 
     // Twitter / X card
     echo '<meta name="twitter:card" content="summary">';
@@ -1448,36 +1454,87 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
     echo '<meta name="twitter:image" content="' . e($img) . '">';
 
     echo '<title>' . e($full) . '</title>';
-    // Font Awesome 6 free (icons for badges / roles)
-    echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">';
-    echo '<link rel="stylesheet" href="/assets/style.css?v=user-admin-1">';
+    echo '<script>(function(){var n=navigator,c=n.connection||{};if(c.saveData||/slow-2g|2g/.test(c.effectiveType||""))document.documentElement.classList.add("lite");})();</script>';
+    echo '<link rel="stylesheet" href="/assets/style.css?v=synthwave-12">';
+    echo '<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>';
+    echo '<link rel="preconnect" href="https://www.youtube.com">';
+    echo '<link rel="preconnect" href="https://i.ytimg.com">';
+    echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" media="print" onload="this.media=\'all\'">';
+    echo '<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"></noscript>';
     echo '</head><body>';
-    echo '<div class="bg" aria-hidden="true"></div>';
+    echo '<div class="site-bg" aria-hidden="true">';
+    echo '<div class="bg-fallback"></div>';
+    echo '<div class="bg-poster"></div>';
+    echo '<video class="bg-video" data-src="/assets/synthwave-bg-web.mp4?v=2" muted loop playsinline webkit-playsinline preload="metadata" disablePictureInPicture disableRemotePlayback></video>';
+    echo '<div class="bg-vignette"></div>';
+    echo '</div>';
+    echo <<<'JS'
+<script>(function(){
+  var d=document.documentElement,v=document.querySelector(".bg-video");
+  function wanted(){return !!(v&&!d.classList.contains("lite"));}
+  function attach(){
+    if(!v||v.getAttribute("src"))return;
+    v.muted=true;v.defaultMuted=true;v.playsInline=true;
+    v.setAttribute("muted","");
+    v.setAttribute("playsinline","");
+    v.setAttribute("webkit-playsinline","");
+    v.src=v.getAttribute("data-src")||"";
+    try{v.load();}catch(e){}
+  }
+  function play(){
+    if(!wanted()||document.hidden)return;
+    attach();
+    var go=function(){var p=v.play();if(p&&p.catch)p.catch(function(){});};
+    if(v.readyState>=2)go();
+    else v.addEventListener("canplay",go,{once:true});
+  }
+  function pause(){if(v&&v.getAttribute("src"))v.pause();}
+  if(v){
+    v.addEventListener("playing",function(){v.classList.add("is-playing");});
+    v.addEventListener("error",function(){v.classList.remove("is-playing");});
+  }
+  document.addEventListener("visibilitychange",function(){
+    d.classList.toggle("is-hidden",document.hidden);
+    if(document.hidden)pause();else play();
+  });
+  play();
+  if(document.readyState==="complete")play();
+  else window.addEventListener("load",play);
+  document.addEventListener("pointerdown",play,{passive:true});
+})();</script>
+JS;
     echo '<header class="top">';
     echo '<a class="brand" href="/">'
         . '<img class="brand-icon" src="/assets/icon-128.png" width="36" height="36" alt="' . e($site) . '" decoding="async">'
-        . '<span class="brand-text"><strong>EG Launcher</strong><small>News / Forum / Downloads</small></span>'
+        . '<span class="brand-text"><strong>EG Launcher</strong><small>' . e(t('brand.tagline')) . '</small></span>'
         . '</a>';
-    echo '<nav class="nav">';
+    echo '<button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="' . e(t('nav.menu')) . '"><span class="nav-burger" aria-hidden="true"></span></button>';
+    echo '<nav class="nav" id="site-nav">';
     $links = [
-        'home' => ['/', 'Home'],
-        'news' => ['/news/', 'News'],
-        'forum' => ['/forum/', 'Forum'],
-        'faq' => ['/faq/', 'FAQ'],
-        'contact' => ['/contact/', 'Contact'],
-        'download' => ['/#download', 'Download'],
+        'home' => ['/', t('nav.home')],
+        'news' => ['/news/', t('nav.news')],
+        'forum' => ['/forum/', t('nav.forum')],
+        'faq' => ['/faq/', t('nav.faq')],
+        'contact' => ['/contact/', t('nav.contact')],
+        'download' => ['/#download', t('nav.download')],
     ];
     if ($u && is_mod($u)) {
-        $links['mod'] = ['/mod/', 'Moderation'];
+        $links['mod'] = ['/mod/', t('nav.mod')];
     }
     if ($u && is_admin($u)) {
-        $links['admin'] = ['/admin/', 'Admin'];
+        $links['admin'] = ['/admin/', t('nav.admin')];
     }
     foreach ($links as $key => [$href, $label]) {
         $cls = $active === $key ? ' class="active"' : '';
         echo '<a href="' . e($href) . '"' . $cls . '>' . e($label) . '</a>';
     }
     echo '</nav>';
+    echo '<div class="lang-switch" role="navigation" aria-label="' . e(t('lang.label')) . '">';
+    foreach (['en' => 'EN', 'hu' => 'HU'] as $code => $label) {
+        $on = current_lang() === $code ? ' class="active"' : '';
+        echo '<a href="' . e(lang_switch_url($code)) . '"' . $on . ' hreflang="' . $code . '" lang="' . $code . '">' . $label . '</a>';
+    }
+    echo '</div>';
     echo '<div class="auth-links">';
     if ($u) {
         echo '<a class="who" href="/user/profile.php?u=' . e(rawurlencode((string) $u['username'])) . '">@' . e($u['username']) . '</a>';
@@ -1485,10 +1542,10 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
         if (is_mod($u)) {
             echo render_user_badges((string) $u['id'], true);
         }
-        echo '<a class="btn btn-ghost" href="/auth/logout.php">Log out</a>';
+        echo '<a class="btn btn-ghost" href="/auth/logout.php">' . e(t('auth.logout')) . '</a>';
     } else {
-        echo '<a class="btn btn-ghost" href="/auth/login.php">Log in</a>';
-        echo '<a class="btn btn-primary" href="/auth/register.php">Register</a>';
+        echo '<a class="btn btn-ghost" href="/auth/login.php">' . e(t('auth.login')) . '</a>';
+        echo '<a class="btn btn-primary" href="/auth/register.php">' . e(t('auth.register')) . '</a>';
     }
     echo '</div></header>';
     echo '<main class="wrap">';
@@ -1502,8 +1559,8 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
         && strpos((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '/auth/') === false
     ) {
         echo '<div class="flash flash-error">';
-        echo 'Your launcher Staff/Admin account needs a recovery email. ';
-        echo '<a href="/auth/bind-email.php">Bind email now</a> (required for staff features and password reset).';
+        echo e(t('flash.staff_email')) . ' ';
+        echo '<a href="/auth/bind-email.php">' . e(t('flash.bind_now')) . '</a> ' . e(t('flash.staff_email_rest'));
         echo '</div>';
     }
     // Forum lock notice for members
@@ -1513,13 +1570,13 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
         && strpos((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '/auth/') === false
     ) {
         echo '<div class="flash flash-error">';
-        echo 'Your account is <strong>forum-locked</strong>';
+        echo e(t('flash.forum_locked'));
         if (!empty($u['locked_reason'])) {
             echo ': ' . e((string) $u['locked_reason']);
         } else {
             echo '.';
         }
-        echo ' You can browse but cannot post until staff unlocks you.';
+        echo ' ' . e(t('flash.forum_locked_rest'));
         echo '</div>';
     }
 }
@@ -1529,18 +1586,169 @@ function layout_footer(): void
     echo '</main>';
     echo '<footer class="foot">';
     echo '<div class="foot-inner">';
-    echo '<div><strong>EG Launcher</strong><p class="muted">Minecraft: Java Edition companion — Windows release soon · GitHub beta (Windows + Linux AppImage)</p></div>';
+    echo '<div><strong>EG Launcher</strong><p class="muted">' . e(t('footer.tagline')) . '</p></div>';
     echo '<div class="foot-links">';
     echo '<a href="' . e((string) cfg('github_url')) . '">GitHub</a>';
     $discord = trim((string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5'));
     if ($discord !== '') {
         echo '<a href="' . e($discord) . '" target="_blank" rel="noopener">Discord</a>';
     }
-    echo '<a href="/faq/">FAQ</a>';
-    echo '<a href="' . e((string) cfg('privacy_url')) . '">Privacy</a>';
-    echo '<a href="/contact/">Contact</a>';
-    echo '<a href="/contact/?to=abuse">Abuse</a>';
+    echo '<a href="/faq/">' . e(t('nav.faq')) . '</a>';
+    echo '<a href="' . e((string) cfg('privacy_url')) . '">' . e(t('footer.privacy')) . '</a>';
+    echo '<a href="/contact/">' . e(t('nav.contact')) . '</a>';
+    echo '<a href="/contact/?to=abuse">' . e(t('footer.abuse')) . '</a>';
     echo '</div></div>';
-    echo '<p class="copy muted">&copy; ' . date('Y') . ' EpicTeam Studios. Not affiliated with Mojang or Microsoft.</p>';
-    echo '</footer></body></html>';
+    echo '<p class="copy muted">&copy; ' . date('Y') . ' ' . e(t('footer.copy')) . '</p>';
+    echo '</footer>';
+    echo '<div class="bgm" id="bgm">';
+    echo '<div class="bgm-embed" id="bgm-player" aria-hidden="true"></div>';
+    echo '<button type="button" class="bgm-btn" id="bgm-toggle" aria-pressed="false" aria-label="' . e(t('bgm.play')) . '" title="' . e(t('bgm.play')) . ' — Arcane &amp; Pantherium · Restless" data-label-play="' . e(t('bgm.play')) . '" data-label-stop="' . e(t('bgm.stop')) . '">';
+    echo '<i class="fa-solid fa-play" aria-hidden="true"></i><span>BGM</span>';
+    echo '</button></div>';
+    echo <<<'JS'
+<script>(function(){
+  var VIDEO_ID="Wb2gvjs9X2U";
+  var VOLUME=18;
+  var KEY="eg-bgm";
+  var btn=document.getElementById("bgm-toggle");
+  var player=null;
+  var apiLoaded=false;
+  var wantPlay=true;
+  var unmuted=false;
+  try{wantPlay=localStorage.getItem(KEY)!=="off";}catch(e){}
+
+  function setUi(on){
+    if(!btn)return;
+    btn.setAttribute("aria-pressed", on?"true":"false");
+    var playL=btn.getAttribute("data-label-play")||"Play background music";
+    var stopL=btn.getAttribute("data-label-stop")||"Stop background music";
+    btn.setAttribute("aria-label", on?stopL:playL);
+    btn.title=(on?stopL:playL)+" — Arcane & Pantherium · Restless";
+    btn.classList.toggle("is-on", !!on);
+    var icon=btn.querySelector("i");
+    if(icon) icon.className=on?"fa-solid fa-stop":"fa-solid fa-play";
+  }
+  setUi(false);
+
+  function applyVolume(){
+    if(!player||typeof player.setVolume!=="function")return;
+    try{
+      if(unmuted){player.unMute();player.setVolume(VOLUME);}
+      else {player.mute();}
+    }catch(e){}
+  }
+
+  function persist(){
+    try{localStorage.setItem(KEY, wantPlay?"on":"off");}catch(e){}
+  }
+
+  function playBgm(){
+    wantPlay=true;
+    unmuted=true;
+    persist();
+    loadApi();
+    if(!player||typeof player.playVideo!=="function")return;
+    applyVolume();
+    try{player.playVideo();}catch(e){}
+  }
+
+  function stopBgm(){
+    wantPlay=false;
+    unmuted=false;
+    persist();
+    if(player&&typeof player.pauseVideo==="function"){
+      try{player.pauseVideo();}catch(e){}
+    }
+    setUi(false);
+  }
+
+  function startMuted(){
+    if(!player||typeof player.playVideo!=="function")return;
+    unmuted=false;
+    applyVolume();
+    try{player.playVideo();}catch(e){}
+  }
+
+  window.onYouTubeIframeAPIReady=function(){
+    player=new YT.Player("bgm-player",{
+      videoId:VIDEO_ID,
+      width:200,
+      height:200,
+      playerVars:{
+        autoplay:1,mute:1,controls:0,disablekb:1,fs:0,modestbranding:1,rel:0,
+        loop:1,playlist:VIDEO_ID,playsinline:1,iv_load_policy:3,
+        origin:location.origin,enablejsapi:1
+      },
+      events:{
+        onReady:function(){
+          if(!wantPlay){ setUi(false); return; }
+          if(unmuted) playBgm();
+          else startMuted();
+        },
+        onStateChange:function(e){
+          if(!window.YT||!YT.PlayerState)return;
+          if(e.data===YT.PlayerState.PLAYING){
+            if(unmuted&&wantPlay) setUi(true);
+          }else if(e.data===YT.PlayerState.PAUSED){
+            if(!wantPlay) setUi(false);
+          }else if(e.data===YT.PlayerState.ENDED){
+            if(wantPlay){
+              try{player.seekTo(0,true);applyVolume();player.playVideo();}catch(err){}
+            }else setUi(false);
+          }
+        }
+      }
+    });
+  };
+
+  function loadApi(){
+    if(apiLoaded)return;
+    apiLoaded=true;
+    var tag=document.createElement("script");
+    tag.src="https://www.youtube.com/iframe_api";
+    tag.async=true;
+    document.head.appendChild(tag);
+  }
+
+  function unlock(e){
+    if(!wantPlay)return;
+    if(e&&e.target&&e.target.closest&&e.target.closest("#bgm-toggle"))return;
+    unmuted=true;
+    playBgm();
+  }
+  ["pointerdown","keydown"].forEach(function(ev){
+    document.addEventListener(ev,unlock,{once:true,passive:true});
+  });
+
+  if(btn){
+    btn.addEventListener("click",function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      if(wantPlay&&unmuted) stopBgm();
+      else playBgm();
+    });
+  }
+
+  loadApi();
+
+  var topEl=document.querySelector(".top");
+  var tog=document.getElementById("nav-toggle");
+  var nav=document.getElementById("site-nav");
+  if(tog&&topEl){
+    tog.addEventListener("click",function(){
+      var open=topEl.classList.toggle("nav-open");
+      tog.setAttribute("aria-expanded", open?"true":"false");
+    });
+    if(nav){
+      nav.querySelectorAll("a").forEach(function(a){
+        a.addEventListener("click",function(){
+          topEl.classList.remove("nav-open");
+          tog.setAttribute("aria-expanded","false");
+        });
+      });
+    }
+  }
+})();</script>
+JS;
+    echo '</body></html>';
 }
