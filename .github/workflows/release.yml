@@ -13,7 +13,7 @@ on:
         required: false
         type: string
       force_rebuild:
-        description: 'Force rebuild & REPLACE AppImage (changes file HASH). Keep OFF for normal releases.'
+        description: 'Force rebuild & REPLACE AppImage + signed setup.exe (changes file HASH). Keep OFF for normal releases.'
         required: false
         type: boolean
         default: false
@@ -65,13 +65,16 @@ jobs:
           # Portable BETA tags are published manually (Windows zip). Do not rebuild Linux or mark latest.
           if [[ "${VERSION}" =~ [Bb]eta|[Rr][Cc]|[Pp]re ]]; then
             echo "needs_build=false" >> "$GITHUB_OUTPUT"
-            echo "skip_reason=BETA/RC tag ${TAG}: skip Linux AppImage job. Upload the portable zip with gh release (prerelease, not latest)."
+            echo "skip_reason=BETA/RC tag ${TAG}: skip Linux AppImage + Windows setup jobs. Upload the portable zip with gh release (prerelease, not latest)."
             echo "::notice::Skipping CI package for BETA tag ${TAG}"
             exit 0
           fi
 
-          # Public GitHub releases are Linux AppImage only (no Windows setup/uninstall — SAC / Store).
-          # Re-uploading the same filename with a new binary changes SHA-256 — ship each version once.
+          # Public GitHub releases ship the Linux AppImage + the Azure Trusted Signing–signed Windows setup.exe
+          # (no standalone uninstall.exe). Re-uploading the same filename with a new binary changes SHA-256 —
+          # ship each version once. The freeze keys on the AppImage: a release that already has one is not
+          # rebuilt (a re-run would replace the AppImage hash). Older AppImage-only releases therefore need
+          # force_rebuild (or a new version) to get a signed setup.exe.
           HAS_LINUX="false"
           if gh release view "${TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             ASSETS="$(gh release view "${TAG}" --repo "${{ github.repository }}" --json assets -q '.assets[].name' 2>/dev/null || true)"
@@ -146,37 +149,145 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  build-windows:
+    name: Build Windows x64 (NSIS setup.exe, Azure Trusted Signing)
+    needs: resolve-version
+    if: needs.resolve-version.outputs.needs_build == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      # Non-secret Azure Trusted Signing settings (fill in real values).
+      # Passed to electron-builder via -c.win.azureSignOptions.* so local `npm run dist` / `dist:store`
+      # keep building unsigned without Azure credentials.
+      AZURE_SIGN_ENDPOINT: '__AZURE_ENDPOINT__'
+      AZURE_SIGN_ACCOUNT: '__AZURE_ACCOUNT__'
+      AZURE_SIGN_PROFILE: '__AZURE_PROFILE__'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check signing configuration
+        shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          for v in AZURE_SIGN_ENDPOINT AZURE_SIGN_ACCOUNT AZURE_SIGN_PROFILE; do
+            if [[ -z "${!v}" || "${!v}" == __AZURE_* ]]; then
+              echo "::error::${v} is not configured in .github/workflows/release.yml"; exit 1
+            fi
+          done
+          for v in AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET; do
+            if [[ -z "${!v}" ]]; then
+              echo "::error::Repository secret ${v} is missing"; exit 1
+            fi
+          done
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set package version
+        shell: bash
+        run: npm version "${{ needs.resolve-version.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      - name: Build app (Vite + Electron compile)
+        run: npm run build
+
+      # Signs the app exe, the embedded NSIS uninstaller and the setup.exe via Invoke-TrustedSigning.
+      # The standalone uninstall.exe (scripts/build-win-uninstaller.mjs) is intentionally NOT built:
+      # it is not shipped on GitHub and the NSIS installer already contains its own (signed) uninstaller.
+      - name: Package + sign Windows setup.exe (electron-builder)
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CI: 'true'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          npx electron-builder --win nsis --x64 --publish never \
+            "-c.win.azureSignOptions.endpoint=${AZURE_SIGN_ENDPOINT}" \
+            "-c.win.azureSignOptions.codeSigningAccountName=${AZURE_SIGN_ACCOUNT}" \
+            "-c.win.azureSignOptions.certificateProfileName=${AZURE_SIGN_PROFILE}" \
+            "-c.win.azureSignOptions.TimestampRfc3161=http://timestamp.acs.microsoft.com" \
+            "-c.win.azureSignOptions.TimestampDigest=SHA256"
+
+      - name: Verify Authenticode signatures
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(Get-ChildItem -Path release -Filter '*-setup.exe' -File)
+          $files += @(Get-ChildItem -Path 'release/win-unpacked' -Filter '*.exe' -File -ErrorAction SilentlyContinue)
+          if (-not ($files | Where-Object { $_.Name -like '*-setup.exe' })) { throw 'No *-setup.exe found in release/' }
+          foreach ($f in $files) {
+            $sig = Get-AuthenticodeSignature -FilePath $f.FullName
+            Write-Host "$($f.Name): $($sig.Status) | $($sig.SignerCertificate.Subject) | timestamp: $($sig.TimeStamperCertificate.Subject)"
+            if ($sig.Status -ne 'Valid') { throw "Signature on $($f.Name) is $($sig.Status): $($sig.StatusMessage)" }
+            if (-not $sig.TimeStamperCertificate) { throw "Signature on $($f.Name) is not timestamped" }
+          }
+
+      - name: List artifacts + SHA-256
+        shell: bash
+        run: |
+          ls -la release
+          echo "=== SHA-256 ==="
+          sha256sum release/*-setup.exe release/latest.yml release/*.blockmap || true
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: eg-launcher-win-x64
+          path: |
+            release/*-setup.exe
+            release/*-setup.exe.blockmap
+            release/latest.yml
+          if-no-files-found: error
+          retention-days: 14
+
   publish-release:
     name: Publish GitHub Release
-    needs: [resolve-version, build-linux]
-    if: always() && needs.resolve-version.result == 'success' && (needs.resolve-version.outputs.needs_build != 'true' || needs.build-linux.result == 'success')
+    needs: [resolve-version, build-linux, build-windows]
+    if: always() && needs.resolve-version.result == 'success' && (needs.resolve-version.outputs.needs_build != 'true' || (needs.build-linux.result == 'success' && needs.build-windows.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - name: Hash frozen — nothing to upload
         if: needs.resolve-version.outputs.needs_build != 'true'
         run: |
           echo "${{ needs.resolve-version.outputs.skip_reason }}"
-          echo "Release ${{ needs.resolve-version.outputs.tag }} AppImage is frozen (same SHA until force_rebuild)."
+          echo "Release ${{ needs.resolve-version.outputs.tag }} assets are frozen (same SHA until force_rebuild)."
 
       - name: Checkout (for CHANGELOG.md)
         if: needs.resolve-version.outputs.needs_build == 'true'
         uses: actions/checkout@v4
 
-      - name: Download Linux build artifacts
+      - name: Download Linux + Windows build artifacts
         if: needs.resolve-version.outputs.needs_build == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: eg-launcher-linux-x64
+          pattern: eg-launcher-*-x64
+          merge-multiple: true
           path: artifacts
 
-      - name: Keep only AppImage + Linux updater metadata
+      - name: Keep only AppImage, signed setup.exe + updater metadata
         if: needs.resolve-version.outputs.needs_build == 'true'
         shell: bash
         run: |
           set -euo pipefail
           cd artifacts
-          # Drop any accidental Windows leftovers
-          rm -f ./*.exe ./*setup* ./*uninstall* ./latest.yml ./builder-debug.yml 2>/dev/null || true
+          # Drop debug output and any standalone uninstaller / unexpected .exe (keep the signed *-setup.exe)
+          rm -f ./*uninstall* ./builder-debug.yml 2>/dev/null || true
+          find . -maxdepth 1 -type f -name '*.exe' ! -name '*-setup.exe' -print -delete
+          ls ./*-setup.exe ./latest.yml ./*.AppImage ./latest-linux.yml >/dev/null
           find . -type f | sort
           echo "=== SHA-256 ==="
           find . -type f -print0 | xargs -0 sha256sum
@@ -190,7 +301,7 @@ jobs:
           echo "---- release-notes.md ----"
           cat release-notes.md
 
-      - name: Publish GitHub Release (Linux AppImage only)
+      - name: Publish GitHub Release (Linux AppImage + signed Windows setup.exe)
         if: needs.resolve-version.outputs.needs_build == 'true'
         uses: softprops/action-gh-release@v2
         with:
@@ -203,13 +314,15 @@ jobs:
           files: |
             artifacts/*.AppImage
             artifacts/latest-linux.yml
+            artifacts/*-setup.exe
+            artifacts/latest.yml
             artifacts/*.blockmap
           fail_on_unmatched_files: false
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Remove Windows setup/uninstall from this release (if any)
+      - name: Remove stale standalone uninstaller / debug assets (if any)
         if: needs.resolve-version.outputs.needs_build == 'true'
         shell: bash
         env:
@@ -222,11 +335,8 @@ jobs:
           echo "${ASSETS}"
           while IFS= read -r name; do
             [[ -z "${name}" ]] && continue
-            # Strip Windows NSIS/updater leftovers; keep Store .appx/.msix if uploaded for Partner Center.
-            if echo "${name}" | grep -qiE '\.(exe)$|uninstall|latest\.yml$|builder-debug'; then
-              echo "Deleting asset: ${name}"
-              gh release delete-asset "${TAG}" "${name}" --repo "${{ github.repository }}" --yes || true
-            elif echo "${name}" | grep -qiE 'setup' && ! echo "${name}" | grep -qiE '\.(appx|msix)$'; then
+            # Keep the signed *-setup.exe, its .blockmap, latest.yml, the AppImage and Store .appx/.msix.
+            if echo "${name}" | grep -qiE 'uninstall|builder-debug'; then
               echo "Deleting asset: ${name}"
               gh release delete-asset "${TAG}" "${name}" --repo "${{ github.repository }}" --yes || true
             fi
@@ -241,12 +351,13 @@ jobs:
             echo "## EG Launcher ${{ needs.resolve-version.outputs.tag }}"
             echo ""
             echo "### GitHub (public)"
-            echo "- **Linux AppImage only** (no Windows setup/uninstall)"
-            echo "- Windows users: Microsoft Store (when published)"
+            echo "- **Linux AppImage**"
+            echo "- **Windows setup.exe** (signed with Azure Trusted Signing; no standalone uninstall.exe)"
+            echo "- Windows users can also use the Microsoft Store (when published)"
             echo "- Docs: \`docs/GITHUB-RELEASES.md\`, \`docs/GITHUB-SAC.md\`"
             if [[ "${{ needs.resolve-version.outputs.needs_build }}" != "true" ]]; then
               echo ""
-              echo "> Hash frozen — no new AppImage uploaded."
+              echo "> Hash frozen — no new AppImage / setup.exe uploaded."
               echo "> ${{ needs.resolve-version.outputs.skip_reason }}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
