@@ -162,7 +162,6 @@ jobs:
       AZURE_SIGN_ENDPOINT: 'https://neu.codesigning.azure.net/'
       AZURE_SIGN_ACCOUNT: 'egteam'
       AZURE_SIGN_PROFILE: 'EGLauncher'
-      AZURE_SIGN_PUBLISHER: 'EpicTeam Studios'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -175,7 +174,7 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
           set -euo pipefail
-          for v in AZURE_SIGN_ENDPOINT AZURE_SIGN_ACCOUNT AZURE_SIGN_PROFILE AZURE_SIGN_PUBLISHER; do
+          for v in AZURE_SIGN_ENDPOINT AZURE_SIGN_ACCOUNT AZURE_SIGN_PROFILE; do
             if [[ -z "${!v}" || "${!v}" == __AZURE_* ]]; then
               echo "::error::${v} is not configured in .github/workflows/release.yml"; exit 1
             fi
@@ -225,7 +224,6 @@ jobs:
             "-c.win.azureSignOptions.endpoint=${AZURE_SIGN_ENDPOINT}" \
             "-c.win.azureSignOptions.codeSigningAccountName=${AZURE_SIGN_ACCOUNT}" \
             "-c.win.azureSignOptions.certificateProfileName=${AZURE_SIGN_PROFILE}" \
-            "-c.win.azureSignOptions.publisherName=${AZURE_SIGN_PUBLISHER}" \
             "-c.win.azureSignOptions.TimestampRfc3161=http://timestamp.acs.microsoft.com" \
             "-c.win.azureSignOptions.TimestampDigest=SHA256"
 

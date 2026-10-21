@@ -36,7 +36,6 @@ Workflow: `.github/workflows/release.yml` → job **`build-windows`** (`windows-
 | Endpoint | `https://neu.codesigning.azure.net/` |
 | Trusted Signing account | `egteam` |
 | Certificate profile | `EGLauncher` |
-| Publisher name | `EpicTeam Studios` |
 | Timestamp | `http://timestamp.acs.microsoft.com` (RFC 3161, SHA256) |
 | Repo secrets | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (app registration with the *Trusted Signing Certificate Profile Signer* role) |
 
