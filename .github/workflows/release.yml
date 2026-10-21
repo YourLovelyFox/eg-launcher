@@ -194,6 +194,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # electron-builder 25.1.8 passes unquoted paths to Invoke-TrustedSigning, which breaks on
+      # "EG Launcher.exe". Quote them (CI only; drop this step after upgrading to electron-builder 26).
+      - name: Patch electron-builder Azure signing (quote paths)
+        run: node scripts/patch-azure-sign-quoting.mjs
+
       - name: Set package version
         shell: bash
         run: npm version "${{ needs.resolve-version.outputs.version }}" --no-git-tag-version --allow-same-version
