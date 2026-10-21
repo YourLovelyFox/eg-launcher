@@ -9,7 +9,6 @@
 | GitHub Windows NSIS / setup.exe | **Supported** — signed in CI with **Azure Trusted Signing** (since 3.0.0) |
 | GitHub Windows portable BETA | **Supported** (unsigned zip; SAC/SmartScreen may warn) |
 | GitHub Linux AppImage | **Supported** |
-| Microsoft Store | **In progress** |
 
 ## Policy change (3.0.0)
 
@@ -37,12 +36,13 @@ Workflow: `.github/workflows/release.yml` → job **`build-windows`** (`windows-
 | Endpoint | `https://neu.codesigning.azure.net/` |
 | Trusted Signing account | `egteam` |
 | Certificate profile | `EGLauncher` |
+| Publisher name | `EpicTeam Studios` |
 | Timestamp | `http://timestamp.acs.microsoft.com` (RFC 3161, SHA256) |
 | Repo secrets | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (app registration with the *Trusted Signing Certificate Profile Signer* role) |
 
 - electron-builder signs the app exe, the embedded uninstaller and the setup.exe (`win.azureSignOptions`, passed via `-c.win.azureSignOptions.*` in CI only).  
 - The job fails unless `Get-AuthenticodeSignature` reports **Valid** with a timestamp.  
-- Local `npm run dist` / `dist:store` stay **unsigned** (no Azure config in `package.json`), so self-builds work without credentials.
+- Local `npm run dist` stays **unsigned** (no Azure config in `package.json`), so self-builds work without credentials.
 
 ## Historical note
 

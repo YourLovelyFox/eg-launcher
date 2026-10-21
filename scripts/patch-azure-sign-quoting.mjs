@@ -7,7 +7,7 @@
  * single-quoted PowerShell string (same approach as app-builder-lib 26.x).
  *
  * Only touches the Azure signing code path (used only when win.azureSignOptions is set),
- * so unsigned local `npm run dist` / `dist:store` builds are unaffected.
+ * so unsigned local `npm run dist` builds are unaffected.
  *
  * Usage (after `npm ci`): node scripts/patch-azure-sign-quoting.mjs
  * Remove this script once electron-builder is upgraded to 26.x.

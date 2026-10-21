@@ -29,30 +29,39 @@ import type {
 } from '../shared/types'
 import type { PartnerDefinition } from '../shared/branding'
 
+/** Strip Electron’s “Error invoking remote method …” wrapper so toasts show the real cause. */
+function inv<T = any>(channel: string, ...args: unknown[]): Promise<T> {
+  return ipcRenderer.invoke(channel, ...args).catch((err: unknown) => {
+    const raw = err instanceof Error ? err.message : String(err)
+    const msg = raw.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, '').trim()
+    throw new Error(msg || raw)
+  }) as Promise<T>
+}
+
 const api = {
   settings: {
-    get: (): Promise<LauncherSettings> => ipcRenderer.invoke('settings:get'),
+    get: (): Promise<LauncherSettings> => inv('settings:get'),
     save: (settings: LauncherSettings): Promise<LauncherSettings> =>
-      ipcRenderer.invoke('settings:save', settings),
-    systemMemory: (): Promise<SystemMemoryInfo> => ipcRenderer.invoke('settings:systemMemory'),
+      inv('settings:save', settings),
+    systemMemory: (): Promise<SystemMemoryInfo> => inv('settings:systemMemory'),
   },
   java: {
-    find: (): Promise<{ path: string; version: string } | null> => ipcRenderer.invoke('java:find'),
+    find: (): Promise<{ path: string; version: string } | null> => inv('java:find'),
     version: (javaPath: string): Promise<string | null> =>
-      ipcRenderer.invoke('java:version', javaPath),
+      inv('java:version', javaPath),
   },
   auth: {
     getAccounts: (): Promise<{ accounts: MinecraftAccount[]; activeAccountId: string | null }> =>
-      ipcRenderer.invoke('auth:getAccounts'),
+      inv('auth:getAccounts'),
     setActive: (
       id: string | null,
     ): Promise<{ accounts: MinecraftAccount[]; activeAccountId: string | null }> =>
-      ipcRenderer.invoke('auth:setActive', id),
+      inv('auth:setActive', id),
     remove: (
       id: string,
     ): Promise<{ accounts: MinecraftAccount[]; activeAccountId: string | null }> =>
-      ipcRenderer.invoke('auth:remove', id),
-    startDeviceCode: (): Promise<DeviceCodeResponse> => ipcRenderer.invoke('auth:startDeviceCode'),
+      inv('auth:remove', id),
+    startDeviceCode: (): Promise<DeviceCodeResponse> => inv('auth:startDeviceCode'),
     pollDeviceCode: (
       deviceCode: string,
     ): Promise<
@@ -62,9 +71,9 @@ const api = {
       | { status: 'expired' }
       | { status: 'declined' }
       | { status: 'failed'; message: string; code?: string }
-    > => ipcRenderer.invoke('auth:pollDeviceCode', deviceCode),
+    > => inv('auth:pollDeviceCode', deviceCode),
     msInfo: (): Promise<{ clientId: string; sharedClient: boolean; consentAppHint: string }> =>
-      ipcRenderer.invoke('auth:msInfo'),
+      inv('auth:msInfo'),
     onProgress: (cb: (message: string) => void): (() => void) => {
       const handler = (_e: Electron.IpcRendererEvent, message: string) => cb(message)
       ipcRenderer.on('auth:progress', handler)
@@ -77,58 +86,58 @@ const api = {
       unlockConfigured: boolean
       activeIsOffline: boolean
       activeUsername: string | null
-    }> => ipcRenderer.invoke('offline:status'),
+    }> => inv('offline:status'),
     unlock: (password: string): Promise<{ ok: true } | { ok: false; error: string }> =>
-      ipcRenderer.invoke('offline:unlock', password),
+      inv('offline:unlock', password),
     lock: (): Promise<{
       offlineModeEnabled: boolean
       unlockConfigured: boolean
       activeIsOffline: boolean
       activeUsername: string | null
-    }> => ipcRenderer.invoke('offline:lock'),
+    }> => inv('offline:lock'),
     login: (
       username: string,
       password: string,
     ): Promise<{ ok: true; account: MinecraftAccount } | { ok: false; error: string }> =>
-      ipcRenderer.invoke('offline:login', username, password),
-    warning: (): Promise<string> => ipcRenderer.invoke('offline:warning'),
+      inv('offline:login', username, password),
+    warning: (): Promise<string> => inv('offline:warning'),
   },
   instances: {
-    list: (): Promise<GameInstance[]> => ipcRenderer.invoke('instances:list'),
-    get: (id: string): Promise<GameInstance | null> => ipcRenderer.invoke('instances:get', id),
+    list: (): Promise<GameInstance[]> => inv('instances:list'),
+    get: (id: string): Promise<GameInstance | null> => inv('instances:get', id),
     create: (input: {
       name: string
       gameVersion: string
       loader: LoaderType
       loaderVersion?: string
-    }): Promise<GameInstance> => ipcRenderer.invoke('instances:create', input),
+    }): Promise<GameInstance> => inv('instances:create', input),
     update: (id: string, patch: Partial<GameInstance>): Promise<GameInstance> =>
-      ipcRenderer.invoke('instances:update', id, patch),
+      inv('instances:update', id, patch),
     rename: (id: string, newName: string): Promise<GameInstance> =>
-      ipcRenderer.invoke('instances:rename', id, newName),
-    delete: (id: string): Promise<boolean> => ipcRenderer.invoke('instances:delete', id),
+      inv('instances:rename', id, newName),
+    delete: (id: string): Promise<boolean> => inv('instances:delete', id),
     toggleMod: (instanceId: string, projectId: string, enabled: boolean): Promise<GameInstance> =>
-      ipcRenderer.invoke('instances:toggleMod', instanceId, projectId, enabled),
+      inv('instances:toggleMod', instanceId, projectId, enabled),
     removeMod: (instanceId: string, projectId: string): Promise<GameInstance> =>
-      ipcRenderer.invoke('instances:removeMod', instanceId, projectId),
+      inv('instances:removeMod', instanceId, projectId),
     installLocalJar: (instanceId: string, filePath: string): Promise<GameInstance> =>
-      ipcRenderer.invoke('instances:installLocalJar', instanceId, filePath),
+      inv('instances:installLocalJar', instanceId, filePath),
     listBackups: (instanceId: string): Promise<InstanceBackupInfo[]> =>
-      ipcRenderer.invoke('instances:listBackups', instanceId),
+      inv('instances:listBackups', instanceId),
     createBackup: (
       instanceId: string,
       opts?: { includeSaves?: boolean; label?: string },
     ): Promise<InstanceBackupInfo> =>
-      ipcRenderer.invoke('instances:createBackup', instanceId, opts || {}),
+      inv('instances:createBackup', instanceId, opts || {}),
     restoreBackup: (
       instanceId: string,
       backupId: string,
     ): Promise<{ ok: true; message: string }> =>
-      ipcRenderer.invoke('instances:restoreBackup', instanceId, backupId),
+      inv('instances:restoreBackup', instanceId, backupId),
     deleteBackup: (instanceId: string, backupId: string): Promise<boolean> =>
-      ipcRenderer.invoke('instances:deleteBackup', instanceId, backupId),
+      inv('instances:deleteBackup', instanceId, backupId),
     openBackupsFolder: (instanceId?: string): Promise<string> =>
-      ipcRenderer.invoke('instances:openBackupsFolder', instanceId),
+      inv('instances:openBackupsFolder', instanceId),
     onBackupProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
       const listener = (_: unknown, event: ProgressEvent) => cb(event)
       ipcRenderer.on('instances:backupProgress', listener)
@@ -139,7 +148,7 @@ const api = {
     listExportContents: (
       instanceId: string,
     ): Promise<import('../shared/types').EgpackExportEntry[]> =>
-      ipcRenderer.invoke('instances:listExportContents', instanceId),
+      inv('instances:listExportContents', instanceId),
     /** Export instance as .egpack only (options → save dialog). */
     exportEgpack: (
       instanceId: string,
@@ -147,7 +156,7 @@ const api = {
     ): Promise<
       | { ok: true; path: string; size: number }
       | { ok: false; cancelled: true }
-    > => ipcRenderer.invoke('instances:exportEgpack', instanceId, options),
+    > => inv('instances:exportEgpack', instanceId, options),
     /** Import .egpack or .mrpack (open dialog if no path). */
     importPack: (opts?: {
       filePath?: string
@@ -156,7 +165,7 @@ const api = {
     }): Promise<
       | { ok: true; instance: GameInstance; format: 'egpack' | 'mrpack' }
       | { ok: false; cancelled: true }
-    > => ipcRenderer.invoke('instances:importPack', opts || {}),
+    > => inv('instances:importPack', opts || {}),
     onPackProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
       const listener = (_: unknown, event: ProgressEvent) => cb(event)
       ipcRenderer.on('instances:packProgress', listener)
@@ -169,17 +178,17 @@ const api = {
     listVersions: (): Promise<{
       latest: { release: string; snapshot: string }
       versions: MinecraftVersionInfo[]
-    }> => ipcRenderer.invoke('mc:listVersions'),
+    }> => inv('mc:listVersions'),
     listLoaders: (loader: LoaderType, gameVersion: string): Promise<LoaderVersionInfo[]> =>
-      ipcRenderer.invoke('mc:listLoaders', loader, gameVersion),
+      inv('mc:listLoaders', loader, gameVersion),
     install: (instanceId: string): Promise<{ versionId: string }> =>
-      ipcRenderer.invoke('mc:install', instanceId),
+      inv('mc:install', instanceId),
     launch: (
       instanceId: string,
       options?: { acknowledgeLowMemory?: boolean; quickPlayServer?: string },
-    ): Promise<LaunchResult> => ipcRenderer.invoke('mc:launch', instanceId, options),
-    stop: (): Promise<RunningGameInfo> => ipcRenderer.invoke('mc:forceStop'),
-    running: (): Promise<RunningGameInfo> => ipcRenderer.invoke('mc:running'),
+    ): Promise<LaunchResult> => inv('mc:launch', instanceId, options),
+    stop: (): Promise<RunningGameInfo> => inv('mc:forceStop'),
+    running: (): Promise<RunningGameInfo> => inv('mc:running'),
     onInstallProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
       const listener = (_: unknown, event: ProgressEvent) => cb(event)
       ipcRenderer.on('mc:installProgress', listener)
@@ -190,7 +199,7 @@ const api = {
   },
   server: {
     status: (address: string): Promise<MinecraftServerStatus> =>
-      ipcRenderer.invoke('server:status', address),
+      inv('server:status', address),
   },
   mods: {
     search: (opts: {
@@ -201,12 +210,12 @@ const api = {
       offset?: number
       limit?: number
       index?: string
-    }): Promise<CatalogSearchResult> => ipcRenderer.invoke('mods:search', opts),
-    project: (id: string): Promise<CatalogProject> => ipcRenderer.invoke('mods:project', id),
+    }): Promise<CatalogSearchResult> => inv('mods:search', opts),
+    project: (id: string): Promise<CatalogProject> => inv('mods:project', id),
     versions: (id: string, gameVersion?: string, loader?: string): Promise<CatalogVersion[]> =>
-      ipcRenderer.invoke('mods:versions', id, gameVersion, loader),
+      inv('mods:versions', id, gameVersion, loader),
     version: (versionId: string): Promise<CatalogVersion> =>
-      ipcRenderer.invoke('mods:version', versionId),
+      inv('mods:version', versionId),
     installMod: (payload: {
       instanceId: string
       projectId: string
@@ -224,7 +233,7 @@ const api = {
           failed: Array<{ projectId: string; title?: string; error: string }>
         }
       }
-    > => ipcRenderer.invoke('mods:installMod', payload),
+    > => inv('mods:installMod', payload),
     /** Parallel bulk update — one job for all selected mods. */
     installModsBatch: (payload: {
       instanceId: string
@@ -242,7 +251,7 @@ const api = {
           failed: Array<{ projectId: string; title?: string; error: string }>
         }
       }
-    > => ipcRenderer.invoke('mods:installModsBatch', payload),
+    > => inv('mods:installModsBatch', payload),
     onDownloadProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
       const listener = (_: unknown, event: ProgressEvent) => cb(event)
       ipcRenderer.on('mods:downloadProgress', listener)
@@ -252,20 +261,30 @@ const api = {
     },
   },
   shell: {
-    openExternal: (url: string): Promise<void> => ipcRenderer.invoke('shell:openExternal', url),
+    openExternal: (url: string): Promise<void> => inv('shell:openExternal', url),
     /** Any HTTPS (ads / payment) — user-initiated only. */
-    openHttps: (url: string): Promise<void> => ipcRenderer.invoke('shell:openHttps', url),
+    openHttps: (url: string): Promise<void> => inv('shell:openHttps', url),
     openInstanceFolder: (instanceId: string): Promise<void> =>
-      ipcRenderer.invoke('shell:openInstanceFolder', instanceId),
+      inv('shell:openInstanceFolder', instanceId),
     openInstancePath: (
       instanceId: string,
       sub?: 'root' | 'mods' | 'screenshots' | 'logs' | 'resourcepacks',
-    ): Promise<void> => ipcRenderer.invoke('shell:openInstancePath', instanceId, sub),
+    ): Promise<void> => inv('shell:openInstancePath', instanceId, sub),
   },
   featured: {
-    getStatus: (slug?: string) => ipcRenderer.invoke('featured:status', slug),
-    install: (payload?: { slug?: string; versionId?: string }) =>
-      ipcRenderer.invoke('featured:install', payload || {}),
+    getStatus: (slug?: string) => inv('featured:status', slug),
+    install: async (payload?: { slug?: string; versionId?: string }) => {
+      const result = await inv<{
+        ok: boolean
+        instanceId?: string
+        versionNumber?: string
+        error?: string
+      }>('featured:install', payload || {})
+      if (!result || result.ok === false) {
+        throw new Error(result?.error || 'Pack install failed')
+      }
+      return result
+    },
     onInstallProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
       const listener = (_: unknown, event: ProgressEvent) => cb(event)
       ipcRenderer.on('featured:installProgress', listener)
@@ -275,18 +294,18 @@ const api = {
     },
   },
   partners: {
-    list: (): Promise<PartnerDefinition[]> => ipcRenderer.invoke('partners:list'),
+    list: (): Promise<PartnerDefinition[]> => inv('partners:list'),
     listConfig: (force?: boolean): Promise<PartnerConfig[]> =>
-      ipcRenderer.invoke('partners:listConfig', force),
-    getStatus: (id: string) => ipcRenderer.invoke('partners:status', id),
-    install: (id: string) => ipcRenderer.invoke('partners:install', id),
+      inv('partners:listConfig', force),
+    getStatus: (id: string) => inv('partners:status', id),
+    install: (id: string) => inv('partners:install', id),
     prepareJoin: (
       id: string,
     ): Promise<{ instanceId: string; serverAddress: string; serverName: string }> =>
-      ipcRenderer.invoke('partners:prepareJoin', id),
+      inv('partners:prepareJoin', id),
     listEvents: (partnerId?: string): Promise<
       import('../shared/types').PartnerEvent[]
-    > => ipcRenderer.invoke('partners:listEvents', partnerId),
+    > => inv('partners:listEvents', partnerId),
     onInstallProgress: (cb: (event: ProgressEvent) => void): (() => void) => {
       const listener = (_: unknown, event: ProgressEvent) => cb(event)
       ipcRenderer.on('partners:installProgress', listener)
@@ -296,12 +315,12 @@ const api = {
     },
   },
   updater: {
-    getStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:getStatus'),
-    getVersion: (): Promise<AppVersionInfo> => ipcRenderer.invoke('updater:getVersion'),
-    check: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:check'),
-    download: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:download'),
-    install: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:install'),
-    apply: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:apply'),
+    getStatus: (): Promise<UpdateStatus> => inv('updater:getStatus'),
+    getVersion: (): Promise<AppVersionInfo> => inv('updater:getVersion'),
+    check: (): Promise<UpdateStatus> => inv('updater:check'),
+    download: (): Promise<UpdateStatus> => inv('updater:download'),
+    install: (): Promise<UpdateStatus> => inv('updater:install'),
+    apply: (): Promise<UpdateStatus> => inv('updater:apply'),
     onStatus: (cb: (status: UpdateStatus) => void): (() => void) => {
       const listener = (_: unknown, status: UpdateStatus) => cb(status)
       ipcRenderer.on('updater:status', listener)
@@ -313,8 +332,8 @@ const api = {
   news: {
     fetch: (
       opts?: boolean | { force?: boolean; kind?: 'launcher' | 'partners'; tag?: string },
-    ): Promise<NewsFeedResult> => ipcRenderer.invoke('news:fetch', opts),
-    defaultUrl: (): Promise<string> => ipcRenderer.invoke('news:defaultUrl'),
+    ): Promise<NewsFeedResult> => inv('news:fetch', opts),
+    defaultUrl: (): Promise<string> => inv('news:defaultUrl'),
     /** Fired when Admin/partner publish pins a new feed, or a poll finds changes */
     onUpdated: (
       cb: (payload: { kind: 'launcher' | 'partners'; feed: NewsFeedResult }) => void,
@@ -342,9 +361,9 @@ const api = {
           displayName: string
         }
       | { ok: false; error: string }
-    > => ipcRenderer.invoke('partnerAuth:login', username, password),
+    > => inv('partnerAuth:login', username, password),
     logout: (sessionToken: string): Promise<boolean> =>
-      ipcRenderer.invoke('partnerAuth:logout', sessionToken),
+      inv('partnerAuth:logout', sessionToken),
     status: (
       sessionToken: string,
     ): Promise<
@@ -356,18 +375,18 @@ const api = {
           displayName: string
         }
       | { authenticated: false }
-    > => ipcRenderer.invoke('partnerAuth:status', sessionToken),
+    > => inv('partnerAuth:status', sessionToken),
     loadNews: (
       sessionToken: string,
     ): Promise<
       { ok: true; feed: NewsFeedResult; newsTag: string } | { ok: false; error: string }
-    > => ipcRenderer.invoke('partnerAuth:loadNews', sessionToken),
+    > => inv('partnerAuth:loadNews', sessionToken),
     publish: (
       sessionToken: string,
       items: NewsItem[],
     ): Promise<{ ok: true; message: string; commitUrl?: string } | { ok: false; error: string }> =>
-      ipcRenderer.invoke('partnerAuth:publish', sessionToken, items),
-    newId: (): Promise<string> => ipcRenderer.invoke('partnerAuth:newId'),
+      inv('partnerAuth:publish', sessionToken, items),
+    newId: (): Promise<string> => inv('partnerAuth:newId'),
     upsertEvent: (
       sessionToken: string,
       input: {
@@ -378,9 +397,9 @@ const api = {
         endsAt?: string | null
         location?: string | null
       },
-    ) => ipcRenderer.invoke('partnerAuth:upsertEvent', sessionToken, input),
+    ) => inv('partnerAuth:upsertEvent', sessionToken, input),
     deleteEvent: (sessionToken: string, eventId: string) =>
-      ipcRenderer.invoke('partnerAuth:deleteEvent', sessionToken, eventId),
+      inv('partnerAuth:deleteEvent', sessionToken, eventId),
   },
   /**
    * Staff Menu API — available in all builds; requires CMS staff login.
@@ -392,9 +411,9 @@ const api = {
       password: string,
     ): Promise<
       { ok: true; sessionToken: string; expiresAt?: number } | { ok: false; error: string }
-    > => ipcRenderer.invoke('admin:login', password),
+    > => inv('admin:login', password),
     logout: (sessionToken: string): Promise<boolean> =>
-      ipcRenderer.invoke('admin:logout', sessionToken),
+      inv('admin:logout', sessionToken),
     status: (
       sessionToken: string,
     ): Promise<{
@@ -407,44 +426,44 @@ const api = {
       staffRole?: string | null
       expiresAt?: number | null
       sessionTtlSeconds?: number
-    }> => ipcRenderer.invoke('admin:status', sessionToken),
+    }> => inv('admin:status', sessionToken),
     /** Reset idle timeout (call on clicks / typing). */
     touchSession: (
       sessionToken: string,
     ): Promise<{ ok: true; expiresAt: number } | { ok: false; error: string }> =>
-      ipcRenderer.invoke('admin:touchSession', sessionToken),
+      inv('admin:touchSession', sessionToken),
     setCmsApiKey: (
       sessionToken: string,
       key: string,
     ): Promise<{ ok: boolean; error?: string }> =>
-      ipcRenderer.invoke('admin:setCmsApiKey', sessionToken, key),
+      inv('admin:setCmsApiKey', sessionToken, key),
     loadNews: (
       sessionToken: string,
     ): Promise<{ ok: true; feed: NewsFeedResult } | { ok: false; error: string }> =>
-      ipcRenderer.invoke('admin:loadNews', sessionToken),
+      inv('admin:loadNews', sessionToken),
     publishNews: (
       sessionToken: string,
       items: NewsItem[],
       title?: string,
     ): Promise<
       { ok: true; commitUrl?: string; message: string } | { ok: false; error: string }
-    > => ipcRenderer.invoke('admin:publishNews', sessionToken, items, title),
-    newId: (): Promise<string> => ipcRenderer.invoke('admin:newId'),
+    > => inv('admin:publishNews', sessionToken, items, title),
+    newId: (): Promise<string> => inv('admin:newId'),
     listPartners: (
       sessionToken: string,
     ): Promise<{ ok: true; partners: PartnerConfig[] } | { ok: false; error: string }> =>
-      ipcRenderer.invoke('admin:listPartners', sessionToken),
+      inv('admin:listPartners', sessionToken),
     upsertPartner: (
       sessionToken: string,
       input: Record<string, unknown>,
     ): Promise<{ ok: true; partner: PartnerConfig } | { ok: false; error: string }> => {
-      return ipcRenderer.invoke('admin:upsertPartner', sessionToken, input)
+      return inv('admin:upsertPartner', sessionToken, input)
     },
     deletePartner: (
       sessionToken: string,
       partnerId: string,
     ): Promise<{ ok: true } | { ok: false; error: string }> => {
-      return ipcRenderer.invoke('admin:deletePartner', sessionToken, partnerId)
+      return inv('admin:deletePartner', sessionToken, partnerId)
     },
     /**
      * Upload an image to the CMS (partner icons, etc.).
@@ -457,7 +476,7 @@ const api = {
         | { name: string; mime?: string; base64: string }
         | null,
     ): Promise<{ ok: true; url: string; message?: string } | { ok: false; error: string }> => {
-      return ipcRenderer.invoke('admin:uploadImage', sessionToken, input ?? null)
+      return inv('admin:uploadImage', sessionToken, input ?? null)
     },
     listOfflineUsers: (
       sessionToken: string,
@@ -481,20 +500,20 @@ const api = {
         }
       | { ok: false; error: string; cmsOnline?: boolean }
     > => {
-      return ipcRenderer.invoke('admin:listOfflineUsers', sessionToken)
+      return inv('admin:listOfflineUsers', sessionToken)
     },
     createOfflineUser: (
       sessionToken: string,
       username: string,
       password: string,
     ): Promise<{ ok: true; message: string } | { ok: false; error: string }> => {
-      return ipcRenderer.invoke('admin:createOfflineUser', sessionToken, username, password)
+      return inv('admin:createOfflineUser', sessionToken, username, password)
     },
     deleteOfflineUser: (
       sessionToken: string,
       userId: string,
     ): Promise<{ ok: true; message: string } | { ok: false; error: string }> => {
-      return ipcRenderer.invoke('admin:deleteOfflineUser', sessionToken, userId)
+      return inv('admin:deleteOfflineUser', sessionToken, userId)
     },
     updateOfflineUser: (
       sessionToken: string,
@@ -521,18 +540,18 @@ const api = {
         }
       | { ok: false; error: string }
     > => {
-      return ipcRenderer.invoke('admin:updateOfflineUser', sessionToken, input)
+      return inv('admin:updateOfflineUser', sessionToken, input)
     },
     setOfflineUnlockPassword: (
       sessionToken: string,
       password: string,
     ): Promise<{ ok: true; message: string } | { ok: false; error: string }> => {
-      return ipcRenderer.invoke('admin:setOfflineUnlockPassword', sessionToken, password)
+      return inv('admin:setOfflineUnlockPassword', sessionToken, password)
     },
     publishOfflineAuth: (
       sessionToken: string,
     ): Promise<{ ok: true; message: string; commitUrl?: string } | { ok: false; error: string }> => {
-      return ipcRenderer.invoke('admin:publishOfflineAuth', sessionToken)
+      return inv('admin:publishOfflineAuth', sessionToken)
     },
     listPartnerEvents: (
       sessionToken: string,
@@ -541,7 +560,7 @@ const api = {
       | { ok: true; events: import('../shared/types').PartnerEvent[] }
       | { ok: false; error: string }
     > => {
-      return ipcRenderer.invoke('admin:listPartnerEvents', sessionToken, partnerId)
+      return inv('admin:listPartnerEvents', sessionToken, partnerId)
     },
     upsertPartnerEvent: (
       sessionToken: string,
@@ -558,13 +577,13 @@ const api = {
       | { ok: true; event: import('../shared/types').PartnerEvent; message?: string }
       | { ok: false; error: string }
     > => {
-      return ipcRenderer.invoke('admin:upsertPartnerEvent', sessionToken, input)
+      return inv('admin:upsertPartnerEvent', sessionToken, input)
     },
     deletePartnerEvent: (
       sessionToken: string,
       eventId: string,
     ): Promise<{ ok: true; message?: string } | { ok: false; error: string }> => {
-      return ipcRenderer.invoke('admin:deletePartnerEvent', sessionToken, eventId)
+      return inv('admin:deletePartnerEvent', sessionToken, eventId)
     },
     health: (
       sessionToken: string,
@@ -572,7 +591,7 @@ const api = {
       | { ok: true; health: import('./services/healthDashboard').AdminHealthSnapshot }
       | { ok: false; error: string }
     > => {
-      return ipcRenderer.invoke('admin:health', sessionToken)
+      return inv('admin:health', sessionToken)
     },
     staffLogin: (
       username: string,
@@ -593,19 +612,19 @@ const api = {
           expiresAt?: number
         }
       | { ok: false; error: string }
-    > => ipcRenderer.invoke('staff:login', username, password),
-    staffLogout: () => ipcRenderer.invoke('staff:logout'),
-    staffMe: () => ipcRenderer.invoke('staff:me'),
+    > => inv('staff:login', username, password),
+    staffLogout: () => inv('staff:logout'),
+    staffMe: () => inv('staff:me'),
     staffForgotPassword: (
       username: string,
     ): Promise<{ ok: true; message: string } | { ok: false; error: string }> =>
-      ipcRenderer.invoke('staff:forgotPassword', username),
+      inv('staff:forgotPassword', username),
     staffResetPassword: (
       username: string,
       code: string,
       newPassword: string,
     ): Promise<{ ok: true; message: string } | { ok: false; error: string }> =>
-      ipcRenderer.invoke('staff:resetPassword', username, code, newPassword),
+      inv('staff:resetPassword', username, code, newPassword),
     staffBindEmail: (
       email: string,
     ): Promise<
@@ -624,8 +643,8 @@ const api = {
           message: string
         }
       | { ok: false; error: string }
-    > => ipcRenderer.invoke('staff:bindEmail', email),
-    listStaffUsers: (sessionToken: string) => ipcRenderer.invoke('staff:listUsers', sessionToken),
+    > => inv('staff:bindEmail', email),
+    listStaffUsers: (sessionToken: string) => inv('staff:listUsers', sessionToken),
     createStaffUser: (
       sessionToken: string,
       input: {
@@ -635,41 +654,41 @@ const api = {
         offlineQuota?: number
         email?: string
       },
-    ) => ipcRenderer.invoke('staff:createUser', sessionToken, input),
+    ) => inv('staff:createUser', sessionToken, input),
     deleteStaffUser: (sessionToken: string, id: string) =>
-      ipcRenderer.invoke('staff:deleteUser', sessionToken, id),
+      inv('staff:deleteUser', sessionToken, id),
     listApprovals: (sessionToken: string, status?: string) =>
-      ipcRenderer.invoke('staff:listApprovals', sessionToken, status),
+      inv('staff:listApprovals', sessionToken, status),
     reviewApproval: (
       sessionToken: string,
       id: string,
       decision: 'approved' | 'rejected',
       note?: string,
-    ) => ipcRenderer.invoke('staff:reviewApproval', sessionToken, id, decision, note),
+    ) => inv('staff:reviewApproval', sessionToken, id, decision, note),
     submitApproval: (
       sessionToken: string,
       input: { type: string; summary: string; payload: unknown },
-    ) => ipcRenderer.invoke('staff:submitApproval', sessionToken, input),
-    listFeaturedPacks: (all?: boolean) => ipcRenderer.invoke('featured:listPacks', all),
+    ) => inv('staff:submitApproval', sessionToken, input),
+    listFeaturedPacks: (all?: boolean) => inv('featured:listPacks', all),
     saveFeaturedPack: (sessionToken: string, pack: unknown) =>
-      ipcRenderer.invoke('featured:savePack', sessionToken, pack),
+      inv('featured:savePack', sessionToken, pack),
     deleteFeaturedPack: (sessionToken: string, id: string) =>
-      ipcRenderer.invoke('featured:deletePack', sessionToken, id),
+      inv('featured:deletePack', sessionToken, id),
     adsCreateCode: (sessionToken: string, input?: { days?: number; code?: string; note?: string }) =>
-      ipcRenderer.invoke('ads:createCode', sessionToken, input || {}),
-    adsListClaims: (sessionToken: string) => ipcRenderer.invoke('ads:listClaims', sessionToken),
+      inv('ads:createCode', sessionToken, input || {}),
+    adsListClaims: (sessionToken: string) => inv('ads:listClaims', sessionToken),
     adsGrant: (
       sessionToken: string,
       input: { deviceId: string; days?: number; claimId?: string; note?: string },
-    ) => ipcRenderer.invoke('ads:grant', sessionToken, input),
+    ) => inv('ads:grant', sessionToken, input),
     adsListCreatives: (sessionToken: string) =>
-      ipcRenderer.invoke('ads:listCreatives', sessionToken),
+      inv('ads:listCreatives', sessionToken),
     adsSaveCreative: (sessionToken: string, creative: Record<string, unknown>) =>
-      ipcRenderer.invoke('ads:saveCreative', sessionToken, creative),
+      inv('ads:saveCreative', sessionToken, creative),
     adsDeleteCreative: (sessionToken: string, id: string) =>
-      ipcRenderer.invoke('ads:deleteCreative', sessionToken, id),
+      inv('ads:deleteCreative', sessionToken, id),
     adsGetNetwork: (sessionToken: string) =>
-      ipcRenderer.invoke('ads:getNetworkAdmin', sessionToken),
+      inv('ads:getNetworkAdmin', sessionToken),
     adsSaveNetwork: (
       sessionToken: string,
       input: {
@@ -679,23 +698,23 @@ const api = {
         adsenseSlot?: string
         customHtml?: string
       },
-    ) => ipcRenderer.invoke('ads:saveNetwork', sessionToken, input),
+    ) => inv('ads:saveNetwork', sessionToken, input),
   },
   featuredPacks: {
-    listPublic: () => ipcRenderer.invoke('featured:listPublic'),
+    listPublic: () => inv('featured:listPublic'),
   },
   ads: {
-    status: () => ipcRenderer.invoke('ads:status'),
-    local: () => ipcRenderer.invoke('ads:local'),
-    deviceId: () => ipcRenderer.invoke('ads:deviceId'),
-    redeem: (code: string) => ipcRenderer.invoke('ads:redeem', code),
+    status: () => inv('ads:status'),
+    local: () => inv('ads:local'),
+    deviceId: () => inv('ads:deviceId'),
+    redeem: (code: string) => inv('ads:redeem', code),
     claim: (input?: { email?: string; message?: string }) =>
-      ipcRenderer.invoke('ads:claim', input || {}),
-    paypalCheckout: () => ipcRenderer.invoke('ads:paypalCheckout'),
-    inventory: (limit?: number) => ipcRenderer.invoke('ads:inventory', limit),
-    network: () => ipcRenderer.invoke('ads:network'),
+      inv('ads:claim', input || {}),
+    paypalCheckout: () => inv('ads:paypalCheckout'),
+    inventory: (limit?: number) => inv('ads:inventory', limit),
+    network: () => inv('ads:network'),
     track: (creativeId: string, event: 'impression' | 'click') =>
-      ipcRenderer.invoke('ads:track', creativeId, event),
+      inv('ads:track', creativeId, event),
   },
 }
 

@@ -82,7 +82,7 @@ export type FeaturedPackStatus = {
   } | null
   local: FeaturedPackState
   updateAvailable: boolean
-  instance: GameInstance | null
+  instance: { id: string; name: string } | null
   /** Recent version changelogs from the mod catalog (newest first). */
   news: FeaturedPackNewsItem[]
   /** System RAM requirements for this heavy pack */
@@ -208,19 +208,30 @@ export function getFeaturedPackLocal(slug: string = FEATURED_PACK.slug): Feature
 export async function getFeaturedPackStatus(
   slug: string = FEATURED_PACK.slug,
 ): Promise<FeaturedPackStatus> {
-  const project = await getProject(slug)
-  const versions = await getProjectVersions(slug)
+  let project
+  let versions
+  try {
+    project = await getProject(slug)
+    versions = await getProjectVersions(slug)
+  } catch (err) {
+    throw new Error(`Could not load pack "${slug}" from the mod catalog: ${(err as Error).message}`)
+  }
   const latestVersion = versions[0] ?? null
   const file = latestVersion ? pickPrimaryFile(latestVersion) : null
 
   const local = getFeaturedPackLocal(slug)
-  // Re-link instance if it still exists
+  // Re-link instance if it still exists (stale featured-packs.json after delete)
   let instance: GameInstance | null = null
   if (local.instanceId) {
     instance = getInstance(local.instanceId)
     if (!instance) {
       local.installed = false
       local.instanceId = null
+      local.versionId = null
+      local.versionNumber = null
+      const store = loadPackStore()
+      store[slug] = { ...local }
+      savePackStore(store)
     }
   }
 
@@ -248,7 +259,7 @@ export async function getFeaturedPackStatus(
       versionNumber: v.version_number,
       name: v.name,
       datePublished: v.date_published,
-      changelog: (v.changelog || '').trim(),
+      changelog: (v.changelog || '').trim().slice(0, 4000),
       versionType: v.version_type,
       isLatest: i === 0,
       isNew,
@@ -282,7 +293,7 @@ export async function getFeaturedPackStatus(
       : null,
     local,
     updateAvailable,
-    instance,
+    instance: instance ? { id: instance.id, name: instance.name } : null,
     news,
     memory: evaluateFeaturedPackMemory(),
     requiresPaidAccount: true,
@@ -399,7 +410,7 @@ export async function installFeaturedPack(
     versionId?: string
   } = {},
   onProgress?: (e: ProgressEvent) => void,
-): Promise<{ instance: GameInstance; versionNumber: string }> {
+): Promise<{ instanceId: string; versionNumber: string }> {
   const slug = options.slug || FEATURED_PACK.slug
   const emit = (stage: string, progress: number, message: string) => {
     onProgress?.({ stage, progress, message })
@@ -717,7 +728,7 @@ export async function installFeaturedPack(
     `${project.title} ${version.version_number} ready (${jarOnDisk} mods)`,
   )
   return {
-    instance: getInstance(instance.id) || instance,
+    instanceId: instance.id,
     versionNumber: version.version_number,
   }
 }

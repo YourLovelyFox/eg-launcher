@@ -27,7 +27,7 @@ EG Launcher is free and open source (MIT, as stated in `package.json` / the repo
 
 | Platform | How you get the app / updates |
 | -------- | ----------------------------- |
-| **Windows** | **GitHub Releases** — portable BETA zip (`EG-Launcher-*-win-x64-portable-BETA.zip`). There is **no** Microsoft Store listing and **no** public `setup.exe`. |
+| **Windows** | **GitHub Releases** — signed `setup.exe` (`EG-Launcher-*-win-x64-setup.exe`) and portable BETA zip. |
 | **Linux** | **GitHub Releases** — AppImage. Users download a new AppImage when they want a newer version. |
 
 ---

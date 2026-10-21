@@ -274,7 +274,7 @@ export function getMsAuthPublicInfo(): {
     clientId,
     sharedClient: shared,
     consentAppHint: shared
-      ? 'Microsoft’s consent screen may show a shared launcher name (e.g. “Prism Launcher”). That is the OAuth app name, not EG Launcher’s Store listing. Approve it to finish Minecraft login, or register EG’s own Azure client (docs/MS-STORE.md).'
+      ? 'Microsoft’s consent screen may show a shared launcher name (e.g. “Prism Launcher”). That is the OAuth app name. Approve it to finish Minecraft login, or register EG’s own Azure client.'
       : 'Microsoft’s consent screen should show EG Launcher (or your Azure app display name).',
   }
 }

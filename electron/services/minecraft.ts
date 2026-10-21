@@ -1600,7 +1600,7 @@ function readLogTail(logPath: string, maxChars: number): string {
 }
 
 function applyReplacements(value: string, map: Record<string, string>): string {
-  let out = value
+  let out = value == null ? '' : String(value)
   for (const [k, v] of Object.entries(map)) {
     out = out.split(k).join(v)
   }

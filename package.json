@@ -1,9 +1,9 @@
 {
   "name": "eg-launcher",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "EG Launcher — Minecraft: Java Edition launcher with instances, Microsoft login, and community content for your game.",
   "main": "dist-electron/main.js",
-  "author": "EG Launcher",
+  "author": "EpicTeam Studios",
   "license": "MIT",
   "private": true,
   "repository": {
@@ -27,13 +27,12 @@
     "release:check": "node scripts/check-release-assets.mjs",
     "release:notes": "node scripts/extract-changelog.mjs",
     "dist:github": "npm run dist",
-    "dist:uninstaller": "node scripts/build-win-uninstaller.mjs",
-    "dist:store": "node scripts/run-with-env.mjs EG_MS_STORE=1 EG_ENABLE_ADMIN=0 -- npm run build:app && node scripts/run-with-env.mjs EG_MS_STORE=1 CSC_IDENTITY_AUTO_DISCOVERY=false -- npx electron-builder --win appx --x64 --publish never"
+    "dist:uninstaller": "node scripts/build-win-uninstaller.mjs"
   },
   "build": {
     "appId": "com.eg.launcher",
     "productName": "EG Launcher",
-    "copyright": "Copyright © EpicTeam Studios GmbH",
+    "copyright": "Copyright © EpicTeam Studios",
     "executableName": "EG Launcher",
     "directories": {
       "output": "release",
@@ -79,6 +78,7 @@
       "signDlls": false,
       "verifyUpdateCodeSignature": false,
       "requestedExecutionLevel": "asInvoker",
+      "publisherName": "EpicTeam Studios",
       "legalTrademarks": "EG Launcher",
       "target": [
         {
@@ -89,20 +89,6 @@
         }
       ],
       "artifactName": "EG-Launcher-${version}-win-${arch}-setup.${ext}"
-    },
-    "appx": {
-      "identityName": "44561EpicTeamStudiosGmBH.EGLauncher",
-      "publisher": "CN=E5F84211-3109-40DD-A4E4-E8E7769D8658",
-      "publisherDisplayName": "EpicTeam Studios",
-      "applicationId": "EGLauncher",
-      "displayName": "EG Launcher",
-      "backgroundColor": "#0b0e14",
-      "showNameOnTiles": true,
-      "setBuildNumber": true,
-      "languages": [
-        "en-US"
-      ],
-      "artifactName": "EG-Launcher-${version}-win-${arch}-store.${ext}"
     },
     "nsis": {
       "oneClick": false,

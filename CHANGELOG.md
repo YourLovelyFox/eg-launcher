@@ -6,6 +6,21 @@ Format: each release section is published as the GitHub Release body.
 
 ---
 
+## [3.0.1] — 2026-10-22
+
+### Fixed
+- **Featured pack (Bee’s SMP):** Install and Play no longer fail with **Invalid Invoke request**. The pack install IPC now returns a small result instead of the full instance (100+ mods), so Electron can send it back to the UI.
+
+### Changed
+- Windows installer is signed as publisher **EpicTeam Studios**.
+- Microsoft Store / AppX packaging, docs, and `dist:store` are removed. GitHub Releases (signed setup.exe + Linux AppImage) are the only public channel.
+
+### Downloads
+- Windows: `EG-Launcher-3.0.1-win-x64-setup.exe` (signed)
+- Linux: `EG-Launcher-3.0.1-linux-x86_64.AppImage`
+
+---
+
 ## [3.0.0] — 2026-10-21
 
 ### Highlights
@@ -18,7 +33,6 @@ Format: each release section is published as the GitHub Release body.
 
 ### Notes
 - SmartScreen / Smart App Control may still warn on brand-new releases while publisher reputation builds up.
-- The Microsoft Store listing is still in progress.
 
 ### Downloads
 - Windows: `EG-Launcher-3.0.0-win-x64-setup.exe` (signed)
@@ -34,7 +48,6 @@ Format: each release section is published as the GitHub Release body.
 
 ### Notes
 - SmartScreen / Smart App Control may still warn on brand-new releases while publisher reputation builds up.
-- The Microsoft Store listing is still in progress.
 
 ### Downloads
 - Windows: `EG-Launcher-2.7.7-win-x64-setup.exe` (signed)
@@ -128,7 +141,7 @@ Format: each release section is published as the GitHub Release body.
 - **Content wording**: “Browse Mods” / download-install software phrasing → **Content** / **Add to instance** (Minecraft content for local Java instances).
 
 ### Changed
-- Certification notes template in `docs/MS-STORE.md` (test MSA, Prism consent explanation, smoke test).
+- Certification notes for Microsoft login / consent (test MSA, Prism OAuth name, smoke test).
 
 ### Downloads
 - Linux: `EG-Launcher-2.7.2-linux-x86_64.AppImage`
@@ -169,11 +182,8 @@ Format: each release section is published as the GitHub Release body.
 ### Fixed (Microsoft Store certification)
 - **Crash on launch (Store):** do not run `electron-updater` under `WindowsApps` (missing `app-update.yml`). Store builds update via Microsoft Store only.
 - **Microsoft account login:** accounts without an Xbox profile no longer surface as a raw IPC crash; clear message + open xbox.com; offline login still available.
-- **Store tile icons:** unique EG-branded AppX assets (`build/appx/*`) — product-specific tiles, not a generic default icon alone.
+- **Store tile icons:** unique EG-branded AppX assets — product-specific tiles, not a generic default icon alone.
 - **Partners:** CMS-only partners (no hard-coded Horizons / EG Forge respawn after delete).
-
-### Store packaging
-- `npm run dist:store` builds Windows AppX; see `docs/MS-STORE.md`.
 
 ### Downloads
 - Windows (GitHub): `EG-Launcher-2.5.14-win-x64-setup.exe`

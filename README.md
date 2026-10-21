@@ -228,7 +228,7 @@ Then run the new **setup** in the `release` folder again (same install steps). Y
 >
 > | Platform | Status |
 > | --- | --- |
-> | **Windows** | **[Signed setup.exe](https://github.com/YourLovelyFox/eg-launcher/releases/latest)** on GitHub (Azure Trusted Signing), [portable BETA zip](https://github.com/YourLovelyFox/eg-launcher/releases), or [build it yourself](#windows-users-build-the-launcher-yourself-easy-guide). Microsoft Store: in progress. |
+> | **Windows** | **[Signed setup.exe](https://github.com/YourLovelyFox/eg-launcher/releases/latest)** on GitHub (Azure Trusted Signing), [portable BETA zip](https://github.com/YourLovelyFox/eg-launcher/releases), or [build it yourself](#windows-users-build-the-launcher-yourself-easy-guide). |
 > | **Linux** | **[GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest)** — **AppImage** (available now) |
 >
 > Please do **not** trust random third-party Windows setups.
@@ -265,7 +265,7 @@ Download `EG-Launcher-<version>-win-x64-setup.exe` from **[GitHub Releases](http
 
 Prefer no installer? Download `EG-Launcher-*-win-x64-portable-BETA.zip` (when attached to a release), unzip, run `EG Launcher.exe`.
 
-Or [build it yourself](#windows-users-build-the-launcher-yourself-easy-guide). The Microsoft Store listing is still in progress.
+Or [build it yourself](#windows-users-build-the-launcher-yourself-easy-guide).
 
 Do not use third-party Windows builds.
 
@@ -276,7 +276,7 @@ Do not use third-party Windows builds.
 | Platform | File | Notes |
 | --- | --- | --- |
 | **Linux x64** | `EG-Launcher-<version>-linux-*.AppImage` | Published on GitHub |
-| **Windows x64** | `EG-Launcher-<version>-win-x64-setup.exe` | Signed (Azure Trusted Signing); Store pending |
+| **Windows x64** | `EG-Launcher-<version>-win-x64-setup.exe` | Signed (Azure Trusted Signing) |
 
 Release process (maintainers): [docs/GITHUB-RELEASES.md](./docs/GITHUB-RELEASES.md) · SAC history: [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md)
 
@@ -413,10 +413,8 @@ Workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml)
 Public GitHub Releases should emphasize:
 
 - Linux **AppImage**  
-- Windows **setup.exe**, signed in CI with Azure Trusted Signing (see [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md))  
-- Release body from **[CHANGELOG.md](./CHANGELOG.md)** (includes “Windows → Store only” banner)  
-
-Windows Store packages: `npm run dist:store` → private / Partner Center (not public setup.exe).
+- Windows **setup.exe**, signed in CI with Azure Trusted Signing as **EpicTeam Studios** (see [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md))  
+- Release body from **[CHANGELOG.md](./CHANGELOG.md)**
 
 ### Automatic (tag)
 

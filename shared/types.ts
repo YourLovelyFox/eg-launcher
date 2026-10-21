@@ -476,7 +476,6 @@ export type UpdateStatus =
   | { state: 'error'; message: string; currentVersion: string }
 
 export type AppVersionInfo = {
-  microsoftStore?: boolean
   /** True when this build can replace itself from a GitHub portable zip */
   selfUpdateChannel?: boolean
   version: string

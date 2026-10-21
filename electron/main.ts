@@ -302,10 +302,23 @@ function createWindow() {
 function sendProgress(channel: string, event: ProgressEvent) {
   try {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(channel, event)
+      mainWindow.webContents.send(channel, {
+        stage: String(event.stage || ''),
+        progress: Number(event.progress) || 0,
+        message: String(event.message || ''),
+      })
     }
   } catch {
     /* ignore */
+  }
+}
+
+/** Structured-clone IPC values. Huge GameInstance graphs (100+ mods) can fail invoke replies. */
+function ipcSafe<T>(value: T): T {
+  try {
+    return JSON.parse(JSON.stringify(value)) as T
+  } catch (err) {
+    throw new Error(`Could not send result to the UI: ${(err as Error).message || String(err)}`)
   }
 }
 
@@ -347,7 +360,7 @@ function registerIpc() {
   ipcMain.handle('offline:warning', () => offlineMultiplayerWarning())
 
   // Instances
-  ipcMain.handle('instances:list', () => listInstances())
+  ipcMain.handle('instances:list', () => ipcSafe(listInstances()))
   ipcMain.handle('instances:get', async (_e, id: string) => {
     const inst = getInstance(id)
     if (!inst) return null
@@ -437,7 +450,12 @@ function registerIpc() {
       options?: { acknowledgeLowMemory?: boolean; quickPlayServer?: string },
     ) => {
       const instance = getInstance(instanceId)
-      if (!instance) throw new Error('Instance not found')
+      if (!instance) {
+        return {
+          success: false,
+          message: 'Instance not found. Install the pack again from Featured.',
+        }
+      }
 
       // Heavy featured pack (Bee's SMP): system / allocated RAM rules
       const packGate = checkFeaturedPackPlay(instanceId)
@@ -452,25 +470,29 @@ function registerIpc() {
         }
       }
 
-      // Refresh MSA session when near expiry so Store testers don't see "signed in" then fail launch
-      const account = (await ensureFreshActiveAccount()) || getActiveAccountSecret()
-      const result = await launchInstance(instance, account, {
-        quickPlayServer: options?.quickPlayServer,
-      })
-      if (result.success) {
-        updateInstance(instanceId, { lastPlayed: new Date().toISOString() })
-        // Soft warning for offline / cracked accounts (official servers won't work)
-        if (
-          account &&
-          (account.type === 'offline' || String(account.id || '').startsWith('offline-'))
-        ) {
-          return {
-            ...result,
-            message: `${result.message}\n\n${offlineMultiplayerWarning()}`,
+      try {
+        // Refresh MSA session when near expiry so Store testers don't see "signed in" then fail launch
+        const account = (await ensureFreshActiveAccount()) || getActiveAccountSecret()
+        const result = await launchInstance(instance, account, {
+          quickPlayServer: options?.quickPlayServer,
+        })
+        if (result.success) {
+          updateInstance(instanceId, { lastPlayed: new Date().toISOString() })
+          // Soft warning for offline / cracked accounts (official servers won't work)
+          if (
+            account &&
+            (account.type === 'offline' || String(account.id || '').startsWith('offline-'))
+          ) {
+            return {
+              ...result,
+              message: `${result.message}\n\n${offlineMultiplayerWarning()}`,
+            }
           }
         }
+        return result
+      } catch (err) {
+        return { success: false, message: (err as Error).message || String(err) }
       }
-      return result
     },
   )
 
@@ -836,15 +858,30 @@ function registerIpc() {
   )
 
   // Featured permanent pack (Bee's SMP / CMS packs)
-  ipcMain.handle('featured:status', async (_e, slug?: string) =>
-    getFeaturedPackStatus(slug || undefined),
-  )
+  ipcMain.handle('featured:status', async (_e, slug?: string) => {
+    try {
+      return ipcSafe(await getFeaturedPackStatus(slug || undefined))
+    } catch (err) {
+      throw new Error((err as Error).message || String(err))
+    }
+  })
   ipcMain.handle(
     'featured:install',
     async (_e, payload: { slug?: string; versionId?: string } = {}) => {
-      return installFeaturedPack(payload, (progress) => {
-        sendProgress('featured:installProgress', progress)
-      })
+      try {
+        const result = await installFeaturedPack(payload || {}, (progress) => {
+          sendProgress('featured:installProgress', progress)
+        })
+        return ipcSafe({
+          ok: true as const,
+          instanceId: result.instanceId,
+          versionNumber: result.versionNumber,
+        })
+      } catch (err) {
+        const message = (err as Error).message || String(err)
+        console.error('[featured:install]', message)
+        return { ok: false as const, error: message || 'Pack install failed' }
+      }
     },
   )
 

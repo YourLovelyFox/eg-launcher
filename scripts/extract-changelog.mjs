@@ -47,8 +47,6 @@ function githubBanner(ver) {
     '> SmartScreen / Smart App Control may still warn on brand-new releases while publisher reputation builds up.',
     '>',
     '> **Linux:** use the **AppImage** from this GitHub Release.',
-    '>',
-    '> The Microsoft Store listing is in progress.',
     '',
     '| Asset | Platform |',
     '| --- | --- |',

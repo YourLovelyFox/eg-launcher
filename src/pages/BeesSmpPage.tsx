@@ -151,9 +151,16 @@ export function BeesSmpPage() {
         slug: FEATURED_PACK.slug,
         versionId: status?.latest?.id,
       })
-      await refreshAll()
-      await refresh()
-      showToast('success', `${FEATURED_PACK.title} ${result.versionNumber} installed`)
+      try {
+        await refreshAll()
+        await refresh()
+      } catch (refreshErr) {
+        console.warn('[featured] refresh after install failed', refreshErr)
+      }
+      showToast(
+        'success',
+        `${FEATURED_PACK.title} ${result.versionNumber || ''} installed`.trim(),
+      )
     } catch (err) {
       showToast('error', (err as Error).message)
     } finally {

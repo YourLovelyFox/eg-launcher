@@ -6,15 +6,13 @@
  *
  * Default client ID is the well-known public native client used by open-source
  * Minecraft launchers (historically registered as "Prism Launcher" in Azure).
- * That name appears on Microsoft’s consent screen — it is NOT the Store listing
- * name. To show “EG Launcher” on the consent screen, register your own Entra
- * public client named “EG Launcher”, request XboxLive.signin, then set:
+ * That name appears on Microsoft’s consent screen. To show “EG Launcher”
+ * instead, register your own Entra public client named “EG Launcher”,
+ * request XboxLive.signin, then set:
  *
  *   EG_MS_CLIENT_ID=<your-application-client-id>
  *
  * at build time (vite define / env) or runtime in the Electron main process.
- *
- * @see docs/MS-STORE.md — Azure app registration + certification notes
  */
 
 /** Public native client commonly used by FOSS Minecraft launchers (XboxLive.signin). */

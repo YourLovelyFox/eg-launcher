@@ -7,7 +7,6 @@ import os from 'os'
 import path from 'path'
 import { GITHUB_OWNER, GITHUB_RELEASES_URL, GITHUB_REPO } from '../../shared/branding'
 import type { UpdateStatus } from '../../shared/types'
-import { isMicrosoftStoreInstall } from './distribution'
 import { getRunningGameInfo } from './minecraft'
 
 const PORTABLE_ZIP = /^EG-Launcher-.+-win-x64-portable.*\.zip$/i
@@ -90,7 +89,7 @@ function localIdentity(): { tag: string; version: string } {
 }
 
 export function canSelfUpdate(): boolean {
-  return process.platform === 'win32' && app.isPackaged && !isMicrosoftStoreInstall()
+  return process.platform === 'win32' && app.isPackaged
 }
 
 export function isSelfUpdateChannel(): boolean {
@@ -321,7 +320,6 @@ export function getAppVersionInfo() {
     isPackaged: app.isPackaged,
     platform: process.platform,
     arch: process.arch,
-    microsoftStore: isMicrosoftStoreInstall(),
     selfUpdateChannel: canSelfUpdate(),
   }
 }
