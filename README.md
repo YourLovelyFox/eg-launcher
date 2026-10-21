@@ -23,7 +23,7 @@ The launcher shows a purple **BETA** badge. This is a GitHub portable build.
 
 ## Windows users: build the launcher yourself (easy guide)
 
-> **Why this exists:** We **don’t** put a Windows **installer** (`setup.exe`) on GitHub. Smart App Control / SmartScreen often blocks unsigned apps that change every release. A **portable BETA zip** is the Windows binary we publish here.  
+> **Why this exists:** For most people the easiest option is the **signed Windows installer** (`EG-Launcher-*-win-x64-setup.exe`) on [GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest) — it is signed with **Azure Trusted Signing**. Build it yourself only if you want to. Smart App Control / SmartScreen can still warn on brand-new releases while reputation builds up.  
 > **Please don’t** download EG Launcher `.exe` files from random websites.
 
 You only need to do this **once** (or when you want an update). Copy and paste the commands — you don’t need to understand programming.
@@ -218,8 +218,8 @@ Then run the new **setup** in the `release` folder again (same install steps). Y
 ### Safety notes (please read)
 
 - This guide is for **building on your own computer**.  
-- **Do not** share your `setup.exe` as an “official download” for other people — every rebuild looks like a new unknown file to Windows.  
-- Official downloads are **GitHub Releases** only (Windows portable BETA + Linux AppImage).  
+- **Do not** share your self-built `setup.exe` as an “official download” for other people — it is unsigned, and every rebuild looks like a new unknown file to Windows.  
+- Official downloads are **GitHub Releases** only (signed Windows `setup.exe`, Windows portable BETA + Linux AppImage).  
 - More technical background: [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md)
 
 ---
@@ -228,14 +228,14 @@ Then run the new **setup** in the `release` folder again (same install steps). Y
 >
 > | Platform | Status |
 > | --- | --- |
-> | **Windows** | **[Portable BETA zip](https://github.com/YourLovelyFox/eg-launcher/releases)** on GitHub, or [build it yourself](#windows-users-build-the-launcher-yourself-easy-guide). |
-> | **Linux** | **[GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest)** — **AppImage only** (available now) |
+> | **Windows** | **[Signed setup.exe](https://github.com/YourLovelyFox/eg-launcher/releases/latest)** on GitHub (Azure Trusted Signing), [portable BETA zip](https://github.com/YourLovelyFox/eg-launcher/releases), or [build it yourself](#windows-users-build-the-launcher-yourself-easy-guide). Microsoft Store: in progress. |
+> | **Linux** | **[GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest)** — **AppImage** (available now) |
 >
 > Please do **not** trust random third-party Windows setups.
 
 | | |
 | --- | --- |
-| **Windows** | [GitHub portable BETA](https://github.com/YourLovelyFox/eg-launcher/releases) · [build yourself](#windows-users-build-the-launcher-yourself-easy-guide) |
+| **Windows** | [GitHub signed setup.exe](https://github.com/YourLovelyFox/eg-launcher/releases/latest) · [GitHub portable BETA](https://github.com/YourLovelyFox/eg-launcher/releases) · [build yourself](#windows-users-build-the-launcher-yourself-easy-guide) |
 | **Linux** | [GitHub Releases (AppImage)](https://github.com/YourLovelyFox/eg-launcher/releases/latest) |
 | **Changelog** | [CHANGELOG.md](./CHANGELOG.md) |
 | **Privacy** | [PRIVACY.md](./PRIVACY.md) |
@@ -259,11 +259,13 @@ Then run the new **setup** in the `release` folder again (same install steps). Y
 
 ## Download (end users)
 
-### Windows → GitHub portable BETA
+### Windows → GitHub signed setup.exe (or portable BETA)
 
-Download `EG-Launcher-*-win-x64-portable-BETA.zip` from **[GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases)**, unzip, run `EG Launcher.exe`.
+Download `EG-Launcher-<version>-win-x64-setup.exe` from **[GitHub Releases](https://github.com/YourLovelyFox/eg-launcher/releases/latest)** and run it. It is signed with **Azure Trusted Signing** (publisher reputation builds over time, so SmartScreen / Smart App Control may still warn on very new releases).
 
-Or [build it yourself](#windows-users-build-the-launcher-yourself-easy-guide). There is **no** Microsoft Store listing and **no** public `setup.exe`.
+Prefer no installer? Download `EG-Launcher-*-win-x64-portable-BETA.zip` (when attached to a release), unzip, run `EG Launcher.exe`.
+
+Or [build it yourself](#windows-users-build-the-launcher-yourself-easy-guide). The Microsoft Store listing is still in progress.
 
 Do not use third-party Windows builds.
 
@@ -273,8 +275,8 @@ Do not use third-party Windows builds.
 
 | Platform | File | Notes |
 | --- | --- | --- |
-| **Linux x64** | `EG-Launcher-<version>-linux-*.AppImage` | Only installer published on GitHub |
-| **Windows** | Build from source (top of README) | No public `setup.exe`; Store pending |
+| **Linux x64** | `EG-Launcher-<version>-linux-*.AppImage` | Published on GitHub |
+| **Windows x64** | `EG-Launcher-<version>-win-x64-setup.exe` | Signed (Azure Trusted Signing); Store pending |
 
 Release process (maintainers): [docs/GITHUB-RELEASES.md](./docs/GITHUB-RELEASES.md) · SAC history: [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md)
 
@@ -411,6 +413,7 @@ Workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml)
 Public GitHub Releases should emphasize:
 
 - Linux **AppImage**  
+- Windows **setup.exe**, signed in CI with Azure Trusted Signing (see [docs/GITHUB-SAC.md](./docs/GITHUB-SAC.md))  
 - Release body from **[CHANGELOG.md](./CHANGELOG.md)** (includes “Windows → Store only” banner)  
 
 Windows Store packages: `npm run dist:store` → private / Partner Center (not public setup.exe).
@@ -428,7 +431,7 @@ git push origin v1.0.5
 
 1. **Actions** → **Build & Release** → **Run workflow**  
 2. Set version (e.g. `1.0.5`) or leave empty to use `package.json`  
-3. Prefer publishing **Linux AppImage** only on public Releases; do not re-add Windows setup.exe for end users
+3. CI publishes the **Linux AppImage** and the **signed Windows setup.exe**; do not upload unsigned Windows installers by hand
 
 
 CI runs `scripts/extract-changelog.mjs` and uses that section as the GitHub Release description (shown in the in-app **What's new** update dialog).
