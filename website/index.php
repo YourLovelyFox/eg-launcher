@@ -13,15 +13,7 @@ try {
     $cats = [];
 }
 
-$winSetup = (string) cfg(
-    'github_win_setup',
-    'https://github.com/YourLovelyFox/eg-launcher/releases/download/v3.0.1/EG-Launcher-3.0.1-win-x64-setup.exe'
-);
-$linuxApp = (string) cfg(
-    'github_linux_appimage',
-    'https://github.com/YourLovelyFox/eg-launcher/releases/download/v3.0.1/EG-Launcher-3.0.1-linux-x86_64.AppImage'
-);
-$releases = (string) cfg('github_releases', 'https://github.com/YourLovelyFox/eg-launcher/releases');
+$releases = 'https://github.com/YourLovelyFox/eg-launcher/releases';
 
 layout_header('', 'home');
 ?>
@@ -31,8 +23,8 @@ layout_header('', 'home');
     <h1>EG Launcher</h1>
     <p><?= e(t('home.lead')) ?></p>
     <div class="hero-actions" id="download">
-      <a class="btn btn-primary" href="<?= e($winSetup) ?>" rel="noopener"><?= e(t('home.dl_win')) ?></a>
-      <a class="btn btn-secondary" href="<?= e($linuxApp) ?>" rel="noopener"><?= e(t('home.dl_linux')) ?></a>
+      <a class="btn btn-primary" href="<?= e($releases) ?>" target="_blank" rel="noopener"><?= e(t('home.dl_win')) ?></a>
+      <a class="btn btn-secondary" href="<?= e($releases) ?>" target="_blank" rel="noopener"><?= e(t('home.dl_linux')) ?></a>
       <a class="btn btn-secondary" href="<?= e((string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5')) ?>" target="_blank" rel="noopener">
         <i class="fa-brands fa-discord"></i> Discord
       </a>
@@ -99,8 +91,8 @@ layout_header('', 'home');
   <h2><?= e(t('home.get')) ?></h2>
   <p class="hint" style="margin-bottom: 12px;"><?= e(t('home.get_body')) ?></p>
   <div class="hero-actions">
-    <a class="btn btn-primary" href="<?= e($winSetup) ?>" rel="noopener"><?= e(t('home.win_installer')) ?></a>
-    <a class="btn btn-secondary" href="<?= e($linuxApp) ?>" rel="noopener"><?= e(t('home.dl_linux')) ?></a>
+    <a class="btn btn-primary" href="<?= e($releases) ?>" target="_blank" rel="noopener"><?= e(t('home.win_installer')) ?></a>
+    <a class="btn btn-secondary" href="<?= e($releases) ?>" target="_blank" rel="noopener"><?= e(t('home.dl_linux')) ?></a>
     <a class="btn btn-ghost" href="<?= e($releases) ?>" target="_blank" rel="noopener"><?= e(t('home.release_notes')) ?></a>
     <a class="btn btn-secondary" href="<?= e((string) cfg('discord_url', 'https://discord.gg/qzkA3CBex5')) ?>" target="_blank" rel="noopener">
       <i class="fa-brands fa-discord"></i> <?= e(t('home.join_discord')) ?>

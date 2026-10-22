@@ -1454,8 +1454,8 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
     echo '<meta name="twitter:image" content="' . e($img) . '">';
 
     echo '<title>' . e($full) . '</title>';
-    echo '<script>(function(){var n=navigator,c=n.connection||{};if(c.saveData||/slow-2g|2g/.test(c.effectiveType||""))document.documentElement.classList.add("lite");})();</script>';
-    echo '<link rel="stylesheet" href="/assets/style.css?v=synthwave-12">';
+    echo '<script>(function(){var n=navigator,c=n.connection||{},slow=!!(c.saveData||/slow-2g|2g/.test(c.effectiveType||"")),mobile=window.matchMedia("(max-width:900px),(hover:none) and (pointer:coarse)").matches;if(slow&&mobile)document.documentElement.classList.add("lite");})();</script>';
+    echo '<link rel="stylesheet" href="/assets/style.css?v=synthwave-13">';
     echo '<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>';
     echo '<link rel="preconnect" href="https://www.youtube.com">';
     echo '<link rel="preconnect" href="https://i.ytimg.com">';
@@ -1465,32 +1465,44 @@ function layout_header(string $title, string $active = '', ?string $metaDescript
     echo '<div class="site-bg" aria-hidden="true">';
     echo '<div class="bg-fallback"></div>';
     echo '<div class="bg-poster"></div>';
-    echo '<video class="bg-video" data-src="/assets/synthwave-bg-web.mp4?v=2" muted loop playsinline webkit-playsinline preload="metadata" disablePictureInPicture disableRemotePlayback></video>';
+    echo '<video class="bg-video" src="/assets/synthwave-bg-web.mp4?v=3" data-src="/assets/synthwave-bg-web.mp4?v=3" autoplay muted loop playsinline webkit-playsinline preload="auto" disablePictureInPicture disableRemotePlayback></video>';
     echo '<div class="bg-vignette"></div>';
     echo '</div>';
     echo <<<'JS'
 <script>(function(){
   var d=document.documentElement,v=document.querySelector(".bg-video");
   function wanted(){return !!(v&&!d.classList.contains("lite"));}
-  function attach(){
-    if(!v||v.getAttribute("src"))return;
-    v.muted=true;v.defaultMuted=true;v.playsInline=true;
+  function strip(){
+    if(!v)return;
+    v.removeAttribute("autoplay");
+    v.removeAttribute("src");
+    v.removeAttribute("data-src");
+    try{v.load();}catch(e){}
+  }
+  function arm(){
+    if(!v)return;
+    v.muted=true;v.defaultMuted=true;v.volume=0;v.playsInline=true;
     v.setAttribute("muted","");
     v.setAttribute("playsinline","");
     v.setAttribute("webkit-playsinline","");
-    v.src=v.getAttribute("data-src")||"";
-    try{v.load();}catch(e){}
+    var src=v.getAttribute("data-src")||v.getAttribute("src")||"/assets/synthwave-bg-web.mp4?v=3";
+    if(v.getAttribute("src")!==src){v.src=src;try{v.load();}catch(e){}}
   }
   function play(){
-    if(!wanted()||document.hidden)return;
-    attach();
+    if(!wanted()){strip();return;}
+    if(document.hidden)return;
+    arm();
     var go=function(){var p=v.play();if(p&&p.catch)p.catch(function(){});};
-    if(v.readyState>=2)go();
-    else v.addEventListener("canplay",go,{once:true});
+    go();
+    v.addEventListener("canplay",go,{once:true});
+    v.addEventListener("loadeddata",go,{once:true});
   }
   function pause(){if(v&&v.getAttribute("src"))v.pause();}
-  if(v){
-    v.addEventListener("playing",function(){v.classList.add("is-playing");});
+  if(!wanted()){strip();}
+  else if(v){
+    var on=function(){v.classList.add("is-playing");};
+    v.addEventListener("playing",on);
+    v.addEventListener("timeupdate",function(){if(v.currentTime>0)on();},{once:true});
     v.addEventListener("error",function(){v.classList.remove("is-playing");});
   }
   document.addEventListener("visibilitychange",function(){

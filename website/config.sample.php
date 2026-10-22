@@ -21,8 +21,8 @@ return [
 
     'github_url' => 'https://github.com/YourLovelyFox/eg-launcher',
     'github_releases' => 'https://github.com/YourLovelyFox/eg-launcher/releases',
-    'github_win_setup' => 'https://github.com/YourLovelyFox/eg-launcher/releases/download/v3.0.1/EG-Launcher-3.0.1-win-x64-setup.exe',
-    'github_linux_appimage' => 'https://github.com/YourLovelyFox/eg-launcher/releases/download/v3.0.1/EG-Launcher-3.0.1-linux-x86_64.AppImage',
+    'github_win_setup' => 'https://github.com/YourLovelyFox/eg-launcher/releases',
+    'github_linux_appimage' => 'https://github.com/YourLovelyFox/eg-launcher/releases',
     'privacy_url' => 'https://github.com/YourLovelyFox/eg-launcher/blob/master/PRIVACY.md',
     'discord_url' => 'https://discord.gg/qzkA3CBex5',
     'contact_email' => 'info@eg-launcher.xyz',
