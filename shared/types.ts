@@ -293,6 +293,12 @@ export type GameInstance = {
   /** Launch profiles (JVM / RAM / resource packs). */
   profiles?: InstanceProfile[]
   activeProfileId?: string | null
+  /**
+   * Set when this instance was installed as a featured pack.
+   * Featured instances are playable with any account and do not count
+   * toward offline instance / mod quotas.
+   */
+  featuredSlug?: string | null
 }
 
 export type CatalogSearchHit = {

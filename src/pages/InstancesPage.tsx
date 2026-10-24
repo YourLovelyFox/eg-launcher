@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  OFFLINE_MAX_PRIMARY_MODS,
+  countQuotaInstances,
   offlineInstanceLimitMessage,
   quotasForAccount,
 } from '../../shared/offlineLimits'
@@ -41,7 +41,8 @@ export function InstancesPage() {
     activeAcc && (activeAcc.type === 'offline' || activeAcc.id.startsWith('offline-')),
   )
   const offlineQuotas = quotasForAccount(activeAcc)
-  const offlineAtInstanceCap = offlineActive && instances.length >= offlineQuotas.instances
+  const quotaInstanceCount = countQuotaInstances(instances)
+  const offlineAtInstanceCap = offlineActive && quotaInstanceCount >= offlineQuotas.instances
 
   const sorted = useMemo(() => {
     const pinned = loadQolPrefs().pinnedInstanceIds
@@ -151,7 +152,7 @@ export function InstancesPage() {
   async function importPack() {
     if (importing) return
     if (offlineAtInstanceCap) {
-      showToast('error', offlineInstanceLimitMessage(instances.length))
+      showToast('error', offlineInstanceLimitMessage(quotaInstanceCount))
       return
     }
     setImporting(true)
@@ -214,7 +215,7 @@ export function InstancesPage() {
             disabled={importing || offlineAtInstanceCap}
             title={
               offlineAtInstanceCap
-                ? offlineInstanceLimitMessage(instances.length, offlineQuotas.instances)
+                ? offlineInstanceLimitMessage(quotaInstanceCount, offlineQuotas.instances)
                 : offlineActive
                   ? `Offline: packs limited to ${offlineQuotas.mods} mods`
                   : undefined
@@ -228,7 +229,7 @@ export function InstancesPage() {
             disabled={offlineAtInstanceCap}
             title={
               offlineAtInstanceCap
-                ? offlineInstanceLimitMessage(instances.length, offlineQuotas.instances)
+                ? offlineInstanceLimitMessage(quotaInstanceCount, offlineQuotas.instances)
                 : undefined
             }
           >
@@ -249,9 +250,10 @@ export function InstancesPage() {
         >
           <strong>Offline account limits</strong>
           <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
-            Max <strong>{offlineQuotas.instances}</strong> instances ({instances.length}/
+            Max <strong>{offlineQuotas.instances}</strong> instances ({quotaInstanceCount}/
             {offlineQuotas.instances}) and <strong>{offlineQuotas.mods}</strong> mods per
-            instance (required dependencies do not count). Sign in with Microsoft for full access.
+            instance (required dependencies do not count). Featured packs do not count toward
+            these limits and can be played with this account. Sign in with Microsoft for full access.
           </p>
         </div>
       )}

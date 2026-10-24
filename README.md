@@ -251,7 +251,7 @@ Then run the new **setup** in the `release` folder again (same install steps). Y
 - Java RAM settings and automatic Mojang JRE download when a version needs a newer runtime  
 - Loaders: **Vanilla**, **Fabric**, **Forge**, **NeoForge**  
 - Enable / disable / remove mods; update checks on installed mods  
-- Featured pack: **Bee's SMP** (manual install, news & changelogs from the mod catalog)  
+- Featured packs: **Bee's SMP** and CMS featured packs (manual install, playable with Microsoft or offline accounts)  
 - **Partners** from CMS (staff-managed)  
 - **Updates:** Signed Windows setup.exe checks GitHub and installs the new NSIS package. Portable zip replaces its folder. Linux: download a new AppImage.
 

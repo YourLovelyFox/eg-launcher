@@ -29,8 +29,6 @@ import {
 } from './catalog'
 import type { InstalledMod } from '../../shared/types'
 import { installInstanceRuntime } from './minecraft'
-import { getActiveAccountSecret } from './auth'
-import { isOfflineAccount } from './offlineAuth'
 import { loadSettings } from './settings'
 import { formatMbLabel, getSystemMemoryInfo } from './systemMemory'
 import { scanModsFromDisk } from './egpack'
@@ -87,7 +85,7 @@ export type FeaturedPackStatus = {
   news: FeaturedPackNewsItem[]
   /** System RAM requirements for this heavy pack */
   memory: FeaturedPackMemoryGate
-  /** Offline accounts cannot install this pack (paid Minecraft required) */
+  /** Kept for UI compatibility — featured packs are playable with any account. */
   requiresPaidAccount: boolean
   paidAccountOk: boolean
 }
@@ -146,13 +144,6 @@ export function checkFeaturedPackPlay(
   instanceId: string,
 ): { error: string } | { warning: string } | null {
   if (!isFeaturedPackInstance(instanceId)) return null
-
-  const active = getActiveAccountSecret()
-  if (!active || isOfflineAccount(active)) {
-    return {
-      error: `${FEATURED_PACK.title} requires a paid Microsoft Minecraft account. Offline accounts cannot play this pack.`,
-    }
-  }
 
   const gate = evaluateFeaturedPackMemory()
   if (!gate.canInstall) {
@@ -296,11 +287,8 @@ export async function getFeaturedPackStatus(
     instance: instance ? { id: instance.id, name: instance.name } : null,
     news,
     memory: evaluateFeaturedPackMemory(),
-    requiresPaidAccount: true,
-    paidAccountOk: (() => {
-      const active = getActiveAccountSecret()
-      return Boolean(active && !isOfflineAccount(active))
-    })(),
+    requiresPaidAccount: false,
+    paidAccountOk: true,
   }
 }
 
@@ -422,14 +410,6 @@ export async function installFeaturedPack(
     throw new Error(memoryGate.installBlockReason || 'Not enough system RAM to install this pack.')
   }
 
-  // Paid Minecraft only — offline / cracked accounts cannot install Bee's SMP
-  const active = getActiveAccountSecret()
-  if (!active || isOfflineAccount(active)) {
-    throw new Error(
-      `${FEATURED_PACK.title} requires a paid Microsoft Minecraft account. Offline (cracked) accounts cannot download or install this pack.`,
-    )
-  }
-
   emit('meta', 0.02, 'Fetching pack metadata…')
   const project = await getProject(slug)
   const versions = await getProjectVersions(slug)
@@ -516,8 +496,11 @@ export async function installFeaturedPack(
       ) || null
   }
 
-  // Prefer branded title; folder id is sanitized (no apostrophes) by createInstance
-  const displayName = FEATURED_PACK.title || project.title || slug
+  // Prefer branded title for the built-in pack; other CMS packs use catalog title
+  const displayName =
+    slug === FEATURED_PACK.slug
+      ? FEATURED_PACK.title || project.title || slug
+      : project.title || slug
 
   if (!instance) {
     instance = createInstance({
@@ -525,6 +508,7 @@ export async function installFeaturedPack(
       gameVersion: mcVersion,
       loader,
       loaderVersion,
+      featuredSlug: slug,
     })
   } else {
     instance = updateInstance(instance.id, {
@@ -532,6 +516,7 @@ export async function installFeaturedPack(
       loader,
       loaderVersion,
       name: displayName,
+      featuredSlug: slug,
     })
   }
 

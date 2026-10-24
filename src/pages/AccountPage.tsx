@@ -196,7 +196,7 @@ export function AccountPage() {
     if (acc && (acc.type === 'offline' || acc.id.startsWith('offline-'))) {
       window.alert(
         offlineWarning ||
-          'Offline account active. You cannot join official Minecraft servers or install Bee’s SMP.',
+          'Offline account active. You cannot join official Minecraft servers. Featured packs can still be installed and played.',
       )
     }
   }
@@ -221,7 +221,7 @@ export function AccountPage() {
       showToast('success', `Offline login: ${res.account.username}`)
       window.alert(
         offlineWarning ||
-          'Offline account active. You cannot join official servers or download Bee’s SMP.',
+          'Offline account active. You cannot join official servers. Featured packs can still be installed and played.',
       )
       setOfflinePass('')
     } catch (err) {
@@ -273,7 +273,7 @@ export function AccountPage() {
           <strong>Offline account active</strong>
           <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
             {offlineWarning ||
-              'You cannot join official Minecraft servers, Realms, or servers that require a paid login. Bee’s SMP cannot be installed. Limited to 2 instances and 10 mods per instance (dependencies do not count).'}
+              'You cannot join official Minecraft servers, Realms, or servers that require a paid login. Featured packs can be installed and played with this account and do not count toward the instance or mod limits. Limited to 2 instances and 10 mods per instance (dependencies do not count).'}
           </p>
         </div>
       )}

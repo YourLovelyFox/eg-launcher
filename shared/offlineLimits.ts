@@ -30,6 +30,20 @@ export function quotasForAccount(
   }
 }
 
+/** Featured pack instances are unlimited for every account type. */
+export function isFeaturedPackInstanceMeta(
+  instance: { featuredSlug?: string | null } | null | undefined,
+): boolean {
+  return Boolean(instance?.featuredSlug)
+}
+
+/** Offline instance cap ignores featured packs. */
+export function countQuotaInstances(
+  instances: Array<{ featuredSlug?: string | null }>,
+): number {
+  return instances.filter((i) => !isFeaturedPackInstanceMeta(i)).length
+}
+
 export function offlineInstanceLimitMessage(currentCount: number, max = OFFLINE_MAX_INSTANCES): string {
   return (
     `Offline accounts are limited to ${max} instances ` +

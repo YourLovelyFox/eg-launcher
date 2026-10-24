@@ -108,8 +108,9 @@ function eg_faq_items(?string $lang = null): array
             'q' => 'Are there offline / guest limits?',
             'a' =>
                 'Offline (cracked-style) play is limited by design: typically **2 instances** and **10 primary mods** ' .
-                '(dependency mods do not count toward that cap). Microsoft accounts do not use those offline caps. ' .
-                'Exact limits can change with launcher updates.',
+                '(dependency mods do not count toward that cap). Featured packs in the launcher can be installed and ' .
+                'played with Microsoft or offline accounts, and they do not count toward those caps. ' .
+                'Microsoft accounts do not use those offline caps. Exact limits can change with launcher updates.',
         ],
         [
             'id' => 'microsoft-login',
@@ -218,8 +219,9 @@ function eg_faq_items(?string $lang = null): array
             'q' => 'Vannak offline / vendég korlátok?',
             'a' =>
                 'Az offline (cracked-szerű) játék szándékosan korlátos: általában **2 példány** és **10 elsődleges mod** ' .
-                '(a függőség-modok nem számítanak). Microsoft fiókra ezek a sapkák nem vonatkoznak. ' .
-                'A pontos számok launcher-frissítéssel változhatnak.',
+                '(a függőség-modok nem számítanak). A launcher kiemelt modpackjei Microsoft és offline fiókkal is ' .
+                'telepíthetők és játszhatók, és nem számítanak ezekbe a korlátokba. ' .
+                'Microsoft fiókra ezek a sapkák nem vonatkoznak. A pontos számok launcher-frissítéssel változhatnak.',
         ],
         'microsoft-login' => [
             'q' => 'A Microsoft belépés „Not signed in”, vagy Prismot mutat?',

@@ -107,7 +107,7 @@ function i18n_catalog(): array
             'flash.forum_locked_rest' => 'You can browse but cannot post until staff unlocks you.',
 
             'home.kicker' => 'Minecraft / Java Edition',
-            'home.lead' => 'Manage instances, add community content, and launch Minecraft with Microsoft login. Version 3.0.1 is out: a signed Windows installer and a Linux AppImage.',
+            'home.lead' => 'Manage instances, add community content, and launch Minecraft with Microsoft login. Version 3.0.2 is out: a signed Windows installer and a Linux AppImage.',
             'home.dl_win' => 'Download for Windows',
             'home.dl_linux' => 'Linux AppImage',
             'home.latest_news' => 'Latest news',
@@ -333,7 +333,7 @@ function i18n_catalog(): array
             'flash.forum_locked_rest' => 'Böngészhetsz, de nem írhatsz, amíg a staff fel nem oldja.',
 
             'home.kicker' => 'Minecraft / Java Edition',
-            'home.lead' => 'Példányok kezelése, közösségi tartalom, Minecraft indítás Microsoft belépéssel. Megjelent a 3.0.1: aláírt Windows telepítő és Linux AppImage.',
+            'home.lead' => 'Példányok kezelése, közösségi tartalom, Minecraft indítás Microsoft belépéssel. Megjelent a 3.0.2: aláírt Windows telepítő és Linux AppImage.',
             'home.dl_win' => 'Letöltés Windowsra',
             'home.dl_linux' => 'Linux AppImage',
             'home.latest_news' => 'Friss hírek',

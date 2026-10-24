@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  countQuotaInstances,
   offlineInstanceLimitMessage,
   quotasForAccount,
 } from '../../shared/offlineLimits'
@@ -25,7 +26,8 @@ export function CreateInstanceModal({ open, onClose, onCreated }: Props) {
     active && (active.type === 'offline' || active.id.startsWith('offline-')),
   )
   const offlineQuotas = quotasForAccount(active)
-  const offlineAtInstanceCap = offlineActive && instances.length >= offlineQuotas.instances
+  const quotaInstanceCount = countQuotaInstances(instances)
+  const offlineAtInstanceCap = offlineActive && quotaInstanceCount >= offlineQuotas.instances
 
   const [name, setName] = useState('')
   const [loader, setLoader] = useState<LoaderType>('fabric')
@@ -95,7 +97,7 @@ export function CreateInstanceModal({ open, onClose, onCreated }: Props) {
   async function handleCreate() {
     if (!gameVersion) return
     if (offlineAtInstanceCap) {
-      showToast('error', offlineInstanceLimitMessage(instances.length))
+      showToast('error', offlineInstanceLimitMessage(quotaInstanceCount))
       return
     }
     if (loader !== 'vanilla' && !loaderVersion) {
@@ -134,8 +136,8 @@ export function CreateInstanceModal({ open, onClose, onCreated }: Props) {
           <p className="hint" style={{ color: 'var(--amber)' }}>
             Offline account: max {offlineQuotas.instances} instances
             {offlineAtInstanceCap
-              ? ` — limit reached (${instances.length}/${offlineQuotas.instances}). Sign in with Microsoft to create more.`
-              : ` (${instances.length}/${offlineQuotas.instances} used).`}
+              ? ` — limit reached (${quotaInstanceCount}/${offlineQuotas.instances}). Sign in with Microsoft to create more.`
+              : ` (${quotaInstanceCount}/${offlineQuotas.instances} used).`}
           </p>
         )}
 

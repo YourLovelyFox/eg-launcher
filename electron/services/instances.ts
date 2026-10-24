@@ -11,6 +11,7 @@ import {
   readJsonFile,
   writeJsonFile,
 } from '../paths'
+import { countQuotaInstances } from '../../shared/offlineLimits'
 import { assertOfflineCanCreateInstance } from './offlineAuth'
 
 const UUID_RE =
@@ -187,6 +188,34 @@ function ensureMigrated(): void {
       migrateUnsafeFolderChars()
     }
   }
+  backfillFeaturedSlugs()
+}
+
+/** Stamp featuredSlug on instances already recorded in featured-packs.json. */
+function backfillFeaturedSlugs(): void {
+  const featuredPath = path.join(getDataRoot(), 'featured-packs.json')
+  if (!fs.existsSync(featuredPath)) return
+  let raw: Record<string, { instanceId?: string | null }>
+  try {
+    raw = readJsonFile(featuredPath, {})
+  } catch {
+    return
+  }
+  const byId = new Map<string, string>()
+  for (const [slug, state] of Object.entries(raw)) {
+    if (state?.instanceId) byId.set(state.instanceId, slug)
+  }
+  if (byId.size === 0) return
+  const instances = loadIndex()
+  let changed = false
+  const next = instances.map((inst) => {
+    if (inst.featuredSlug) return inst
+    const slug = byId.get(inst.id)
+    if (!slug) return inst
+    changed = true
+    return { ...inst, featuredSlug: slug }
+  })
+  if (changed) saveIndex(next)
 }
 
 /**
@@ -278,11 +307,14 @@ export function createInstance(input: {
   gameVersion: string
   loader: LoaderType
   loaderVersion?: string
+  featuredSlug?: string | null
 }): GameInstance {
   ensureMigrated()
   const instances = loadIndex()
-  // Offline accounts: max 2 instances (see shared/offlineLimits.ts)
-  assertOfflineCanCreateInstance(instances.length)
+  // Featured packs skip the offline DIY instance cap
+  if (!input.featuredSlug) {
+    assertOfflineCanCreateInstance(countQuotaInstances(instances))
+  }
   const displayName = input.name.trim() || `${input.loader} ${input.gameVersion}`
   const id = uniqueInstanceFolderName(displayName)
 
@@ -295,6 +327,7 @@ export function createInstance(input: {
     createdAt: new Date().toISOString(),
     mods: [],
     iconColor: pickColor(input.loader),
+    featuredSlug: input.featuredSlug || undefined,
   }
 
   getInstanceDir(instance.id)

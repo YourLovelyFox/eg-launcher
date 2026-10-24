@@ -287,7 +287,8 @@ export function offlineMultiplayerWarning(): string {
   return (
     'You are using an offline (non-premium) account. You cannot join official Minecraft servers, ' +
     'Realms, or servers that require a paid Microsoft/Minecraft login. Use cracked-friendly / offline ' +
-    'servers only. Bee’s SMP requires a paid Microsoft account and cannot be installed while offline. ' +
+    'servers only. Featured packs can be installed and played with this account and do not count ' +
+    'toward the instance or mod limits. ' +
     `Limits: up to ${quotasForAccount(getActiveMinecraftAccount()).instances} instances and ${quotasForAccount(getActiveMinecraftAccount()).mods} mods per instance ` +
     '(required dependencies do not count toward the mod limit). Sign in with Microsoft for full access.'
   )
@@ -324,6 +325,7 @@ export function assertOfflineCanAddPrimaryMods(
   newPrimaryCount: number,
 ): void {
   if (!isActiveAccountOffline()) return
+  if (instance.featuredSlug) return
   if (newPrimaryCount <= 0) return
   const current = countPrimaryMods(instance.mods)
   const max = quotasForAccount(getActiveMinecraftAccount()).mods

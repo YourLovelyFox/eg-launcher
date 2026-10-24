@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FEATURED_PACK } from '../../shared/branding'
 import type { FeaturedPackMemoryGate } from '../../shared/types'
 import { IconDownload, IconPlay, IconStop } from '../components/Icons'
@@ -88,6 +88,8 @@ function formatChangelog(text: string): string {
 
 export function BeesSmpPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const packSlug = (searchParams.get('pack') || '').trim() || FEATURED_PACK.slug
   const {
     showToast,
     accounts,
@@ -113,14 +115,14 @@ export function BeesSmpPage() {
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const data = (await window.hive.featured.getStatus(FEATURED_PACK.slug)) as PackStatus
+      const data = (await window.hive.featured.getStatus(packSlug)) as PackStatus
       setStatus(data)
     } catch (err) {
       showToast('error', (err as Error).message)
     } finally {
       setLoading(false)
     }
-  }, [showToast])
+  }, [packSlug, showToast])
 
   useEffect(() => {
     refresh()
@@ -136,19 +138,11 @@ export function BeesSmpPage() {
       showToast('error', status.memory.installBlockReason || 'Not enough system RAM')
       return
     }
-    if (status && !status.paidAccountOk) {
-      showToast(
-        'error',
-        `${FEATURED_PACK.title} requires a paid Microsoft Minecraft account. Offline accounts cannot install this pack.`,
-      )
-      navigate('/account')
-      return
-    }
     setBusy('install')
     setDownloadProgress({ stage: 'start', progress: 0, message: 'Starting pack install…' })
     try {
       const result = await window.hive.featured.install({
-        slug: FEATURED_PACK.slug,
+        slug: packSlug,
         versionId: status?.latest?.id,
       })
       try {
@@ -159,7 +153,7 @@ export function BeesSmpPage() {
       }
       showToast(
         'success',
-        `${FEATURED_PACK.title} ${result.versionNumber || ''} installed`.trim(),
+        `${status?.project.title || FEATURED_PACK.title} ${result.versionNumber || ''} installed`.trim(),
       )
     } catch (err) {
       showToast('error', (err as Error).message)
@@ -171,7 +165,7 @@ export function BeesSmpPage() {
 
   async function play(acknowledgeLowMemory = false) {
     if (!loggedIn) {
-      showToast('error', 'Sign in with Microsoft to play')
+      showToast('error', 'Sign in with a Microsoft or offline account to play')
       navigate('/account')
       return
     }
@@ -191,7 +185,7 @@ export function BeesSmpPage() {
     }
     if (mem?.playNeedsLowMemoryWarning && !acknowledgeLowMemory) {
       const ok = window.confirm(
-        `${FEATURED_PACK.title} ideally needs ${mem.recommendedLabel} of RAM.\n\n` +
+        `${status?.project.title || FEATURED_PACK.title} ideally needs ${mem.recommendedLabel} of RAM.\n\n` +
           `Your PC has about ${mem.system.totalGbRounded} GB total, so the launcher only allows ${mem.maxAllowedLabel}.\n\n` +
           `Playing on ${mem.maxAllowedLabel} will likely feel slow, laggy, or unstable. Continue anyway?`,
       )
@@ -237,7 +231,7 @@ export function BeesSmpPage() {
     return (
       <div className="page">
         <div className="empty">
-          <h3>Could not load {FEATURED_PACK.title}</h3>
+          <h3>Could not load {packSlug}</h3>
           <button className="btn btn-primary" onClick={() => refresh()}>
             Retry
           </button>
@@ -246,9 +240,10 @@ export function BeesSmpPage() {
     )
   }
 
-  const { project, latest, local, updateAvailable, news, memory, paidAccountOk } = status
+  const { project, latest, local, updateAvailable, news, memory } = status
   const newCount = news.filter((n) => n.isNew).length
-  const canInstallPack = memory.canInstall && paidAccountOk
+  const canInstallPack = memory.canInstall
+  const packTitle = project.title || FEATURED_PACK.title
 
   return (
     <div className="page pack-page">
@@ -264,8 +259,7 @@ export function BeesSmpPage() {
             )}
             {!local.installed && <span className="badge">Not installed</span>}
             {!memory.canInstall && <span className="badge badge-orange">Needs 12+ GB RAM</span>}
-            {!paidAccountOk && <span className="badge badge-orange">Paid account required</span>}
-            {memory.canInstall && paidAccountOk && memory.playNeedsLowMemoryWarning && (
+            {memory.canInstall && memory.playNeedsLowMemoryWarning && (
               <span className="badge badge-orange">Low memory PC</span>
             )}
           </div>
@@ -274,7 +268,7 @@ export function BeesSmpPage() {
             <div>
               <h1>{project.title}</h1>
               <p className="featured-desc">
-                {project.description || FEATURED_PACK.description}
+                {project.description || (packSlug === FEATURED_PACK.slug ? FEATURED_PACK.description : '')}
               </p>
             </div>
           </div>
@@ -328,26 +322,6 @@ export function BeesSmpPage() {
             </div>
           )}
 
-          {!paidAccountOk && (
-            <div
-              className="panel"
-              style={{
-                marginTop: 12,
-                marginBottom: 4,
-                borderColor: 'rgba(239, 68, 68, 0.45)',
-                background: 'rgba(239, 68, 68, 0.08)',
-              }}
-            >
-              <strong style={{ color: 'var(--danger, #f87171)' }}>
-                Paid Microsoft account required
-              </strong>
-              <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
-                {FEATURED_PACK.title} cannot be downloaded or played with an offline (cracked)
-                account. Sign in with a Microsoft account that owns Minecraft: Java Edition.
-              </p>
-            </div>
-          )}
-
           {canInstallPack && memory.playNeedsLowMemoryWarning && (
             <div
               className="panel"
@@ -360,7 +334,7 @@ export function BeesSmpPage() {
             >
               <strong>Low memory warning</strong>
               <p className="hint" style={{ marginBottom: 0, marginTop: 6 }}>
-                {FEATURED_PACK.title} ideally needs {memory.recommendedLabel} allocated. Your PC has
+                {packTitle} ideally needs {memory.recommendedLabel} allocated. Your PC has
                 about {memory.system.totalGbRounded} GB total, so max is {memory.maxAllowedLabel}. You
                 can still play, but performance will likely be poor.
               </p>
@@ -403,9 +377,7 @@ export function BeesSmpPage() {
                   ? 'Installing…'
                   : !memory.canInstall
                     ? 'Needs 12+ GB RAM'
-                    : !paidAccountOk
-                      ? 'Paid account required'
-                      : 'Install pack'}
+                    : 'Install pack'}
               </button>
             ) : updateAvailable ? (
               <button
@@ -450,7 +422,7 @@ export function BeesSmpPage() {
                         ? memory.installBlockReason || 'Not enough system RAM'
                         : memory.playNeedsMoreAllocated
                           ? `Set Maximum RAM to ${memory.recommendedLabel} in Settings`
-                          : `Play ${FEATURED_PACK.title}`
+                          : `Play ${packTitle}`
                 }
               >
                 <IconPlay />
@@ -578,8 +550,9 @@ export function BeesSmpPage() {
       <div className="panel" style={{ marginTop: 16 }}>
         <h2>About</h2>
         <p className="hint">
-          <strong>{FEATURED_PACK.title}</strong> is pinned in EG Launcher permanently. It is never
-          installed automatically — use Install when you want it. The News section above always
+          <strong>{packTitle}</strong> is a featured pack in EG Launcher. It is never
+          installed automatically — use Install when you want it. Microsoft and offline accounts
+          can both install and play it. The News section above always
           shows mod catalog release notes so everyone can see what changed.
         </p>
         <p className="hint" style={{ marginTop: 8 }}>

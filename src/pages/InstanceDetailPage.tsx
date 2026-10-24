@@ -11,6 +11,7 @@ import { ExportEgpackModal } from '../components/ExportEgpackModal'
 import { EditInstanceModal } from '../components/EditInstanceModal'
 import {
   countPrimaryMods,
+  isFeaturedPackInstanceMeta,
   quotasForAccount,
 } from '../../shared/offlineLimits'
 import { IconDownload, IconFolder, IconPlay, IconStop, IconTrash } from '../components/Icons'
@@ -898,7 +899,7 @@ export function InstanceDetailPage() {
               <h2>Installed content</h2>
               <p className="hint" style={{ marginBottom: 0 }}>
                 {instance.mods.length} mod{instance.mods.length === 1 ? '' : 's'}
-                {offlineActive
+                {offlineActive && !isFeaturedPackInstanceMeta(instance)
                   ? ` · ${countPrimaryMods(instance.mods)}/${offlineQuotas.mods} count toward offline limit (deps free)`
                   : ''}
                 {updatesAvailable.length > 0

@@ -6,6 +6,17 @@ Format: each release section is published as the GitHub Release body.
 
 ---
 
+## [3.0.2] — 2026-10-24
+
+### Changed
+- **Featured packs** (Bee’s SMP and any CMS featured pack) can be installed and played with **Microsoft or offline** accounts. They no longer require a paid Minecraft login, and they do not count toward offline instance/mod quotas.
+
+### Downloads
+- Windows: `EG-Launcher-3.0.2-win-x64-setup.exe` (signed)
+- Linux: `EG-Launcher-3.0.2-linux-x86_64.AppImage`
+
+---
+
 ## [3.0.1] — 2026-10-22
 
 ### Fixed
